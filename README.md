@@ -1,2 +1,2 @@
 # MAXIBONE
-SRμCT Bone tomography analysis
+Source code for SRμCT Bone tomography analysis
