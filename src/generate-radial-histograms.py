@@ -11,6 +11,7 @@ import skimage.measure as measure
 from joblib import Parallel, delayed
 import multiprocessing;
 
+from resample import *;
 from esrf_read import *;
 import glob;
 import sys;
@@ -27,7 +28,7 @@ def radial_histogram(tomo,nr,bin_edges):
     Rtot=tomo.shape[1]/2
     nbins = len(bin_edges)-1
     hists = np.empty((nr,nbins),dtype=float)
-    for i in range(n):
+    for i in range(nr):
         r = i*Rtot/nr;
         R = (i+1)*Rtot/nr
         iR = cart_to_polar(tomo.data,np.ceil(R-r), np.ceil(2*np.pi*R),r=r,R=R);

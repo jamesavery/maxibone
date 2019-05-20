@@ -152,11 +152,11 @@ def distributions_from_clusters(xs, rho, n_clusters,
     # First generate N_points from distribution and run k-means 
     points              = points_from_histogram(xs, rho, N_points);
     centers, mins, maxs = kMeans1D(points,n_clusters,initial_clusters=initial_clusters);
-    maxima              = cluster_peaks(xs,rho,mins,maxs)
+    peaks               = cluster_peaks(xs,rho,mins,maxs)
     
     # Get initial guess for optimization from clusters
     centroid_values= np.interp(centers, xs, rho);             # Exact value of rho[c] for each center c
-    peak_values    = rho[maxima]
+    peak_values    = rho[peaks]
     cluster_widths = np.minimum(maxs-centers, centers-mins); # Distribution needs to be essentially zero at this width
 
     params = (xs,rho,overshoot_penalty,distribution_function);
@@ -165,7 +165,7 @@ def distributions_from_clusters(xs, rho, n_clusters,
 #    c_guess = centers;
     a_guess = np.sqrt(peak_values)
     b_guess = b_from_width(distribution_function,cluster_widths)
-    c_guess = xs[maxima];
+    c_guess = xs[peaks];
     d_guess = np.ones(n_clusters)
 
 #    return np.concatenate([a_guess,b_guess,c_guess,d_guess])

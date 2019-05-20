@@ -1,3 +1,5 @@
+import numpy as np
+
 def sample(image,xs,ys):
     yminus,iminus= np.modf(ys-0.5);
     yplus, iplus = np.modf(ys+0.5);
@@ -20,17 +22,20 @@ def sample(image,xs,ys):
     
     return I_polar.reshape((-1,xs.shape[0],xs.shape[1]))
 
-def cart_to_polar(image,nr,ntheta):
+def cart_to_polar(image,nr,ntheta, r=0, R=None):
     midy, midx = np.array(image.shape[-2:])/2;
     assert(midx==midy);
-    R = midx;
+    if(R==None):
+        R = midx;
     
-    rs = np.linspace(0,R,nr,endpoint=False);    
+    rs = np.linspace(r,R,nr,endpoint=False);    
     thetas = np.linspace(0,2*np.pi,ntheta,endpoint=False);
     
-    xs = rs[:,None]*np.cos(thetas)[None,:]+R;
-    ys = rs[:,None]*np.sin(thetas)[None,:]+R;
+    xs = rs[:,None]*np.cos(thetas)[None,:]+midx;
+    ys = rs[:,None]*np.sin(thetas)[None,:]+midy;
     return sample(image,xs,ys);
+
+
 
 def polar_to_cart(polar_image,nx,ny):
     R = polar_image.shape[1];    
