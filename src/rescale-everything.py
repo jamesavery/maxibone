@@ -6,7 +6,7 @@ import sys;
 import h5py;
 
 dataroot  = sys.argv[1];
-chunk_max = 256
+chunk_max = 1024
 scales    = [2,3,4,5,6,7,8]
 
 with open(dataroot+"/xmlfiles.txt") as f:
@@ -59,9 +59,7 @@ def process_histogram(xmlfile,chunk_max,scales):
             s_chunk_length = int(np.round(chunk_length/s))
             voxels = output_files[i]["subvolume"]["voxels"];
 
-            scaled_chunk = rescale(frames[:chunk_length],1/s,multichannel=False,anti_aliasing=True)
-            print("scaled_chunk: ",scaled_chunk.shape)
-            voxels[output_z[i]:output_z[i]+s_chunk_length] = scaled_chunk
+            voxels[output_z[i]:output_z[i]+s_chunk_length] = rescale(frames[:chunk_length],1/s,multichannel=False,anti_aliasing=True)
             output_z[i] += s_chunk_length
 
 # Close the output files
