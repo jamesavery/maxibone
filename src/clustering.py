@@ -1,7 +1,7 @@
 import numpy as np
 import sklearn.cluster
 from scipy.optimize import minimize
-from maxibone.distributions import *
+from distributions import *
 
 def points_from_histogram(xs,hist, N_points=10000):
     """Draws approximately N_points from xs, distributed 
@@ -60,7 +60,7 @@ def kMeans1D(points, n_clusters, initial_clusters='k-means++'):
     
     kmeans_instance.fit(X) #Compute k-means clustering, i.e. train
 
-    centroids = kmeans_instance.cluster_centers_.squeeze()
+    centroids = kmeans_instance.cluster_centers_.reshape(-1)
     labels    = kmeans_instance.predict(X) #Predict the closest cluster two which each sample in X belongs, i.e. labels
 
     # Relabel so that 1D centroids are in ascending order
@@ -72,6 +72,35 @@ def kMeans1D(points, n_clusters, initial_clusters='k-means++'):
     
     return (centroids, mins, maxs)
 
+
+def kMeansND(points, n_clusters, initial_clusters='k-means++'):
+    """Computes k-means for a array of 1D points, sorted in ascending order
+    Input:
+      points:           An array of two-value points
+      n_clusters:       The number of desired clusters 
+      initial_clusters: initial cluster centroid guess (n_clusters x 1 array) or 'k-means++' if first run
+
+    Returns tuple (centroids,mins,maxs), where:
+      centroids:  The centroid for each cluster
+      labels:     The range of the clusters; Cluster i runs from mins[i] to maxs[i] < mins[i+1]
+    """
+    if (not isinstance(initial_clusters,str)):
+        initial_clusters = initial_clusters.reshape(-1,1)
+        n_init = 1
+    else:
+        n_init = 10
+        
+    kmeans_instance = sklearn.cluster.KMeans(algorithm='auto', copy_x=True, init=initial_clusters, max_iter=300,
+                                    n_clusters=n_clusters, n_init=n_init, n_jobs=1,
+                                    precompute_distances='auto', random_state=None, tol=0.0001, verbose=0)
+    
+    kmeans_instance.fit(points) #Compute k-means clustering, i.e. train
+
+    centroids = kmeans_instance.cluster_centers_.squeeze()
+    labels    = kmeans_instance.predict(X) #Predict the closest cluster two which each sample in X belongs, i.e. labels
+
+    return (centroids, labels)
+
     
 def distance_squared(fapprox,fexact):
     return np.sum((fexact-fapprox)**2);
@@ -82,31 +111,6 @@ def distance_pos_squared(fapprox,fexact,penalty):
 
     return np.sqrt(np.sum(diff**2)) + penalty*np.sqrt(np.sum(overshoot**2))
 
-def fitfuncs_loops(x_gauss_para, *params):
-    xs      = params[0];        
-    fexact  = params[1];
-    penalty = params[2];
-
-    n = len(x_gauss_para) // 3;    
-#    a=[0,0,0,0]                 # Pas på! Virker kun for n_clusters = 4
-    a = np.zeros(n);
-    b = np.zeros(n);
-    c = np.zeros(n);
-
-    for i in range(0, n):
-        a[i] = x_gauss_para[    i] 
-        b[i] = x_gauss_para[  n+i]
-        c[i] = x_gauss_para[2*n+i]
-        fapprox = np.zeros(len(xs))
-
-    for i in range(len(xs)):         # Meget langsomt -- se vektoriseret version nedenfor 
-        for j in range(n): 
-            fapprox[i] = fapprox[i] + gaussian(xs[i],a[j],b[j],c[j])
-            
-    return distance_pos_squared(fapprox,fexact,penalty)
-
-
-# Cirka 100 gange hurtigere
 def fitfuncs_vectorized(x_gauss_para, *params):
     xs      = params[0];        
     fexact  = params[1];
@@ -166,13 +170,22 @@ def distributions_from_clusters(xs, rho, n_clusters,
     a_guess = np.sqrt(peak_values)
     b_guess = b_from_width(distribution_function,cluster_widths)
     c_guess = xs[peaks];
-    d_guess = np.ones(n_clusters)
+    d_guess = np.sqrt(2)*np.ones(n_clusters)
 
+    # Bounds on parameters to keep numerical optimization from escaping into nonsense
+    a_bounds = np.array([-np.sqrt(peak_values),2*np.sqrt(peak_values)]).transpose()
+    b_bounds = np.array([-b_guess*1.5,b_guess*1.5]).transpose()
+    c_bounds = np.array([(mins[i],maxs[i]) for i in range(n_clusters)])
+    d_bounds = np.array([[-2,2]]*n_clusters)
+   
+    
 #    return np.concatenate([a_guess,b_guess,c_guess,d_guess])
     
     res = minimize(fitfuncs,
                    x0=np.concatenate([a_guess, b_guess, c_guess, d_guess]), 
-                   args=params);
+                   args=params,
+                   bounds=np.concatenate([a_bounds,b_bounds,c_bounds,d_bounds])
+    );
 
     a = res.x[0           :  n_clusters]; # Peak values
     b = res.x[n_clusters  :2*n_clusters]; # Exponents
