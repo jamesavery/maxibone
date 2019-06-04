@@ -2,8 +2,11 @@
 # Read metadata and data from raw tomograms from ESRF.
 # (C) James Avery for the MAXIBONE project, 2018
 import numpy as np;
+import bohrium as bh;
 import numpy.ma as ma;
 import sys,re,os;
+
+# TODO: Switch more elegantly between numpy and bohrium
 
 def esrf_edf_metadata(filename):
     meta = {};
@@ -52,15 +55,53 @@ def esrf_edfrange_to_npy(info,region):
     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
     image = np.zeros(shape,dtype=np.float32);
     for z in range(z_start,z_end):
-        print(z);
+        if (z % 10 == 0):
+            print(z);
         (meta,data) = esrf_edf_n_to_npy(info,z);
         image[z-z_start] = data[y_start:y_end,x_start:x_end];
 
     return ma.masked_array(image,mask=(image==0));
 
+
 def esrf_full_tomogram(info):
     (nx,ny,nz) = (int(info['sizex']),int(info['sizey']),int(info['sizez']));
     return esrf_edfrange_to_npy(info,[[0,0,0],[nx-1,ny-1,nz-1]]);
+
+def esrf_edf_to_bh(filename):
+    meta = esrf_edf_metadata(filename);
+    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));    
+    header_length = 1024;        
+
+    with open(filename,"rb") as f:
+        f.seek(header_length,os.SEEK_SET);
+        data = bh.fromfile(file=f,dtype=meta["NumpyType"]);
+#        assert data.shape[0]*2 == int(meta["Size"]);
+        return (meta,data.reshape(ny,nx));
+
+def esrf_edf_n_to_bh(info,n):
+    dirname        = info["dirname"];
+    subvolume_name = info["subvolume_name"].format(n);
+    return esrf_edf_to_bh(dirname+"/"+subvolume_name);
+
+def esrf_edfrange_to_bh(info,region):
+    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
+    assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
+
+    shape = (z_end-z_start,y_end-y_start,x_end-x_start);
+    image = bh.zeros(shape,dtype=bh.float32);
+    for z in range(z_start,z_end):
+        if (z % 100 == 0):
+            print(z);
+        (meta,data) = esrf_edf_n_to_bh(info,z);
+
+        image[z-z_start] = data[y_start:y_end,x_start:x_end];
+
+    return image;
+
+def esrf_full_tomogram_bh(info):
+    (nx,ny,nz) = (int(info['sizex']),int(info['sizey']),int(info['sizez']));
+    return esrf_edfrange_to_bh(info,[[0,0,0],[nx-1,ny-1,nz-1]]);
+
 
 def esrf_read_xml(filename):
     fields = ["subvolume_name","sizex","sizey","sizez","originx","originy","originz","voxelsize","valmin","valmax","byte_order","s1","s2","S1","S2"];
