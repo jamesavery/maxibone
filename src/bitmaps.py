@@ -43,7 +43,7 @@ def dilation_1d(A_,n=1, axis=0):
 
 def erosion(A,n=1, axes=None):
     if axes is None:
-        axes = range(len(A_.shape))
+        axes = range(len(A.shape))
         
     B = erosion_1d(A,n,axes[0])
     for axis in axes[1:]:
@@ -52,7 +52,7 @@ def erosion(A,n=1, axes=None):
 
 def dilation(A,n=1, axes=None):
     if axes is None:
-        axes = range(len(A_.shape))
+        axes = range(len(A.shape))
         
     B = dilation_1d(A,n,axes[0])
     for axis in axes[1:]:
@@ -193,5 +193,4 @@ def fill_holes_2d(A,axis=0):
             B[:,:,i] = nd.binary_fill_holes(A[:,:,i])
 
     return B
-
 
