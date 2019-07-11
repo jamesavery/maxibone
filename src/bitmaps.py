@@ -1,4 +1,11 @@
 import bohrium as bh
+import numpy as np
+
+# Small
+
+def bit_and(l): return np.logical_and.reduce(l)
+def bit_or(l):  return np.logical_or.reduce(l)
+def bit_not(l): return np.logical_not(b)
 
 def prod(a):
     return bh.product(a,dtype=bh.int64)
@@ -12,7 +19,7 @@ def axis_split(A,axis=0):
 
 def erosion_1d(A_,n=1, axis=0):
     (Am,Ai,Ar) = axis_split(A_,axis)
-    A = A_.astype(bool).reshape(Am,Ai,Ar)
+    A = A_.astype(bool,copy=True).reshape(Am,Ai,Ar)
     B = A.copy();
     
     for i in range(n):
@@ -24,7 +31,7 @@ def erosion_1d(A_,n=1, axis=0):
 
 def dilation_1d(A_,n=1, axis=0):
     (Am,Ai,Ar) = axis_split(A_,axis)
-    A = A_.astype(bool).reshape(Am,Ai,Ar)
+    A = A_.astype(bool,copy=True).reshape(Am,Ai,Ar)
     B = A.copy();
     
     for i in range(n):
@@ -78,7 +85,7 @@ def axis2_split(A,axes=[0,1]):
 
 def erosion_cross_2d(A_,n=1, axes=[0,1]):
     (Am,Ai,Ap,Aj,Ar) = axis2_split(A_,axes)
-    A = A_.astype(bool).reshape(Am,Ai,Ap,Aj,Ar)
+    A = A_.astype(bool,copy=True).reshape(Am,Ai,Ap,Aj,Ar)
     B = A.copy();
     
     for i in range(n):
@@ -93,7 +100,7 @@ def erosion_cross_2d(A_,n=1, axes=[0,1]):
 
 def dilation_cross_2d(A_,n=1, axes=[0,1]):
     (Am,Ai,Ap,Aj,Ar) = axis2_split(A_,axes)
-    A = A_.astype(bool).reshape(Am,Ai,Ap,Aj,Ar)
+    A = A_.astype(bool,copy=True).reshape(Am,Ai,Ap,Aj,Ar)
     B = A.copy();
     
     for i in range(n):
@@ -109,12 +116,12 @@ def dilation_cross_2d(A_,n=1, axes=[0,1]):
 
 def erosion_cross(A_,n=1, axes=None):
     if axes is None:
-        axes = range(len(A.shape))
+        axes = range(len(A_.shape))
         
     n_ax   = len(axes)
     shapes = bh.array([axis_split(A_,axis) for axis in axes],dtype=int)
 
-    A = A_.astype(bool)
+    A = A_.astype(bool,copy=True)
     B = A.copy();
     
     for i in range(n):
@@ -131,12 +138,12 @@ def erosion_cross(A_,n=1, axes=None):
 
 def dilation_cross(A_,n=1, axes=None):
     if axes is None:
-        axes = range(len(A.shape))
+        axes = range(len(A_.shape))
         
     n_ax   = len(axes)
     shapes = bh.array([axis_split(A_,axis) for axis in axes],dtype=int)
 
-    A = A_.astype(bool)
+    A = A_.astype(bool,copy=True)
     B = A.copy();
     
     for i in range(n):
@@ -166,3 +173,24 @@ def opening_cross(A,n=1,axes=None,iterations=1):
         B = erosion_cross(B,n,axes)
         B = dilation_cross(B,n,axes)    
     return B
+
+
+# TODO: Implement an efficient binary_fill_holes instead of using scipy.ndimage
+import scipy.ndimage as nd;
+
+def fill_holes_2d(A,axis=0):
+    B = bh.empty(A.shape,dtype=bool)
+    
+    for i in range(A.shape[axis]):
+        if (i % 100) == 0:
+            print(i)
+
+        if axis==0:
+            B[i,:,:] = nd.binary_fill_holes(A[i,:,:])
+        if axis==1:
+            B[:,i,:] = nd.binary_fill_holes(A[:,i,:])
+        if axis==2:
+            B[:,:,i] = nd.binary_fill_holes(A[:,:,i])
+
+    return B
+

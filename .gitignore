@@ -1,3 +1,6 @@
+*.pyc
+\#*\#
+.\#*
 CMakeCache.txt
 CMakeFiles
 CMakeScripts
