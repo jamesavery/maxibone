@@ -5,6 +5,7 @@ import numpy as np;
 import bohrium as bh;
 import numpy.ma as ma;
 import sys,re,os;
+from joblib import Parallel, delayed
 
 # TODO: Switch more elegantly between numpy and bohrium
 
