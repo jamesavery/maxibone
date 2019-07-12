@@ -19,10 +19,10 @@ num_cores = multiprocessing.cpu_count();
 
 dataroot = sys.argv[1];
 #TODO: Less greasy
-nbins=2048
-bin_edges = np.linspace(-4, 12, nbins+1);
+nbins=256
+bin_edges = np.linspace(-3, 8, nbins+1);
 
-with open(dataroot+"/xmlfiles.txt") as f:
+with open(dataroot+"/xmlfiles-pag.txt") as f:
     xmlfiles = [x.rstrip('\n') for x in f.readlines()]
 
 # def frame_histogram(xml,i,bin_edges):
@@ -40,5 +40,5 @@ for i in range(len(xmlfiles)):
 
     print("Storing result")
     filename = os.path.splitext(os.path.basename(xmlfiles[i]))[0]+'.npz';
-    np.savez_compressed(dataroot+"/histograms/"+filename,hcounts=hcounts,bin_edges=bin_edges,dataroot=dataroot,xmlfile=xmlfiles[i]);
+    np.savez_compressed(dataroot+"/z-histograms/"+filename,hcounts=hcounts,bin_edges=bin_edges,dataroot=dataroot,xmlfile=xmlfiles[i]);
 

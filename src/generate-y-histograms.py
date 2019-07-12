@@ -21,8 +21,8 @@ num_cores = 4;
 
 dataroot = sys.argv[1];
 #TODO: Less greasy
-nbins=2048
-bin_edges = np.linspace(-4, 12, nbins+1);
+nbins=256
+bin_edges = np.linspace(-3, 8, nbins+1);
 
 
 def hist_count(im,bin_edges):
@@ -58,7 +58,7 @@ def progressive_y_histogram(xml,nbins=2048,bin_edges=np.array([]),num_cores=4):
     return counts, bin_edges;
 
 
-with open(dataroot+"/xmlfiles.txt") as f:
+with open(dataroot+"/xmlfiles-pag.txt") as f:
     xmlfiles = [x.rstrip('\n') for x in f.readlines()]
 
 # def frame_histogram(xml,i,bin_edges):
