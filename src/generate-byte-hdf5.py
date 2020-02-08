@@ -38,11 +38,14 @@ print(subvolume_dimensions)
 print(subvolume_range)
 
 
-
-experiment      = subvolume_metadata[0]['experiment'];
-number_pos      = experiment.rfind("0")
-exp_sop         = experiment[:number_pos-2].rfind("_");
-experiment      = experiment[exp_sop+1:number_pos-2]
+import re
+experiment_re = re.compile("_+([0-9a-zA-Z]+)_+(\d+)_pag$")
+re_match      = re.search(experiment_re, subvolume_metadata[0]['experiment'])
+assert(re_match)
+experiment = re_match.group(1)
+#print(re_match.group(0))
+#print(re_match.group(1))
+#print(re_match.group(2))
 
 output_filename = f"{output_root}/hdf5-hibyte/{experiment}.h5";
 print(f"Writing {output_filename}")
