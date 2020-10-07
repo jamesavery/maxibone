@@ -84,6 +84,9 @@ def match_region(hfpath,scale,crossing,overlap,region):
         elif crossing == 3:
             a = dex[str(scale)][1]
             b = dex[str(scale)][2]
+        elif crossing == 4:
+            a = dex[str(scale)][2]
+            b = dex[str(scale)][3]            
             #c = dex[str(scale)][3] # not needed
         
         # load only last part of top volume, which is used for comparison
@@ -99,7 +102,7 @@ def match_region(hfpath,scale,crossing,overlap,region):
     
     return shift_idx
 
-def concat_volumes(hfpath, scale, shift_idxs):
+def concat_volumes(hfpath, scale, shift_idxs, fname):
 
     dex =  {'1' : [846, 1692, 2538, 3384],
             '2' : [423,  846, 1269, 1692],
@@ -109,7 +112,6 @@ def concat_volumes(hfpath, scale, shift_idxs):
     
     a,b,c,d = dex[str(scale)]
 
-    fname = str(scale)+'x_concat.h5'
     with h5py.File(fname, 'a') as fout:
 
         for i in range(len(shift_idxs)):
@@ -144,7 +146,7 @@ def concat_volumes(hfpath, scale, shift_idxs):
                     # 4/4
                     newf[c-np.sum(shift_idxs[:3]):,:,:] = fsrc['voxels'][c:d,:,:]
 
-    print('Finished concatenating new volume: {}.'.format(fname))
+    print(f'Finished concatenating new volume: {fname}.')
 
     return
 
@@ -153,17 +155,18 @@ def concat_volumes(hfpath, scale, shift_idxs):
 
 # loop through all 3 crossings in full volume --- can be vectorized, but for easy control, it has been seperated, it runs fast enough
 
-scale_factor = 1
 overlap = 2
 search_region = 40
+import sys
+input_file, output_file, scale_factor, nsegments = sys.argv[1:]
+scale_factor, nsegments = int(scale_factor), int(nsegments)
 
 shift_indices = []
-for i in range(1,3+1):
-    shift_indices.append(match_region(hfpath='h5scaled/771c_{}x.h5'.format(scale_factor),scale=scale_factor,crossing=i,overlap=overlap,region=search_region))
+for i in range(1,nsegments):
+    shift_indices.append(match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region))
 
 print('shift indices:',shift_indices)
-
-concat_volumes(hfpath='h5scaled/771c_{}x.h5'.format(scale_factor), scale=scale_factor, shift_idxs=shift_indices)
+concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
 
 # -------------------------------------------------------------------- #
 
