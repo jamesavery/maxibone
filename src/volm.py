@@ -1,38 +1,10 @@
 
-"""
-scaled dimensions
-1x  = (3384,3481,3481)
-2x  = (1692,1740,1740)
-4x  = (846,870,870)
-8x  = (423,435,435)
-16x = (211,217,217)
+# TODO: - shadow effects could perhaps be removed by histogram matching of final adjacent regions
+#       - should probably be removed by kernel-operation around outer edge, before matching...
 
-each original subvolume has dimensions:
-s1 = (846,3484,3484)
-s2 = (846,3484,3484)
-s3 = (846,3493,3493)
-s4 = (846,3481,3481)
-
-lowest yz-dimensions gives full volume dimensions:
-(846*4,3481,3481)
-
-# example of fitting last two dimensions
-
-# first we fix yz-plane since individual lengths of dimensions may differ a little per sample
-# quick analysis shows they are not shifted but rather padded, so removal is easy
-if topvol.shape[1:] != botvol.shape[1:]: # last to dimensions are not equal
-    y_min = np.min([topvol.shape[1],botvol.shape[1]])
-    z_min = np.min([topvol.shape[2],botvol.shape[2]])
-    topvol[:,:y_min,:z_min]
-    botvol[:,:y_min,:z_min]
-
-"""
-
-#:TODO - shadow effects could perhaps be removed by histogram matching of final adjacent regions
-
-#############################
-### Fix staggered volumes ###
-#############################
+###########################
+### Fix shifted volumes ###
+###########################
 
 import h5py
 import numpy as np
@@ -52,6 +24,25 @@ def minDist(top, bot_chunks):
     c = np.array([bot_chunks[i]-top for i in range(len(bot_chunks))])**2 # dim: (n-iter, overlap, y, z)
     return np.argmin(np.sqrt(np.squeeze(np.apply_over_axes(np.sum, c, [1,2,3])/(int(c.shape[1]*c.shape[2])))))
 
+def w(x):
+    # in order to use as index we round and typecast as integer
+    return int(np.ceil(x))
+
+def compute_dex(S):
+
+    # improvement and generalization of dynamic overlap-index matrix
+    # S=scale is taken directly from shape of 0th dim of input hdf5 file
+    
+    # Generally the starting point is either a file per subvolume (easier to optimize)
+    # or a concatenated volume in a single file (as used here with the downscaled h5 files)
+
+    dex = {'1' : [w(S/4),  w(S/2),   w(3*S/4), w(S)],
+           '2' : [w(S/8),  w(S/4),   w(3*S/8), w(S/2)],
+           '4' : [w(S/16), w(S/8),  w(3*S/16), w(S/4)],
+           '8' : [w(S/32), w(S/16), w(3*S/32), w(S/8)],
+           '16': [w(S/64), w(S/32), w(3*S/64), w(S/16)]}
+    return dex
+
 def match_region(hfpath,scale,crossing,overlap,region):
 
     """
@@ -63,13 +54,9 @@ def match_region(hfpath,scale,crossing,overlap,region):
     region   : search region, i.e. how many chunks of planes to iterate through, or how far to look/compare
     """
 
-    dex =  {'1' : [846, 1692, 2538, 3384],
-            '2' : [423,  846, 1269, 1692],
-            '4' : [212,  423,  635,  846],
-            '8' : [106,  212,  318,  423],
-            '16': [ 53,  106,  159,  211]}
-
     with h5py.File(str(hfpath), 'r') as hf:
+
+        dex = compute_dex(hf['voxels'].shape[0])
 
         # mapping from crossing to dex
         # a = upper idx, b = middle idx, c = lower idx
@@ -104,15 +91,11 @@ def match_region(hfpath,scale,crossing,overlap,region):
 
 def concat_volumes(hfpath, scale, shift_idxs, fname):
 
-    dex =  {'1' : [846, 1692, 2538, 3384],
-            '2' : [423,  846, 1269, 1692],
-            '4' : [212,  423,  635,  846],
-            '8' : [106,  212,  318,  423],
-            '16': [ 53,  106,  159,  211]}
-    
-    a,b,c,d = dex[str(scale)]
-
     with h5py.File(fname, 'a') as fout:
+
+        dex = compute_dex(fout['voxels'].shape[0])
+        
+        a,b,c,d = dex[str(scale)]
 
         for i in range(len(shift_idxs)):
 
@@ -156,7 +139,7 @@ def concat_volumes(hfpath, scale, shift_idxs, fname):
 # loop through all 3 crossings in full volume --- can be vectorized, but for easy control, it has been seperated, it runs fast enough
 
 overlap = 2
-search_region = 40
+search_region = 60 #40
 import sys
 input_file, output_file, scale_factor, nsegments = sys.argv[1:]
 scale_factor, nsegments = int(scale_factor), int(nsegments)
@@ -165,54 +148,20 @@ shift_indices = []
 for i in range(1,nsegments):
     shift_indices.append(match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region))
 
-#print('shift indices:',shift_indices)
-
 def get_size(h5file):
-    # get size of first dimension without loading all data
     with h5py.File(str(input_file), 'r') as hf:
-        return list(hf.items())[0][1].shape # outputs all 3 dimensions
-        #return len(list(hf.items())[0][1]) # outputs only first dimension which changes
+        return hf['voxels'].shape
 
 print('='*30)
 print('File:', input_file)
 print('Shift indices:', shift_indices)
 print('Old dimensions:', get_size(input_file))
-#print('New dimensions:', get_size(input_file)-sum(shift_indices))
 print('New dimensions:', tuple(np.subtract(get_size(input_file),(sum(shift_indices),0,0))))
 print('='*30)
 
 #concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
 
-# -------------------------------------------------------------------- #
-
-""" improvement and generalization of dynamic overlap-index matrix """
-
-# starting point is either a file per subvolume (easier to optimize)
-# or a concatenated volume in a single file (as here in the downscaled h5 files)
-
-# dex =  {'1' : [846, 1692, 2538, 3384],
-#         '2' : [423,  846, 1269, 1692],
-#         '4' : [212,  423,  635,  846],  # (rounded 211.5 up, due to shadow effect)
-#         '8' : [106,  212,  318,  423],  # (rounded 105.75 up, due to shadow effect, 424 is rounded down to max: 423, but ok in python)
-#         '16': [ 53,  106,  159,  211]}  # (212 is rounded down to max: 211, but ok in python)
-
-# # this can be generalized to:
-
-# S = 3384 # full_volume.shape[0] # taken directly from shape of input hdf5 file
-
-# def w(x):
-#     # in order to use as index we round and typecast as integer
-#     return int(np.ceil(x))
-
-# dex = {'1' : [w(S/4),  w(S/2),   w(3*S/4), w(S)],
-#        '2' : [w(S/8),  w(S/4),   w(3*S/8), w(S/2)],
-#        '4' : [w(S/16), w(S/8),  w(3*S/16), w(S/4)],
-#        '8' : [w(S/32), w(S/16), w(3*S/32), w(S/8)],
-#        '16': [w(S/64), w(S/32), w(3*S/64), w(S/16)]}
-
 """ verify that it works """
-
-#%%
 
 # import numpy as np
 # import matplotlib.pyplot as plt
@@ -234,4 +183,21 @@ print('='*30)
 # #plt.savefig('4x_example1.png', facecolor='w', bbox_inches='tight', pad_inches=0)
 # plt.show()
 
-#%%
+"""
+
+Notes
+
+lowest yz-dimensions gives full volume dimensions:
+(0th-dim*4,3481,3481)
+
+# example of fitting last two dimensions
+
+# first we fix yz-plane since individual lengths of dimensions may differ a little per sample
+# quick analysis shows they are not shifted but rather padded, so removal is easy
+if topvol.shape[1:] != botvol.shape[1:]: # last to dimensions are not equal
+    y_min = np.min([topvol.shape[1],botvol.shape[1]])
+    z_min = np.min([topvol.shape[2],botvol.shape[2]])
+    topvol[:,:y_min,:z_min]
+    botvol[:,:y_min,:z_min]
+
+"""
