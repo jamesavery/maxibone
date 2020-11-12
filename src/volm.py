@@ -170,20 +170,20 @@ for i in range(1,nsegments):
 def get_size(h5file):
     # get size of first dimension without loading all data
     with h5py.File(str(input_file), 'r') as hf:
-        return len(list(hf.items())[0][1])
+        return list(hf.items())[0][1].shape # outputs all 3 dimensions
+        #return len(list(hf.items())[0][1]) # outputs only first dimension which changes
 
 print('='*30)
 print('File:', input_file)
 print('Shift indices:', shift_indices)
 print('Old dimensions:', get_size(input_file))
-print('New dimensions:', get_size(input_file)-sum(shift_indices))
+#print('New dimensions:', get_size(input_file)-sum(shift_indices))
+print('New dimensions:', tuple(np.subtract(get_size(input_file),(sum(shift_indices),0,0))))
 print('='*30)
 
 #concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
 
 # -------------------------------------------------------------------- #
-
-import numpy as np
 
 """ improvement and generalization of dynamic overlap-index matrix """
 
