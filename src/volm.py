@@ -146,7 +146,9 @@ scale_factor, nsegments = int(scale_factor), int(nsegments)
 
 shift_indices = []
 for i in range(1,nsegments):
-    shift_indices.append(match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region))
+    res = match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region)
+    shift_indices.append(res)
+    print(i,':',res)
 
 def get_size(h5file):
     with h5py.File(str(input_file), 'r') as hf:
