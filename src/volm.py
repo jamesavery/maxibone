@@ -165,8 +165,21 @@ shift_indices = []
 for i in range(1,nsegments):
     shift_indices.append(match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region))
 
-print('shift indices:',shift_indices)
-concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
+#print('shift indices:',shift_indices)
+
+def get_size(h5file):
+    # get size of first dimension without loading all data
+    with h5py.File(str(input_file), 'r') as hf:
+        return len(list(hf.items())[0][1])
+
+print('='*30)
+print('File:', input_file)
+print('Shift indices:', shift_indices)
+print('Old dimensions:', get_size(input_file))
+print('New dimensions:', get_size(input_file)-sum(shift_indices))
+print('='*30)
+
+#concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
 
 # -------------------------------------------------------------------- #
 
