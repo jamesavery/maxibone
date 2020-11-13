@@ -4,25 +4,28 @@
 # /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
 # /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
-import bohrium as bh
+#import bohrium as bh
+import numpy   as bh
 import numpy   as np
 import h5py
-import h5tomo 
+#import h5tomo 
 import matplotlib.pyplot as plt
 from esrf_read import *
 import sys
 
-data_root      = sys.argv[1];
-output_root    = sys.argv[2];
-subvolume_xmls = sys.argv[3:];
+sample       = sys.argv[1];
+xml_root     = sys.argv[2];
+hdf5_root  = sys.argv[3];
 
-print(f"data_root={data_root}")
 
-def normalize(A,value_range,nbits=8,dtype=np.uint8):
+print(f"data_root={xml_root}")
+
+def normalize(A,value_range,nbits=16,dtype=np.uint16):
     vmin,vmax = value_range
     return (((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)
 
-subvolume_metadata = [esrf_read_xml(f"{data_root}/{xml}") for xml in subvolume_xmls];
+subvolume_xmls     = readfile(f"{xml_root}/{sample}-xml.txt")
+subvolume_metadata = [esrf_read_xml(f"{xml_root}/{xml.strip()}") for xml in subvolume_xmls];
 
 subvolume_dimensions = np.array([ (int(m['sizez']),  int(m['sizey']), int(m['sizex'])) for m in subvolume_metadata]);
 subvolume_range      = np.array([(float(m['valmin']), float(m['valmax'])) for m in subvolume_metadata]);
@@ -47,7 +50,7 @@ experiment = re_match.group(1)
 #print(re_match.group(1))
 #print(re_match.group(2))
 
-output_filename = f"{output_root}/hdf5-hibyte/{experiment}.h5";
+output_filename = f"{hdf5_root}/hdf5-byte/scale/1x/{experiment}.h5";
 print(f"Writing {output_filename}")
 h5file = h5py.File(output_filename,"w");
 
@@ -63,7 +66,8 @@ for i in range(len(subvolume_metadata)):
 h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
 h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
 h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-h5tomo = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="lzf");
+h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="lzf");
+h5tomo_lsb = h5file.create_dataset("voxels_lsb",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True);
 h5tomo.dims[0].label = 'z';
 h5tomo.dims[1].label = 'y';
 h5tomo.dims[2].label = 'x';
@@ -87,11 +91,15 @@ for i in range(len(subvolume_metadata)):
         chunk_end = min(z+128,nz);
         print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
         for j in range(0,chunk_end-z):
-            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
+#            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
+            slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
             chunk[j] = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax),8,np.uint8);
 
         print(f"Writing slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
-        h5tomo[z_offset+z:z_offset+chunk_end] = chunk[:chunk_end-z].copy2numpy();
+        h5tomo    [z_offset+z:z_offset+chunk_end] = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8) #.copy2numpy();
+        print(f"Writing LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
+        h5tomo_lsb[z_offset+z:z_offset+chunk_end] = (chunk[:chunk_end-z]&0xff).astype(np.uint8) #.copy2numpy();
     z_offset += nz;
 
 h5file.close()
+h5file_lsb.close()
