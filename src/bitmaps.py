@@ -3,9 +3,9 @@ import numpy as np
 
 # Small
 
-def bit_and(l): return np.logical_and.reduce(l)
-def bit_or(l):  return np.logical_or.reduce(l)
-def bit_not(l): return np.logical_not(b)
+def sphere(n):
+    xs = np.linspace(-1,1,n)
+    return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
 def prod(a):
     return bh.product(a,dtype=bh.int64)

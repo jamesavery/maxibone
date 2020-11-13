@@ -1,4 +1,58 @@
-import numpy as np
+import jax.numpy as np
+import jax
+jax.config.update("jax_enable_x64", True)
+NA = np.newaxis
+
+def downsample2x(V):
+    (Nz,Ny,Nx) = V.shape
+    (nz,ny,nx) = np.array((Nz,Ny,Nx))//2;
+    xs = np.linspace(-1,1,nx)[:,NA]
+    ys = np.linspace(-1,1,ny)[NA,:]
+    cylinder_mask = (xs*xs + ys*ys)<=1;
+    
+    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
+    print("Extracting S1")
+    S1 = V[0:(2*nz):2].astype(np.float32)
+    print("Extracting S2",flush=True)
+    S2 = V[1:(2*nz+1):2].astype(np.float32)
+    
+    print(S1.shape,S2.shape)
+    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
+    print("Averaging",flush=True)
+    s1 = S1[:,0:2*ny:2, 0:2*nx:2]+S1[:,0:2*ny:2, 1:(2*nx+1):2]+S1[:,1:(2*ny+1):2, 0:(2*nx):2]+S1[:,1:(2*ny+1):2, 1:(2*nx+1):2]
+    s2 = S2[:,0:2*ny:2, 0:2*nx:2]+S2[:,0:2*ny:2, 1:(2*nx+1):2]+S2[:,1:(2*ny+1):2, 0:(2*nx):2]+S2[:,1:(2*ny+1):2, 1:(2*nx+1):2]
+    print("Storing")
+    return (cylinder_mask*(s1+s2)/8).astype(V.dtype);
+
+def downsample3x(V):
+    (Nz,Ny,Nx) = V.shape
+    (nz,ny,nx) = np.array((Nz,Ny,Nx))//3;
+    xs = np.linspace(-1,1,nx)[:,np.newaxis]
+    ys = np.linspace(-1,1,ny)[np.newaxis,:]
+    cylinder_mask = (xs*xs + ys*ys)<=1;
+    
+    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
+    print("Extracting S1")
+    S1 = V[0:(3*nz):3].astype(np.float32)
+    print("Extracting S2",flush=True)
+    S2 = V[1:(3*nz+1):3].astype(np.float32)
+    print("Extracting S3",flush=True)
+    S3 = V[2:(3*nz+2):3].astype(np.float32)
+    
+    print(S1.shape,S2.shape,S3.shape)
+    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
+    print("Averaging",flush=True)
+    s1 = S1[:,0:3*ny:3,     0:3*nx:3]  +S1[:,0:3*ny:3,     1:(3*nx+1):3]+ S1[:,0:3*ny:3,     2:(3*nx+2):3] + \
+         S1[:,1:(3*ny+1):3, 0:3*nx:3]  +S1[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S1[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
+         S1[:,2:(3*ny+2):3, 0:3*nx:3]  +S1[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S1[:,2:(3*ny+2):3, 2:(3*nx+2):3]
+    s2 = S2[:,0:3*ny:3,     0:3*nx:3]  +S2[:,0:3*ny:3,     1:(3*nx+1):3]+ S2[:,0:3*ny:3,     2:(3*nx+2):3] + \
+         S2[:,1:(3*ny+1):3, 0:3*nx:3]  +S2[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S2[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
+         S2[:,2:(3*ny+2):3, 0:3*nx:3]  +S2[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S2[:,2:(3*ny+2):3, 2:(3*nx+2):3]
+    s3 = S3[:,0:3*ny:3,     0:3*nx:3]  +S3[:,0:3*ny:3,     1:(3*nx+1):3]+ S3[:,0:3*ny:3,     2:(3*nx+2):3] + \
+         S3[:,1:(3*ny+1):3, 0:3*nx:3]  +S3[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S3[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
+         S3[:,2:(3*ny+2):3, 0:3*nx:3]  +S3[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S3[:,2:(3*ny+2):3, 2:(3*nx+2):3]
+    
+    return (cylinder_mask*(s1+s2+s3)/27).astype(V.dtype);
 
 def sample(image,xs,ys):
     yminus,iminus= np.modf(ys-0.5);
@@ -34,7 +88,6 @@ def cart_to_polar(image,nr,ntheta, r=0, R=None):
     xs = rs[:,None]*np.cos(thetas)[None,:]+midx;
     ys = rs[:,None]*np.sin(thetas)[None,:]+midy;
     return sample(image,xs,ys);
-
 
 
 def polar_to_cart(polar_image,nx,ny):
