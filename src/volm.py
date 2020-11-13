@@ -1,6 +1,9 @@
 
-# TODO: - shadow effects could perhaps be removed by histogram matching of final adjacent regions
-#       - should probably be removed by kernel-operation around outer edge, before matching...
+# TODO:
+# 1] shadow effects could perhaps be removed by histogram matching of final adjacent regions
+#    - should probably be removed by kernel-operation around outer edge, before matching...
+# 2] different scales should be incorporated when using any number of subvolumes
+#    - currently only 1x scale is supported for 3,5,6 subvolumes -- need to expand compute_dex()
 
 ###########################
 ### Fix shifted volumes ###
@@ -28,7 +31,7 @@ def w(x):
     # in order to use as index we round and typecast as integer
     return int(np.ceil(x))
 
-def compute_dex(S):
+def compute_dex(S, subvols):
 
     # improvement and generalization of dynamic overlap-index matrix
     # S=scale is taken directly from shape of 0th dim of input hdf5 file
@@ -36,14 +39,26 @@ def compute_dex(S):
     # Generally the starting point is either a file per subvolume (easier to optimize)
     # or a concatenated volume in a single file (as used here with the downscaled h5 files)
 
-    dex = {'1' : [w(S/4),  w(S/2),   w(3*S/4), w(S)],
-           '2' : [w(S/8),  w(S/4),   w(3*S/8), w(S/2)],
-           '4' : [w(S/16), w(S/8),  w(3*S/16), w(S/4)],
-           '8' : [w(S/32), w(S/16), w(3*S/32), w(S/8)],
-           '16': [w(S/64), w(S/32), w(3*S/64), w(S/16)]}
+    if subvols == 3:
+        dex = {'1' : [w(S/3), w(2*S/3), w(S)]}
+
+    if subvols == 4:
+
+        dex = {'1' : [w(S/4),  w(S/2),   w(3*S/4), w(S)],
+               '2' : [w(S/8),  w(S/4),   w(3*S/8), w(S/2)],
+               '4' : [w(S/16), w(S/8),  w(3*S/16), w(S/4)],
+               '8' : [w(S/32), w(S/16), w(3*S/32), w(S/8)],
+               '16': [w(S/64), w(S/32), w(3*S/64), w(S/16)]}
+
+    if subvols == 5:
+        dex = {'1' : [w(S/5), w(2*S/5), w(3*S/5), w(4*S/5), w(S)]}
+    
+    if subvols == 6:
+        dex = {'1' : [w(S/6), w(2*S/6), w(S/2), w(4*S/6), w(5*S/6), w(S)]}
+
     return dex
 
-def match_region(hfpath,scale,crossing,overlap,region):
+def match_region(hfpath,scale,crossing,overlap,region,nsegments):
 
     """
     hfpath   : path to full volume hdf5
@@ -56,26 +71,31 @@ def match_region(hfpath,scale,crossing,overlap,region):
 
     with h5py.File(str(hfpath), 'r') as hf:
 
-        dex = compute_dex(hf['voxels'].shape[0])
+        dex = compute_dex(hf['voxels'].shape[0], subvols=int(nsegments))
 
         # mapping from crossing to dex
         # a = upper idx, b = middle idx, c = lower idx
+        # c is not needed anyway...
         if crossing == 1:
             a = 0
             b = dex[str(scale)][0]
-            #c = dex[str(scale)][1] # not needed
         elif crossing == 2:
             a = dex[str(scale)][0]
             b = dex[str(scale)][1]
-            #c = dex[str(scale)][2] # not needed
         elif crossing == 3:
             a = dex[str(scale)][1]
             b = dex[str(scale)][2]
         elif crossing == 4:
             a = dex[str(scale)][2]
             b = dex[str(scale)][3]            
-            #c = dex[str(scale)][3] # not needed
-        
+        elif crossing == 5:
+            a = dex[str(scale)][3]
+            b = dex[str(scale)][4]            
+        elif crossing == 6:
+            a = dex[str(scale)][4]
+            b = dex[str(scale)][5]            
+
+
         # load only last part of top volume, which is used for comparison
         topvol = hf['voxels'][a:b,:,:][-overlap:,:,:]
         # load only top part of bottom volume, which is iterated through for comparison
@@ -89,11 +109,11 @@ def match_region(hfpath,scale,crossing,overlap,region):
     
     return shift_idx
 
-def concat_volumes(hfpath, scale, shift_idxs, fname):
+def concat_volumes(hfpath, scale, shift_idxs, fname, nsegments):
 
     with h5py.File(fname, 'a') as fout:
 
-        dex = compute_dex(fout['voxels'].shape[0])
+        dex = compute_dex(fout['voxels'].shape[0], subvols=nsegments)
         
         a,b,c,d = dex[str(scale)]
 
@@ -139,16 +159,16 @@ def concat_volumes(hfpath, scale, shift_idxs, fname):
 # loop through all 3 crossings in full volume --- can be vectorized, but for easy control, it has been seperated, it runs fast enough
 
 overlap = 2
-search_region = 60 #40
+search_region = 140 #40
 import sys
 input_file, output_file, scale_factor, nsegments = sys.argv[1:]
 scale_factor, nsegments = int(scale_factor), int(nsegments)
 
 shift_indices = []
 for i in range(1,nsegments):
-    res = match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region)
+    res = match_region(hfpath=input_file,scale=scale_factor,crossing=i,overlap=overlap,region=search_region,nsegments=nsegments)
     shift_indices.append(res)
-    print(i,':',res)
+    print(i,'/',nsegments,':',res)
 
 def get_size(h5file):
     with h5py.File(str(input_file), 'r') as hf:
@@ -161,7 +181,7 @@ print('Old dimensions:', get_size(input_file))
 print('New dimensions:', tuple(np.subtract(get_size(input_file),(sum(shift_indices),0,0))))
 print('='*30)
 
-#concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file)
+#concat_volumes(hfpath=input_file, scale=scale_factor, shift_idxs=shift_indices,fname=output_file, nsegments=nsegments)
 
 """ verify that it works """
 
