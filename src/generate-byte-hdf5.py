@@ -12,9 +12,12 @@ import h5py
 import matplotlib.pyplot as plt
 from esrf_read import *
 import sys
+import jax.numpy as jp
+import jax
+jax.config.update("jax_enable_x64", True)
 
-sample       = sys.argv[1];
-xml_root     = sys.argv[2];
+sample     = sys.argv[1];
+xml_root   = sys.argv[2];
 hdf5_root  = sys.argv[3];
 
 
@@ -35,45 +38,54 @@ global_vmax = np.max(subvolume_range[:,1])
 (Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0]), np.min(subvolume_dimensions[:,1]), np.min(subvolume_dimensions[:,2]))
 
 for i in range(len(subvolume_metadata)):
-    print(f"{i} {subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
+    print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
 print((global_vmin, global_vmax), (Nz,Ny,Nx))    
 print(subvolume_dimensions)
 print(subvolume_range)
 
 
-import re
-experiment_re = re.compile("_+([0-9a-zA-Z]+)_+(\d+)_pag$")
-re_match      = re.search(experiment_re, subvolume_metadata[0]['experiment'])
-assert(re_match)
-experiment = re_match.group(1)
+#import re
+#experiment_re = re.compile("_+([0-9a-zA-Z]+)_+(\d+)_pag$")
+#re_match      = re.search(experiment_re, subvolume_metadata[0]['experiment'])
+#assert(re_match)
+#experiment = re_match.group(1)
+experiment  = sample
+
 #print(re_match.group(0))
 #print(re_match.group(1))
 #print(re_match.group(2))
 
-output_filename = f"{hdf5_root}/hdf5-byte/scale/1x/{experiment}.h5";
-print(f"Writing {output_filename}")
-h5file = h5py.File(output_filename,"w");
+msb_filename = f"{hdf5_root}/hdf5-byte/msb/1x/{experiment}.h5";
+lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/1x/{experiment}.h5";
+print(f"Writing {msb_filename} and {lsb_filename}")
+h5file_msb = h5py.File(msb_filename,"w");
+h5file_lsb = h5py.File(lsb_filename,"w");
 
-# Store metadata for each subvolume scan
-grp_meta = h5file.create_group("metadata");
-for i in range(len(subvolume_metadata)):
-    subvolume_info = subvolume_metadata[i];
-    grp_sub = grp_meta.create_group(f"subvolume{i}");
-    for k in subvolume_info.keys():
-        grp_sub.attrs[k] = np.string_(subvolume_info[k]);
+# Store metadata in both files for each subvolume scan
+for h5file in [h5file_msb,h5file_lsb]:
+    grp_meta = h5file.create_group("metadata");
+    for i in range(len(subvolume_metadata)):
+        subvolume_info = subvolume_metadata[i];
+        grp_sub = grp_meta.create_group(f"subvolume{i}");
+        for k in subvolume_info.keys():
+            grp_sub.attrs[k] = np.string_(subvolume_info[k]);
 
 
-h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
-h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
-h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="lzf");
-h5tomo_lsb = h5file.create_dataset("voxels_lsb",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True);
-h5tomo.dims[0].label = 'z';
-h5tomo.dims[1].label = 'y';
-h5tomo.dims[2].label = 'x';
-h5tomo.attrs['voxelsize'] = np.float(subvolume_info['voxelsize']);
+    h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
+    h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
+    h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
+    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="lzf");
+
+    h5tomo.dims[0].label = 'z';
+    h5tomo.dims[1].label = 'y';
+    h5tomo.dims[2].label = 'x';
+    h5tomo.attrs['voxelsize'] = np.float(subvolume_info['voxelsize']);
 
 z_offset = 0;
+normalize_jit = jax.jit(normalize)
+h5tomo_msb = h5file_msb['voxels']
+h5tomo_lsb = h5file_lsb['voxels']
+
 for i in range(len(subvolume_metadata)):
     subvolume_info = subvolume_metadata[i];
     (nz,ny,nx)     = subvolume_dimensions[i];
@@ -86,20 +98,23 @@ for i in range(len(subvolume_metadata)):
     # print(f"Writing {subvolume_info['experiment']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
-    chunk = bh.zeros((128,Ny,Nx),dtype=np.uint8);
-    for z in range(0,nz,128):
-        chunk_end = min(z+128,nz);
-        print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
+    chunk_length = nz
+    chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint8);
+    for z in range(0,nz,chunk_length):
+        chunk_end = min(z+chunk_length,nz);
+        print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
         for j in range(0,chunk_end-z):
 #            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
             slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
-            chunk[j] = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax),8,np.uint8);
-
-        print(f"Writing slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
-        h5tomo    [z_offset+z:z_offset+chunk_end] = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8) #.copy2numpy();
-        print(f"Writing LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
+            slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
+            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax));
+            del slice_data
+            
+        print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
+        h5tomo_msb[z_offset+z:z_offset+chunk_end] = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8) #.copy2numpy();
+        print(f"Writing {sample} LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
         h5tomo_lsb[z_offset+z:z_offset+chunk_end] = (chunk[:chunk_end-z]&0xff).astype(np.uint8) #.copy2numpy();
     z_offset += nz;
 
-h5file.close()
+h5file_msb.close()
 h5file_lsb.close()
