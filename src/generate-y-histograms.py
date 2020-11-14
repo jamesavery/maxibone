@@ -21,8 +21,8 @@ num_cores = 4;
 
 dataroot = sys.argv[1];
 #TODO: Less greasy
-nbins=256
-bin_edges = np.linspace(-3, 8, nbins+1);
+nbins=65536
+bin_edges = np.linspace(-4, 12, nbins+1);
 
 
 def hist_count(im,bin_edges):
@@ -35,7 +35,7 @@ def y_histogram(tomo,bin_edges):
     );
 
 
-def progressive_y_histogram(xml,nbins=2048,bin_edges=np.array([]),num_cores=4):
+def progressive_y_histogram(xml,nbins=65536,bin_edges=np.array([]),num_cores=4):
     
     if(len(bin_edges)==0):
         bin_edges = np.linspace(float(xml["valmin"]), float(xml["valmax"]), nbins + 1);

@@ -19,8 +19,8 @@ num_cores = multiprocessing.cpu_count();
 
 dataroot = sys.argv[1];
 #TODO: Less greasy
-nbins=256
-bin_edges = np.linspace(-3, 8, nbins+1);
+nbins=65536
+bin_edges = np.linspace(-4, 12, nbins+1);
 
 with open(dataroot+"/xmlfiles-pag.txt") as f:
     xmlfiles = [x.rstrip('\n') for x in f.readlines()]
