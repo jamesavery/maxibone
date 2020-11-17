@@ -15,6 +15,7 @@ import sys
 import jax.numpy as jp
 import jax
 jax.config.update("jax_enable_x64", True)
+NA = np.newaxis
 
 sample     = sys.argv[1];
 xml_root   = sys.argv[2];
@@ -25,9 +26,9 @@ print(f"data_root={xml_root}")
 
 def normalize(A,value_range,nbits=16,dtype=np.uint16):
     vmin,vmax = value_range
-    return (((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)
+    return (((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)+1
 
-subvolume_xmls     = readfile(f"{xml_root}/{sample}-xml.txt")
+subvolume_xmls     = readfile(f"{xml_root}/index/{sample}.txt")
 subvolume_metadata = [esrf_read_xml(f"{xml_root}/{xml.strip()}") for xml in subvolume_xmls];
 
 subvolume_dimensions = np.array([ (int(m['sizez']),  int(m['sizey']), int(m['sizex'])) for m in subvolume_metadata]);
@@ -86,6 +87,13 @@ normalize_jit = jax.jit(normalize)
 h5tomo_msb = h5file_msb['voxels']
 h5tomo_lsb = h5file_lsb['voxels']
 
+def cylinder_mask(Ny,Nx):
+    ys = jp.linspace(-1,1,Ny)
+    xs = jp.linspace(-1,1,Nx)
+    return (xs[NA,:]**2 + ys[:,NA]**2) < 1 
+
+mask = jp.array(cylinder_mask(Ny,Nx))
+
 for i in range(len(subvolume_metadata)):
     subvolume_info = subvolume_metadata[i];
     (nz,ny,nx)     = subvolume_dimensions[i];
@@ -99,7 +107,7 @@ for i in range(len(subvolume_metadata)):
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
     chunk_length = nz
-    chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint8);
+    chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
     for z in range(0,nz,chunk_length):
         chunk_end = min(z+chunk_length,nz);
         print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
@@ -107,7 +115,7 @@ for i in range(len(subvolume_metadata)):
 #            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
             slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
             slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
-            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax));
+            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax)) * ~mask[NA,:,:];
             del slice_data
             
         print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
