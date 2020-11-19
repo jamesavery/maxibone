@@ -9,7 +9,7 @@ import scipy.ndimage as ndi
 from esrf_read         import *;
 from blockmap          import *
 from resample          import *
-from static_thresholds import *
+from static_constants import *
 jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
@@ -20,7 +20,7 @@ def sphere(n):
 
 sample, xml_root, hdf5_root = sys.argv[1:] 
 
-xmlfiles     = readfile(f"{xml_root}/{sample}-xml.txt")
+xmlfiles     = readfile(f"{xml_root}/index/{sample}.txt")
 n_subvolumes = len(xmlfiles)
 info_subvolumes = [esrf_read_xml(f"{xml_root}/{xml_filename.strip()}") for xml_filename in xmlfiles]
 
@@ -37,7 +37,7 @@ for i in range(n_subvolumes):
     print(f"Loading subvolume {i}")
     tomo    = esrf_full_tomogram(info)
     print(f"Thresholding subvolume {i}")
-    implant = (tomo >= 1.2)
+    implant = (tomo >= implant_threshold)
     del tomo
     print(f"Binary opening for subvolume {i}")
     implant = ndi.binary_opening(implant,sph5)

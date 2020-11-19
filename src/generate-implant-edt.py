@@ -16,7 +16,7 @@ sample, hdf5_root = sys.argv[1:]
 
 
 h5implant = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'r')
-h5data    = h5py.File(f"{hdf5_root}/hdf5-byte/scale/1x/{sample}.h5",'r')
+h5data    = h5py.File(f"{hdf5_root}/hdf5-byte/msb/1x/{sample}.h5",'r')
 output    = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}-edt.h5",'w')
 
 subvolume_dimensions = h5data['subvolume_dimensions'][:]
