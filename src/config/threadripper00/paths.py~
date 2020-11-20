@@ -1,0 +1,2 @@
+hdf5_root       = "/data/MAXIBONE/Goats/tomograms"
+esrf_data_root  = "/home/avery/erda/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/"
