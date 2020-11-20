@@ -56,8 +56,8 @@ experiment  = sample
 #print(re_match.group(1))
 #print(re_match.group(2))
 
-msb_filename = f"{hdf5_root}/hdf5-byte/msb/1x/{experiment}.h5";
-lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/1x/{experiment}.h5";
+msb_filename = f"{hdf5_root}/hdf5-byte/msb/{experiment}.h5";
+lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/{experiment}.h5";
 print(f"Writing {msb_filename} and {lsb_filename}")
 h5file_msb = h5py.File(msb_filename,"w");
 h5file_lsb = h5py.File(lsb_filename,"w");
@@ -115,7 +115,7 @@ for i in range(len(subvolume_metadata)):
 #            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
             slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
             slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
-            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax)) * ~mask[NA,:,:];
+            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax)) * mask[NA,:,:];
             del slice_data
             
         print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
