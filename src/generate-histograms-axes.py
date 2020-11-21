@@ -86,7 +86,7 @@ for z in range(0,Nz,chunk_length):
         if(len(slice_data)>0):
             hist_x_cp[i] = hist_x_cp[i] + cp.bincount(slice_data,minlength=nbins)
     hist_x = hist_x_cp.get()
-    
+
 
 np.save(f"{hdf5_root}/processed/z-histograms/{sample}.npy",hist_z)
 np.save(f"{hdf5_root}/processed/y-histograms/{sample}.npy",hist_y)
