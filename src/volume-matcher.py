@@ -1,3 +1,4 @@
+#/usr/bin/env python3
 # TODO:
 # 1] shadow effects could perhaps be removed by histogram matching of final adjacent regions
 #    - should probably be removed by kernel-operation around outer edge, before matching...
@@ -10,9 +11,9 @@ import numpy as np
 import jax.numpy as jp
 import h5py, jax, sys
 from PIL import Image
-import matplotlib.pyplot as plt
 from config.paths import hdf5_root, commandline_args
- 
+
+volume_matched_dir = f"{hdf5_root}/processed/volume_matched"
 
 def match_region(voxels_top, voxels_bot, overlap, max_shift):
     """
@@ -52,16 +53,17 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
         print(f"Optimal shift is {shift} with error {error} per voxel")
 
         if(write_image_checks):
-            print(f"Writing images of matched slices to verify correctness.")
+            image_dir = f"{volume_matched_dir}/verification"
+            print(f"Writing images of matched slices to {image_dir} to check correctness.")
             merged_voxels = jp.concatenate([top_voxels,bot_voxels[shift:]])
             merged_zy_slice  = np.array(merged_voxels[:,:,Nx//2])
             
-            Image.fromarray(merged_zy_slice.astype(np.uint8)).save(f"{hdf5_root}/processed/volume_matched/verification/{sample}-{i}cross-zy.png")
+            Image.fromarray(merged_zy_slice.astype(np.uint8)).save(f"{image_dir}/{sample}-{i}cross-zy.png")
             
             image = np.zeros((2*max_shift,1980),dtype=np.uint8)
             image[:max_shift,:1980//2] = top_voxels[:,Ny//2-1980//4:Ny//2+1980//4,Nx//2].astype(np.uint8)
             image[max_shift-shift:-shift,1980//2:] = bot_voxels[:,Ny//2-1980//4:Ny//2+1980//4,Nx//2].astype(np.uint8)    
-            Image.fromarray(image).save(f"{hdf5_root}/processed/volume_matched/verification/{sample}-{i}bottop-zx.png")
+            Image.fromarray(image).save(f"{image_dir}/{sample}-{i}bottop-zx.png")
 
     return shifts,errors
 
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     sample, overlap, max_shift, generate_h5 = commandline_args({"sample":"<required>","overlap":10,"max_shift":150,"generate_h5":False})
 
     input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
-    output_h5name = f"{hdf5_root}/processed/volume_matched/1x/{sample}.h5"
+    output_h5name = f"{volume_matched_dir}/1x/{sample}.h5"
     
     h5file = h5py.File(input_h5name, "r+")
     voxels = h5file['voxels']
@@ -107,9 +109,10 @@ if __name__ == "__main__":
     (Nz,Ny,Nx) = h5file['voxels'].shape
     
     crossings = np.cumsum(subvolume_dimensions[:-1,0]).astype(int)
+    print(f"Matching all regions for sample {sample} at crossings {crossings}.")
     shifts, errors = match_all_regions(voxels,crossings)
     
-    np.save(f"{hdf5_root}/processed/volume_matched/{sample}-shifts.npy",shifts)
+    np.save(f"{volume_matched_dir}/{sample}-shifts.npy",shifts)
 
     if("volume_matching_shifts" not in h5file):
         h5file.create_dataset("volume_matching_shifts",data=shifts)
@@ -117,5 +120,6 @@ if __name__ == "__main__":
         h5file["volume_matching_shifts"][...] = shifts
         
     h5file.close()
-    
+
+    print(f"Copying over volume from {input_h5name} shifted by shifts to {output_h5name}")
     if(generate_h5): write_matched_hdf5(input_h5name, output_h5name, crossings, shifts)
