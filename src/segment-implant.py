@@ -1,48 +1,60 @@
-import jax.numpy as jp
 import numpy as np
-import jax
 import os
 import sys
 import h5py
 import scipy.ndimage as ndi
 
-from esrf_read         import *;
-from blockmap          import *
-from resample          import *
-from static_constants import *
-jax.config.update("jax_enable_x64", True)
+from blockmap         import *
+from config.constants import *
+from config.paths import hdf5_root, commandline_args
+
 NA = np.newaxis
 
+sample, scale, chunk_size = commandline_args({"sample":"<required>","scale":1,'chunk_size':256})
+
+h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",'r')
+h5in   = h5py.File(f"{hdf5_root}/processed/volume_matched/{scale}x/{sample}.h5",'r')
+h5out  = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'w')
+
+subvolume_nz = h5meta['subvolume_dimensions'][:,0]
+n_subvolumes = len(subvolume_nz)
+
+voxelsize  = h5meta['voxels'].attrs['voxelsize']
+global_vmin = np.min(h5meta['subvolume_range'][:,0])
+global_vmax = np.max(h5meta['subvolume_range'][:,1])
+values      = np.linspace(global_vmin,global_vmax,255)
+h5meta.close()
+
+byte_implant_threshold = np.argmin(np.abs(values-implant_threshold))
+
+voxels_in  = h5in['voxels']
+voxels_out = h5out.create_dataset("voxels",voxels_in.shape,dtype=np.uint8,compression='lzf')
+# TODO: Transfer metadata consistently
+voxels_out.dims[0].label = 'z';
+voxels_out.dims[1].label = 'y';
+voxels_out.dims[2].label = 'x';
+voxels_out.attrs['voxelsize'] = voxelsize
+
+(Nz,Ny,Nx) = voxels_in.shape
+
+# Hvor skal denne hen?
 def sphere(n):
     xs = np.linspace(-1,1,n)
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
+sph5 = sphere(5)
 
-sample, xml_root, hdf5_root = sys.argv[1:] 
+print(f"Reading {voxels_in.shape} voxels of type {voxels_in.dtype} from "+f"{hdf5_root}/processed/volume_matched/{scale}x/{sample}.h5")
+print(f"Implant threshold {implant_threshold} -> {byte_implant_threshold} as byte")
 
-xmlfiles     = readfile(f"{xml_root}/index/{sample}.txt")
-n_subvolumes = len(xmlfiles)
-info_subvolumes = [esrf_read_xml(f"{xml_root}/{xml_filename.strip()}") for xml_filename in xmlfiles]
-
-output = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'w')
-
-sph5 = np.array(sphere(5))
-
-for i in range(n_subvolumes):
-    info = info_subvolumes[i]
-    [nz,ny,nx] = [int(info[s]) for s in ['sizez','sizey','sizex']]
-    print(f"subvolume {i} dimension is {nz,ny,nx}")
-    output.create_dataset(f"subvolume{i}",(nz,ny,nx),dtype=np.uint8,compression='lzf')
-
-    print(f"Loading subvolume {i}")
-    tomo    = esrf_full_tomogram(info)
-    print(f"Thresholding subvolume {i}")
-    implant = (tomo >= implant_threshold)
-    del tomo
-    print(f"Binary opening for subvolume {i}")
-    implant = ndi.binary_opening(implant,sph5)
-    print(f"Writing subvolume {i}")
-    output[f'subvolume{i}'][:] = implant[:]
-    del implant
-
-output.close()
+for z in range(0,Nz,chunk_size):
+    zend = min(Nz,z+chunk_size)
+    print(f"Reading and thresholding chunk {z}:{zend}.")
+    implant_chunk       = voxels_in[z:zend] >= byte_implant_threshold
+    print(f"Binary opening with {5*voxelsize} micrometer sphere (5 voxel radius).")
+    implant_chunk[3:-3] = ndi.binary_opening(implant_chunk,sph5)[3:-3]
+    print("Writing chunk")
+    voxels_out[z:zend]  = implant_chunk
+    
+h5in.close()
+h5out.close()

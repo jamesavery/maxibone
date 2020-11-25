@@ -14,16 +14,17 @@ from esrf_read import *
 import sys
 import jax.numpy as jp
 import jax
+from config.paths import *
 jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
-sample     = sys.argv[1];
-xml_root   = sys.argv[2];
-hdf5_root  = sys.argv[3];
+sample, xml_root     = commandline_args({"sample":"<required>","xml_root":esrf_implants_root})
 
 
 print(f"data_root={xml_root}")
 
+# Normalize, such that 1,...,2^(nbits)-1 correspond to vmin,...,vmax
+# 0 corresponds to a masked value
 def normalize(A,value_range,nbits=16,dtype=np.uint16):
     vmin,vmax = value_range
     return (((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)+1

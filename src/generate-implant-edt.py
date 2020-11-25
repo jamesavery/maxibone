@@ -6,14 +6,14 @@ import sys
 import h5py
 import scipy.ndimage as ndi
 import edt
+from config.paths import hdf5_root
 
 from esrf_read         import *;
 from blockmap          import *
 jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
-sample, hdf5_root = sys.argv[1:] 
-
+sample = sys.argv[1:] 
 
 h5implant = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'r')
 h5data    = h5py.File(f"{hdf5_root}/hdf5-byte/msb/1x/{sample}.h5",'r')

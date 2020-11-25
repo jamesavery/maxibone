@@ -121,5 +121,5 @@ if __name__ == "__main__":
         
     h5file.close()
 
-    print(f"Copying over volume from {input_h5name} shifted by shifts to {output_h5name}")
+    print(f"Copying over volume from {input_h5name} shifted by {shifts} to {output_h5name}")
     if(generate_h5): write_matched_hdf5(input_h5name, output_h5name, crossings, shifts)
