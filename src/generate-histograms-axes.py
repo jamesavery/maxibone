@@ -8,12 +8,11 @@ from config.paths import hdf5_root, commandline_args
 jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
-from static_constants import *;
 from esrf_read import *;
 import glob;
 import sys;
 
-sample, nbits, chunk_length = commandline_args({"sample":"<required>", "nbits":12, "chunk_length": 128})
+sample, nbits, chunk_length = commandline_args({"sample":"<required>", "nbits":12, "chunk_length": 64})
 
 # Input data is 16-bit, so nbit bincount starts by right-shifting 16-nbits
 shift = np.uint64(16-nbits)
@@ -29,13 +28,13 @@ voxels_lo = h5_lsb['voxels']
 subvolume_dimensions = h5_msb['subvolume_dimensions'][:];
 n_subvolumes = len(subvolume_dimensions)
 subvolume_nz    = subvolume_dimensions[:,0]
-subvolume_edges = [0]+list(np.cumsum(subvolume_nz))+[Nz]
+subvolume_edges = [0]+list(np.cumsum(subvolume_nz).astype(np.uint32))+[Nz]
 
 # Have we computed volume-matched shifts?
 if "shifts" in h5_msb:
     shifts = [0]+list(h5_msb["shifts"][:])
 else:
-    shifts = np.zeros((n_subvolumes),dtype=np.int)
+    shifts = np.zeros((n_subvolumes),dtype=np.uint32)
 
 
 hist_z = np.zeros((Nz,nbins),dtype=jp.uint64);
@@ -60,6 +59,7 @@ mask = cylinder_mask(Ny,Nx)
 for i in range(len(subvolume_nz)):
     z0 = subvolume_edges[i]+shifts[i]
     z1 = subvolume_edges[i+1]
+    print(f"Processing {z0}:{z1} (shift: {shifts[i]})")
     for z in range(z0,z1,chunk_length):
         chunk_end = min(z+chunk_length,z1)
     
