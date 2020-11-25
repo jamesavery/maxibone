@@ -2,7 +2,7 @@
 # Read metadata and data from raw tomograms from ESRF.
 # (C) James Avery for the MAXIBONE project, 2018
 import numpy as np;
-#import bohrium as bh;
+import bohrium as bh;
 import jax.numpy as jp
 import numpy.ma as ma;
 import sys,re,os;
@@ -70,36 +70,40 @@ def esrf_full_tomogram(info):
     (nx,ny,nz) = (int(info['sizex']),int(info['sizey']),int(info['sizez']));
     return esrf_edfrange_to_npy(info,[[0,0,0],[nx,ny,nz]]);
 
-# def esrf_edf_to_bh(filename):
-#     meta = esrf_edf_metadata(filename);
-#     (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));    
-#     header_length = 1024;        
+def esrf_edf_to_bh(filename):
+    meta = esrf_edf_metadata(filename);
+    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));    
+    header_length = 1024;        
 
-#     with open(filename,"rb") as f:
-#         f.seek(header_length,os.SEEK_SET);
-#         data = bh.fromfile(file=f,dtype=meta["NumpyType"]);
-# #        assert data.shape[0]*2 == int(meta["Size"]);
-#         return (meta,data.reshape(ny,nx));
+    with open(filename,"rb") as f:
+        f.seek(header_length,os.SEEK_SET);
+        data = bh.fromfile(file=f,dtype=meta["NumpyType"]);
+#        assert data.shape[0]*2 == int(meta["Size"]);
+        return (meta,data.reshape(ny,nx));
 
-# def esrf_edf_n_to_bh(info,n):
-#     dirname        = info["dirname"];
-#     subvolume_name = info["subvolume_name"].format(n);
-#     return esrf_edf_to_bh(dirname+"/"+subvolume_name);
+def esrf_edf_n_to_bh(info,n):
+    dirname        = info["dirname"];
+    subvolume_name = info["subvolume_name"].format(n);
+    return esrf_edf_to_bh(dirname+"/"+subvolume_name);
 
-# def esrf_edfrange_to_bh(info,region):
-#     [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
-#     assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
+def esrf_edfrange_to_bh(info,region):
+    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
+    try:
+        assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
+    except:
+        print(f'assert failed {x_end} <= {int(info["sizex"])} and {y_end} <= {int(info["sizey"])} and {z_end} <= {int(info["sizez"])}')
+        raise
 
-#     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
-#     image = bh.zeros(shape,dtype=bh.float32);
-#     for z in range(z_start,z_end):
-#         if (z % 100 == 0):
-#             print(z);
-#         (meta,data) = esrf_edf_n_to_bh(info,z);
+    shape = (z_end-z_start,y_end-y_start,x_end-x_start);
+    image = bh.zeros(shape,dtype=bh.float32);
+    for z in range(z_start,z_end):
+        if (z % 100 == 0):
+            print(z);
+        (meta,data) = esrf_edf_n_to_bh(info,z);
 
-#         image[z-z_start] = data[y_start:y_end,x_start:x_end];
+        image[z-z_start] = data[y_start:y_end,x_start:x_end];
 
-#     return image;
+    return image;
 
 
 def esrf_edf_to_jp(filename):

@@ -4,18 +4,18 @@
 # /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
 # /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
-#import bohrium as bh
-import numpy   as bh
+import bohrium as bh
+#import numpy   as bh
 import numpy   as np
 import h5py
 #import h5tomo 
 import matplotlib.pyplot as plt
 from esrf_read import *
-import sys
-import jax.numpy as jp
-import jax
+import h5py, sys, jax, os.path, pathlib
 from config.paths import *
-jax.config.update("jax_enable_x64", True)
+# import jax.numpy as jp
+# import jax
+# jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
 sample, xml_root     = commandline_args({"sample":"<required>","xml_root":esrf_implants_root})
@@ -59,6 +59,11 @@ experiment  = sample
 
 msb_filename = f"{hdf5_root}/hdf5-byte/msb/{experiment}.h5";
 lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/{experiment}.h5";
+
+# Make sure directory exists
+outdir = os.path.dirname(msb_filename)
+pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
+
 print(f"Writing {msb_filename} and {lsb_filename}")
 h5file_msb = h5py.File(msb_filename,"w");
 h5file_lsb = h5py.File(lsb_filename,"w");
@@ -84,16 +89,17 @@ for h5file in [h5file_msb,h5file_lsb]:
     h5tomo.attrs['voxelsize'] = np.float(subvolume_info['voxelsize']);
 
 z_offset = 0;
-normalize_jit = jax.jit(normalize)
+#normalize_jit = jax.jit(normalize)
+normalize_jit = normalize
 h5tomo_msb = h5file_msb['voxels']
 h5tomo_lsb = h5file_lsb['voxels']
 
 def cylinder_mask(Ny,Nx):
-    ys = jp.linspace(-1,1,Ny)
-    xs = jp.linspace(-1,1,Nx)
+    ys = bh.linspace(-1,1,Ny)
+    xs = bh.linspace(-1,1,Nx)
     return (xs[NA,:]**2 + ys[:,NA]**2) < 1 
 
-mask = jp.array(cylinder_mask(Ny,Nx))
+mask = bh.array(cylinder_mask(Ny,Nx))
 
 for i in range(len(subvolume_metadata)):
     subvolume_info = subvolume_metadata[i];
@@ -111,13 +117,18 @@ for i in range(len(subvolume_metadata)):
     chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
     for z in range(0,nz,chunk_length):
         chunk_end = min(z+chunk_length,nz);
-        print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
-        for j in range(0,chunk_end-z):
+        region = [[sx,sy,z],[ex,ey,chunk_end]]
+        print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
+        slab_data = esrf_edfrange_to_bh(subvolume_info,region)
+        slab_data *= mask[NA,:,:]
+        chunk[:] = slab_data.copy2numpy()
+#        for j in range(0,chunk_end-z):
 #            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
-            slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
-            slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
-            chunk[j] = normalize_jit(slice_data,(global_vmin,global_vmax)) * mask[NA,:,:];
-            del slice_data
+#            slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
+#            slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
+#            slab = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax)) * mask
+#            chunk[j] = slab.copy2numpy()
+#            del slice_data
             
         print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
         h5tomo_msb[z_offset+z:z_offset+chunk_end] = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8) #.copy2numpy();
