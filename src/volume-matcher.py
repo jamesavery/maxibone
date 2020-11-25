@@ -7,6 +7,7 @@
 ### Fix shifted volumes ###
 ###########################
 
+import h5py, sys, jax, os.path, pathlib
 import numpy as np
 import jax.numpy as jp
 import h5py, jax, sys
@@ -54,6 +55,7 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
 
         if(write_image_checks):
             image_dir = f"{volume_matched_dir}/verification"
+            pathlib.Path(image_dir).mkdir(parents=True, exist_ok=True)                
             print(f"Writing images of matched slices to {image_dir} to check correctness.")
             merged_voxels = jp.concatenate([top_voxels,bot_voxels[shift:]])
             merged_zy_slice  = np.array(merged_voxels[:,:,Nx//2])
@@ -102,6 +104,9 @@ if __name__ == "__main__":
 
     input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
     output_h5name = f"{volume_matched_dir}/1x/{sample}.h5"
+
+    outdir = os.path.dirname(output_h5name)
+    pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)    
     
     h5file = h5py.File(input_h5name, "r+")
     voxels = h5file['voxels']
