@@ -1,14 +1,15 @@
 import jax.numpy as np
 import jax
 jax.config.update("jax_enable_x64", True)
+#import cupy as np
 NA = np.newaxis
 
 def downsample2x(V):
     (Nz,Ny,Nx) = V.shape
-    (nz,ny,nx) = np.array((Nz,Ny,Nx))//2;
+    (nz,ny,nx) = (Nz//2,Ny//2,Nx//2)
     xs = np.linspace(-1,1,nx)[:,NA]
     ys = np.linspace(-1,1,ny)[NA,:]
-    cylinder_mask = (xs*xs + ys*ys)<=1;
+    cylinder_mask = (xs*xs + ys*ys)<=1
     
     print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
     print("Extracting S1")
@@ -26,7 +27,7 @@ def downsample2x(V):
 
 def downsample3x(V):
     (Nz,Ny,Nx) = V.shape
-    (nz,ny,nx) = np.array((Nz,Ny,Nx))//3;
+    (nz,ny,nx) = (Nz//3,Ny//3,Nx//3)
     xs = np.linspace(-1,1,nx)[:,np.newaxis]
     ys = np.linspace(-1,1,ny)[np.newaxis,:]
     cylinder_mask = (xs*xs + ys*ys)<=1;
