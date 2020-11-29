@@ -19,7 +19,7 @@ h5out  = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'w')
 subvolume_nz = h5meta['subvolume_dimensions'][:,0]
 n_subvolumes = len(subvolume_nz)
 
-voxelsize  = h5meta['voxels'].attrs['voxelsize']
+voxelsize   = h5meta['voxels'].attrs['voxelsize']
 global_vmin = np.min(h5meta['subvolume_range'][:,0])
 global_vmax = np.max(h5meta['subvolume_range'][:,1])
 values      = np.linspace(global_vmin,global_vmax,255)

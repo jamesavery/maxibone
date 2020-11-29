@@ -1,39 +1,39 @@
-import jax.numpy as jp
 import numpy as np
-import jax
 import os
 import sys
 import h5py
 import scipy.ndimage as ndi
 import edt
-from config.paths import hdf5_root
+from config.paths import hdf5_root, commandline_args
 
 from esrf_read         import *;
 from blockmap          import *
-jax.config.update("jax_enable_x64", True)
 NA = np.newaxis
 
-sample = sys.argv[1:] 
+sample, scale, chunk_size, padding = commandline_args({"sample":"<required>","scale":1,'chunk_size':200, 'padding':23})
 
-h5implant = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'r')
-h5data    = h5py.File(f"{hdf5_root}/hdf5-byte/msb/1x/{sample}.h5",'r')
-output    = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}-edt.h5",'w')
+h5implant = h5py.File(f"{hdf5_root}/processed/implant/{scale}x/{sample}.h5",'r')
+output    = h5py.File(f"{hdf5_root}/processed/implant/{scale}x/{sample}-edt.h5",'w')
 
-subvolume_dimensions = h5data['subvolume_dimensions'][:]
-n_subvolumes = len(subvolume_dimensions)
-h5data.close()
+(Nz,Ny,Nx) = h5implant['voxels'].shape
 
-for i in range(n_subvolumes):
-    (nz,ny,nx) = subvolume_dimensions[i]
-    print(f"Loading {(nz,ny,nx)} voxels in {sample} subvolume {i}")
-    implant = ~h5implant[f"subvolume{i}"][:]
-    print(f"Calculating EDT for {sample} subvolume {i}")
-    implant_edt = edt.edt(implant).astype(np.float16)
-    del implant
-    print(f"Writing out EDT")
-    output.create_dataset(f"subvolume{i}",data=implant_edt)
-    del implant_edt
+output_voxels = output.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.float16)
 
+print(output_voxels.shape)
+for z in range(0,Nz,chunk_size):
+    zend = min(Nz,z+chunk_size)
+    top_padding = (z!=0)*padding
+    bot_padding = (zend!=Nz)*padding
+    
+    print(f"Loading voxels {z-top_padding}:{zend+bot_padding} = ({z}-{top_padding}):({zend}+{bot_padding})")
+    implant_mask = ~(h5implant['voxels'][z-top_padding:zend+bot_padding].astype(np.bool))
+    print(implant_mask.mean())
+    print(f"Calculating EDT")
+    implant_edt = edt.edt(implant_mask).astype(np.float16)
+    print(f"Writing out output_voxels[{z}:{zend}] = EDT[{top_padding}:{implant_edt.shape[0]-bot_padding}]. EDT.shape = {implant_edt.shape}, implant_mask.shape = {implant_mask.shape}")
+    output_voxels[z:zend] = implant_edt[top_padding:implant_edt.shape[0]-bot_padding]
+#    del implant_mask    
+#    del implant_edt
 
 h5implant.close()    
 output.close()
