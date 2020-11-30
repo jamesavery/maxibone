@@ -1,3 +1,4 @@
+import h5py, sys, os.path, pathlib
 import numpy as np
 import os
 import sys
@@ -12,9 +13,14 @@ NA = np.newaxis
 
 sample, scale, chunk_size = commandline_args({"sample":"<required>","scale":1,'chunk_size':256})
 
+
+
 h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",'r')
 h5in   = h5py.File(f"{hdf5_root}/processed/volume_matched/{scale}x/{sample}.h5",'r')
-h5out  = h5py.File(f"{hdf5_root}/processed/implant/1x/{sample}.h5",'w')
+
+output_dir = f"{hdf5_root}/processed/implant/{scale}x"
+pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+h5out  = h5py.File(f"{output_dir}/{sample}.h5",'w')
 
 subvolume_nz = h5meta['subvolume_dimensions'][:,0]
 n_subvolumes = len(subvolume_nz)
@@ -49,8 +55,9 @@ print(f"Implant threshold {implant_threshold} -> {byte_implant_threshold} as byt
 
 for z in range(0,Nz,chunk_size):
     zend = min(Nz,z+chunk_size)
-    print(f"Reading and thresholding chunk {z}:{zend}.")
+    print(f"Reading and thresholding chunk {z}:{zend} of {voxels_in.shape} {voxels_in.dtype}.")
     implant_chunk       = voxels_in[z:zend] >= byte_implant_threshold
+    print(f"Max inddata: {voxels_in[z:zend].max()}; Number of matching voxels: {np.sum(implant_chunk)}")
     print(f"Binary opening with {5*voxelsize} micrometer sphere (5 voxel radius).")
     implant_chunk[3:-3] = ndi.binary_opening(implant_chunk,sph5)[3:-3]
     print("Writing chunk")
