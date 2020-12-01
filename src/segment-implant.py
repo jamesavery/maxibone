@@ -53,15 +53,15 @@ sph5 = sphere(5)
 print(f"Reading {voxels_in.shape} voxels of type {voxels_in.dtype} from "+f"{hdf5_root}/processed/volume_matched/{scale}x/{sample}.h5")
 print(f"Implant threshold {implant_threshold} -> {byte_implant_threshold} as byte")
 
-for z in range(0,Nz,chunk_size):
-    zend = min(Nz,z+chunk_size)
-    print(f"Reading and thresholding chunk {z}:{zend} of {voxels_in.shape} {voxels_in.dtype}.")
-    implant_chunk       = voxels_in[z:zend] >= byte_implant_threshold
-    print(f"Max inddata: {voxels_in[z:zend].max()}; Number of matching voxels: {np.sum(implant_chunk)}")
+for z0 in range(0,Nz,chunk_size):
+    z1 = min(Nz,z0+chunk_size)
+    print(f"Reading and thresholding chunk {z0}:{z1} of {voxels_in.shape} {voxels_in.dtype}.")
+    implant_chunk       = voxels_in[z0:z1] >= byte_implant_threshold
+    print(f"Max inddata: {voxels_in[z0:z1].max()}; Number of matching voxels: {np.sum(implant_chunk)}")
     print(f"Binary opening with {5*voxelsize} micrometer sphere (5 voxel radius).")
     implant_chunk[3:-3] = ndi.binary_opening(implant_chunk,sph5)[3:-3]
     print("Writing chunk")
-    voxels_out[z:zend]  = implant_chunk
+    voxels_out[z0:z1]  = implant_chunk
     
 h5in.close()
 h5out.close()
