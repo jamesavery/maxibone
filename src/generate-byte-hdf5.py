@@ -5,20 +5,18 @@
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
 # /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
 import bohrium as bh
-#import numpy   as bh
+from esrf_read import *
 import numpy   as np
 import h5py
-#import h5tomo 
 import matplotlib.pyplot as plt
-from esrf_read import *
-import h5py, sys, jax, os.path, pathlib
+import h5py, sys, os.path, pathlib
 from config.paths import *
-# import jax.numpy as jp
-# import jax
-# jax.config.update("jax_enable_x64", True)
+from PIL import Image
+
 NA = np.newaxis
 
-sample, xml_root     = commandline_args({"sample":"<required>","xml_root":esrf_implants_root})
+sample, chunk_length, use_bohrium, xml_root  = commandline_args({"sample":"<required>","chunk_length":256,
+                                                                 "use_bohrium":True,"xml_root":esrf_implants_root})
 
 
 print(f"data_root={xml_root}")
@@ -27,7 +25,7 @@ print(f"data_root={xml_root}")
 # 0 corresponds to a masked value
 def normalize(A,value_range,nbits=16,dtype=np.uint16):
     vmin,vmax = value_range
-    return (((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)+1
+    return (A!=0)*((((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)+1)
 
 subvolume_xmls     = readfile(f"{xml_root}/index/{sample}.txt")
 subvolume_metadata = [esrf_read_xml(f"{xml_root}/{xml.strip()}") for xml in subvolume_xmls];
@@ -113,27 +111,40 @@ for i in range(len(subvolume_metadata)):
     # print(f"Writing {subvolume_info['experiment']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
-    chunk_length = nz
-    chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
+    chunk = bh.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
     for z in range(0,nz,chunk_length):
         chunk_end = min(z+chunk_length,nz);
+
         region = [[sx,sy,z],[ex,ey,chunk_end]]
         print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
         slab_data = esrf_edfrange_to_bh(subvolume_info,region)
+        print("Before masking:", slab_data.max())
         slab_data *= mask[NA,:,:]
-        chunk[:] = slab_data.copy2numpy()
-#        for j in range(0,chunk_end-z):
-#            slice_meta, slice_data = esrf_edf_n_to_bh(subvolume_info,z+j);
-#            slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
-#            slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
-#            slab = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax)) * mask
-#            chunk[j] = slab.copy2numpy()
-#            del slice_data
+        print("After masking:", slab_data.max())        
+        chunk[:chunk_end-z] = normalize(slab_data,(global_vmin,global_vmax))
+        print("After normalizing:", chunk.max())
+
+        # for j in range(0,chunk_end-z):
+        #     slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
+        #     slice_data = jp.array(slice_data[sy:ey,sx:ex].copy())
+        #     chunk[j] = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax)) * mask
+
             
-        print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
-        h5tomo_msb[z_offset+z:z_offset+chunk_end] = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8) #.copy2numpy();
-        print(f"Writing {sample} LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");        
-        h5tomo_lsb[z_offset+z:z_offset+chunk_end] = (chunk[:chunk_end-z]&0xff).astype(np.uint8) #.copy2numpy();
+        print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
+        chunk_msb = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8)
+        print("chunk_msb.max: ", chunk_msb.max())
+        chunk_msb = chunk_msb.copy2numpy()
+        print("chunk_msb.copy2numpy().max: ", chunk_msb.max())
+        h5tomo_msb[z_offset+z:z_offset+chunk_end] = chunk_msb[:]
+        
+        print(f"Writing {sample} LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
+        chunk_lsb = (chunk[:chunk_end-z]&0xff).astype(np.uint8)
+        print("chunk_lsb.max: ", chunk_lsb.max())
+        chunk_lsb = chunk_lsb.copy2numpy()
+        print("chunk_lsb.copy2numpy().max: ", chunk_lsb.max())
+        h5tomo_lsb[z_offset+z:z_offset+chunk_end] = chunk_lsb[:]
+        bh.flush()
+        
     z_offset += nz;
 
 h5file_msb.close()
