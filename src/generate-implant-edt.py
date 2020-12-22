@@ -1,5 +1,4 @@
-import numpy as np
-import os, sys, h5py
+import os, sys, h5py, scipy.ndimage as ndi, numpy as np
 #from scipy.ndimage.morphology import distance_transform_edt as edt
 from edt import edt
 from config.paths import hdf5_root, commandline_args
@@ -15,6 +14,11 @@ output    = h5py.File(f"{hdf5_root}/processed/implant/{scale}x/{sample}-edt.h5",
 
 output_voxels = output.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.float16)
 
+#TODO: Voxel size in metadata
+voxelsize = 1.85*scale
+sigma     = 50/voxelsize
+
+
 print(output_voxels.shape)
 for z0 in range(0,Nz,chunk_size):
     z1     = min(Nz,z0+chunk_size)
@@ -22,6 +26,7 @@ for z0 in range(0,Nz,chunk_size):
     
     print(f"Loading voxels {Z0}:{Z1} ({z0}:{z1} with padding)")
     implant_mask = ~(h5implant['voxels'][Z0:Z1].astype(np.bool))
+    implant_mask = ndi.gaussian_filter(implant_mask.astype(np.float32), sigma) >= 0.999
     print(implant_mask.mean())
     print(f"Calculating EDT")
     implant_edt = edt(implant_mask).astype(np.float16)
