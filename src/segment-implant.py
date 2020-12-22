@@ -25,7 +25,7 @@ h5out  = h5py.File(f"{output_dir}/{sample}.h5",'w')
 subvolume_nz = h5meta['subvolume_dimensions'][:,0]
 n_subvolumes = len(subvolume_nz)
 
-voxelsize   = h5meta['voxels'].attrs['voxelsize']
+voxelsize   = h5meta['voxels'].attrs['voxelsize'] * scale
 global_vmin = np.min(h5meta['subvolume_range'][:,0])
 global_vmax = np.max(h5meta['subvolume_range'][:,1])
 values      = np.linspace(global_vmin,global_vmax,255)
@@ -48,7 +48,9 @@ def sphere(n):
     xs = np.linspace(-1,1,n)
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
-sph5 = sphere(5)
+sphere_diameter = 2*int(20/voxelsize+0.5)+1
+if(sphere_diameter>1):
+    sph5 = sphere(sphere_diameter)
 
 print(f"Reading {voxels_in.shape} voxels of type {voxels_in.dtype} from "+f"{hdf5_root}/processed/volume_matched/{scale}x/{sample}.h5")
 print(f"Implant threshold {implant_threshold} -> {byte_implant_threshold} as byte")
@@ -58,8 +60,9 @@ for z0 in range(0,Nz,chunk_size):
     print(f"Reading and thresholding chunk {z0}:{z1} of {voxels_in.shape} {voxels_in.dtype}.")
     implant_chunk       = voxels_in[z0:z1] >= byte_implant_threshold
     print(f"Max inddata: {voxels_in[z0:z1].max()}; Number of matching voxels: {np.sum(implant_chunk)}")
-    print(f"Binary opening with {5*voxelsize} micrometer sphere (5 voxel radius).")
-    implant_chunk[3:-3] = ndi.binary_opening(implant_chunk,sph5)[3:-3]
+    if(sphere_diameter>1):
+        print(f"Binary opening with {sphere_diameter*voxelsize} micrometer sphere ({sphere_diameter} voxel radius).")
+        implant_chunk[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_opening(implant_chunk,sph5)[sphere_diameter//2:-sphere_diameter//2]
     print("Writing chunk")
     voxels_out[z0:z1]  = implant_chunk
     
