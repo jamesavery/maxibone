@@ -11,22 +11,23 @@ using namespace std;
 
 
 // TODO: Template over in-type and out-type
+// TODO: Create dataset in file_out
 void process_h5(string filename_in, string filename_out, auto process,
-	       size_t chunk_size=256, size_t padding=28, string dsetname="voxels")
+	       int chunk_size=256, int padding=28, string dsetname="voxels")
 {
   using namespace h5pp;
 
   File file_in (filename_in, FilePermission::READONLY);
   File file_out(filename_out,FilePermission::REPLACE);
 
-  size_t Nz, Ny, Nx; // = file_in['voxels'].shape
-  vector<int> dset_shape = {Nz, Ny, Nx};
+  auto dset = file_in.getDatasetInfo(dsetname);
+  vector<size_t> dset_shape = dset.dsetDims.value();
+  int Nz = dset_shape[0], Ny = dset_shape[1], Nx = dset_shape[2];
   
-  for(size_t z0=0;z0<Nz;z0+=chunk_size){
-    size_t z1 = min(Nz, z0+chunk_size);              // z0:z1 is inner region (written to result)
-    size_t top_padding = (z0!=0) *padding;	     // Pad top    except for first chunk
-    size_t bot_padding = (z1!=Nz)*padding;	     // Pad bottom except for last  chunk
-    size_t Z0 = z0-top_padding, Z1 = z1+bot_padding; // Z0:Z1 is padded region (read from input and processed)
+  for(int z0=0;z0<Nz;z0+=chunk_size){
+    int z1 = min(Nz, z0+chunk_size);              // z0:z1 is inner region (written to result)
+    int Z0 = max(0,z0-padding), Z1 = min(Nz,z1+padding);
+    int top_padding = Z0-z0, bot_padding = Nz-Z1;	  
 
     vector<float> chunk_in  = file_in.readHyperslab< vector<float> > (dsetname, Hyperslab({Z0,0,0},{Z1-Z0,Ny,Nx}));
     vector<float> chunk_out = process(chunk_in, dset_shape, z0, z1, Z0, Z1);
