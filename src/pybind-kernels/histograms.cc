@@ -42,7 +42,7 @@ void axis_histogram(const py::array_t<voxel_type> np_voxels,
 
   fprintf(stderr,"Starting binning: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",vmin, vmax, Nx,Ny,Nz,Nr);
 
-#pragma omp parallel for private(i) reduction(+:x_bins[:Nx*voxel_bins], y_bins[:Ny*voxel_bins], z_bins[:Nz*voxel_bins], r_bins[:Nr*voxel_bins])
+  //#pragma omp parallel for private(i) reduction(+:x_bins[:Nx*voxel_bins], y_bins[:Ny*voxel_bins], z_bins[:Nz*voxel_bins], r_bins[:Nr*voxel_bins])
   for(i=0;i< image_length;i++)
     if(voxels[i] != 0) {	// 0 is out-of-band value for masked voxels; voxel values start at 1
       uint64_t x = i % Nx;
@@ -93,9 +93,9 @@ void field_histogram(const py::array_t<voxel_type> np_voxels,
 
   uint64_t i=0;
 
-#pragma omp parallel for private(i) reduction(+:bins[:field_bins*voxel_bins])  
+  //#pragma omp parallel for private(i) reduction(+:bins[:field_bins*voxel_bins])  
   for(i=0;i< image_length;i++)
-    if(voxels[i] != 0) {	// 0 is special value for masked voxels; voxel values start at 1
+    if((voxels[i] >= 1) && (field[i] >= 1)) {	// 0 is special value for masked voxels; voxel values start at 1
       int64_t voxel_index = round((voxel_bins-1) * (voxels[i] - vmin)/(vmax - vmin) );
       int64_t field_index = round((field_bins-1) * (field[i] - fmin)/(fmax - fmin) );      
 

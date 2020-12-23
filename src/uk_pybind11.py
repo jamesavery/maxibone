@@ -15,7 +15,7 @@ def axes_histogram(voxels, ranges=None, voxel_bins=256):
     print("my old\n",flush=True)
     
     if ranges is None:
-        vmin, vmax = voxels.min(), voxels.max()
+        vmin, vmax = 1, 255
     else:
         vmin, vmax = ranges
 
@@ -26,7 +26,7 @@ def axes_histogram(voxels, ranges=None, voxel_bins=256):
     return x_bins, y_bins, z_bins, r_bins
 
 
-def field_histogram(voxels, field, ranges=None,field_bins=1024, voxel_bins=256):
+def field_histogram(voxels, field, ranges=None,field_bins=256, voxel_bins=256):
     assert(voxels.shape == field.shape)
 
     
@@ -34,7 +34,7 @@ def field_histogram(voxels, field, ranges=None,field_bins=1024, voxel_bins=256):
 
     # TODO: Don't scan over array 4 times - perhaps roll into user kernel
     if ranges is None:
-        vmin, vmax = voxels.min(), voxels.max()
+        vmin, vmax = 1, 255
         fmin, fmax = field.min(), field.max()
     else:
         ((vmin,vmax),(fmin,fmax)) = ranges
