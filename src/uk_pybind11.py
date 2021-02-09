@@ -2,9 +2,11 @@ import histograms, numpy as np
 from time import time;
 import sys
 
+# TODO: Currently specialized to uint16_t
+def masked_minmax(voxels):
+    return histograms.masked_minmax(voxels)
+
 def axes_histogram(voxels, ranges=None, voxel_bins=256):
-    print("Hello\n",flush=True)
-    print("again\n",flush=True)
     (Nz,Ny,Nx) = voxels.shape
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
     
@@ -12,33 +14,27 @@ def axes_histogram(voxels, ranges=None, voxel_bins=256):
     y_bins   = np.zeros((Ny,voxel_bins),dtype=np.uint64)
     z_bins   = np.zeros((Nz,voxel_bins),dtype=np.uint64)
     r_bins   = np.zeros((Nr,voxel_bins),dtype=np.uint64)
-    print("my old\n",flush=True)
     
     if ranges is None:
-        vmin, vmax = 1, 255
+        vmin, vmax = 1, 4095
     else:
         vmin, vmax = ranges
 
-    print(f"friend: {vmin}, {vmax}\n",flush=True)        
-
-    histograms.axis_histogram(np.ascontiguousarray(voxels), x_bins, y_bins, z_bins, r_bins, vmin, vmax);
-
+    histograms.axis_histogram(voxels, x_bins, y_bins, z_bins, r_bins, vmin, vmax);
     return x_bins, y_bins, z_bins, r_bins
 
 
 def field_histogram(voxels, field, ranges=None,field_bins=256, voxel_bins=256):
-    assert(voxels.shape == field.shape)
-
+    assert(voxels.dtype == np.uint16)
     
     bins   = np.zeros((field_bins,voxel_bins),dtype=np.uint64)
 
-    # TODO: Don't scan over array 4 times - perhaps roll into user kernel
     if ranges is None:
-        vmin, vmax = 1, 255
-        fmin, fmax = field.min(), field.max()
+        vmin, vmax = masked_minmax(voxels)
     else:
-        ((vmin,vmax),(fmin,fmax)) = ranges
+        (vmin,vmax) = ranges
 
-    histograms.field_histogram(voxels,field,bins,vmin,vmax,fmin,fmax)
+    print("Calculating field histogram",flush=True);        
+    histograms.field_histogram(voxels,field,bins,vmin,vmax)
     
     return bins
