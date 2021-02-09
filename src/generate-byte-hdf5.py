@@ -61,6 +61,8 @@ lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/{experiment}.h5";
 # Make sure directory exists
 outdir = os.path.dirname(msb_filename)
 pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
+outdir = os.path.dirname(lsb_filename)
+pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
 
 print(f"Writing {msb_filename} and {lsb_filename}")
 h5file_msb = h5py.File(msb_filename,"w");
