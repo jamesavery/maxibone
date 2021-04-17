@@ -1,0 +1,39 @@
+Referat fra møde 5/8/2019:
+
+Vi gennemgik titler og indhold på de artikler, vi skal skrive, og som skal indrapporteres til MAXIBONE.
+
+Titler og indhold planlægges som følger:
+
+0. Spatial Analysis for SRmuCT Segmentation
+
+1. Fully-automatic quantification of peri-implant hard-tissue from SRuCT tomography
+Journal-forslag: Int. J. of Oral Implantology
+Indhold:
++ Knogletæthed tæt på implantat som funk. af afstand til impl. samt af y-akse
++ Mål på kontakt mellem granulater og implantat
+
+2. Porous Hydro-apatite embedded bone characteristics - Else skriver titlen færdig
+Indhold:
++ Hvor meget af 3D-volumen af granulat-kanalerne er blevet invaderet af knogle?
+
+3. Mapping Osteocyte Lacunae Placement and Flow in Cortical Bone 
+Indhold:
++ Positioner og orientering af osteocytter, flow ifht. blodårer.
++ Sammenligning mellem normal knogle og nygroet knogle fra gederne
+
+4. From synchrotron to the lab: Precise prediction of osteocyte lacunae in low-resolution tomograms trained on high-resolution SRmuCT.
+Indhold:
++ Osteocyt-lacunae findes geometrisk i højopløsningsdata
++ Tomogram og klassificering nedskaleres (ground-truth per voxel: procentdel knogle,  procentdel luft, procentdel blødvæv, procentdel osteocyt)
++ Konvolutions-netværk (CNN) trænes på nedskaleret data
++ CNN anvendes til klassificering på grovkornet tomogram-data (som det ikke er trænet på)
+Mål: klassificering/segmentering med billigere scannings-metoder
+
+
+5. Reconstructing tissue information in X-ray tomograms by matching with histological samples
+Indhold:
++ Data er lys-mikroskopi fra histologi-samples + røntgen-tomogrammer af samme knogler, som de er taget fra (5mm-tomogrammerne)
++ Automatisk matching af histologi-position i tomogrammet. Derved identificeres væv mere nøjagtigt i denne region.
++ Ekstrapolering til resten af tomogrammet
+Mål: Ved sammenholdning med lysmikroskopi ønsker vi at udlede bedre information om væv i knogleprøver, end det er muligt at se med ren røntgen.
+
