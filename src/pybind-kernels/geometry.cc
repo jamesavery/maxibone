@@ -16,17 +16,13 @@ void print_timestamp(string message)
 
 // TODO: OpenACC
 array<double,3> center_of_mass(const voxel_type *voxels, const array<size_t,3> &shape) {
-  //  double cm[3] = {0,0,0};
+  // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
   double cmx = 0, cmy = 0, cmz = 0;
   size_t  Nz = shape[0], Ny = shape[1], Nx = shape[2];
   int64_t image_length = Nx*Ny*Nz;
   int64_t block_size =  1024 * 1024 * 1024/sizeof(voxel_type); // 1 GB
 
   print_timestamp("center_of_mass start");
-  //#pragma omp parallel for reduction(+:cm[:3]) simd
-
-
-  
   for(int64_t block_start=0;block_start<image_length;block_start+=block_size){
 
     const voxel_type *buffer = voxels + block_start;
@@ -34,14 +30,12 @@ array<double,3> center_of_mass(const voxel_type *voxels, const array<size_t,3> &
 
 #pragma acc parallel loop reduction(+:cmx,cmy,cmz) copyin(buffer[:block_length])    
     for(uint64_t k = 0; k<block_length;k++){
+      double          m = buffer[k];      
       uint64_t flat_idx = block_start + k;
       uint64_t x = flat_idx % Nx;
       uint64_t y = (flat_idx / Nx) % Ny;
       uint64_t z = flat_idx / (Nx*Ny);
-      
-      double m = buffer[k];
     
-    //    cm[0] += m*x; cm[1] += m*y; cm[2] += m*z;
       cmx += m*x; cmy += m*y; cmz += m*z;
     }
   }
@@ -51,8 +45,9 @@ array<double,3> center_of_mass(const voxel_type *voxels, const array<size_t,3> &
   return array<double,3>{cmx,cmy,cmz};
 }
 
-array<double,9> inertia_matrix_reduction(const voxel_type *voxels, const array<size_t,3> &shape, const array<double,3> &cm)
+array<double,9> inertia_matrix(const voxel_type *voxels, const array<size_t,3> &shape, const array<double,3> &cm)
 {
+  // nvc++ doesn't support OpenACC 2.7 array reductions yet, so must name each element.
   double
     M00 = 0, M01 = 0, M02 = 0,
     M10 = 0, M11 = 0, M12 = 0,
@@ -63,31 +58,37 @@ array<double,9> inertia_matrix_reduction(const voxel_type *voxels, const array<s
   size_t block_size =  1024 * 1024 * 1024/sizeof(voxel_type); // 1 GB
 
   print_timestamp("inertia_matrix start");    
-  
   for(size_t block_start=0;block_start<image_length;block_start+=block_size){
     const voxel_type *buffer  = voxels + block_start;
     int block_length = min(block_size,image_length-block_start);
 
+#ifdef _OPENACC
 #pragma acc parallel loop copyin(buffer[:block_length]) reduction(+:M00,M01,M02,M10,M11,M12,M20,M21,M22)
+#else
+#pragma omp parallel for reduction(+:M00,M01,M02,M10,M11,M12,M20,M21,M22)
+#endif    
     for(uint64_t k = 0; k<block_length;k++)  if(buffer[k] != 0) {    
 	uint64_t flat_idx = block_start + k;
 	uint64_t xs[3] = {flat_idx % Nx, (flat_idx / Nx) % Ny, flat_idx / (Nx*Ny)}; // x,y,z
 
-	double diag = voxels[flat_idx] * (xs[0]*xs[0] + xs[1]*xs[1] + xs[2]*xs[2]);
-	M00 += diag - voxels[flat_idx] * xs[0] * xs[0];
-	M11 += diag - voxels[flat_idx] * xs[1] * xs[1];
-	M22 += diag - voxels[flat_idx] * xs[2] * xs[2];	
-	M01 -= voxels[flat_idx] * xs[0] * xs[1];
-	M10 -= voxels[flat_idx] * xs[0] * xs[1];
-	M02 -= voxels[flat_idx] * xs[0] * xs[2];
-	M01 -= voxels[flat_idx] * xs[0] * xs[2];
-	M12 -= voxels[flat_idx] * xs[1] * xs[2];
-	M21 -= voxels[flat_idx] * xs[1] * xs[2]; 			
+	double m = buffer[k];
+	double diag = m * (xs[0]*xs[0] + xs[1]*xs[1] + xs[2]*xs[2]);
+	M00 += diag - m * xs[0] * xs[0];
+	M11 += diag - m * xs[1] * xs[1];
+	M22 += diag - m * xs[2] * xs[2];	
+	M01 -= m * xs[0] * xs[1];
+	M10 -= m * xs[0] * xs[1];
+	M02 -= m * xs[0] * xs[2];
+	M20 -= m * xs[0] * xs[2];
+	M12 -= m * xs[1] * xs[2];
+	M21 -= m * xs[1] * xs[2]; 			
       }
   }
   print_timestamp("inertia_matrix end");      
   return array<double,9> {M00,M01,M02,M10,M11,M12,M20,M21,M22};
 }
+
+
 
 
 #include <pybind11/pybind11.h>
@@ -97,7 +98,6 @@ array<double,9> inertia_matrix_reduction(const voxel_type *voxels, const array<s
 
 namespace python_api { 
   namespace py = pybind11;
-  
   
   array<double,3> center_of_mass(const py::array_t<voxel_type, py::array::c_style | py::array::forcecast> np_voxels){
     auto voxels_info    = np_voxels.request();
@@ -114,7 +114,7 @@ namespace python_api {
     array<size_t,3> shape = {voxels_info.shape[0],voxels_info.shape[1],voxels_info.shape[2]};    
     
     array<double,3> cm = ::center_of_mass(voxels, shape);
-    return ::inertia_matrix_reduction(voxels,shape, cm);
+    return ::inertia_matrix(voxels,shape, cm);
   }
 
 }
