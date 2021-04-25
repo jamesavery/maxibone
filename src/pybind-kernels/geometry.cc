@@ -1,4 +1,5 @@
 #include <chrono>
+#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <math.h>
@@ -143,20 +144,30 @@ void integrate_axes(const ndarray_input<voxel_type> &voxels,
     const voxel_type *buffer  = voxels.data + block_start;
     int block_length = min(acc_block_size,image_length-block_start);
 
-#pragma acc parallel loop copy(output.data[:Nv*Nw]) copyin(buffer[:block_length]) 
-    for(uint64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
+    //#pragma acc parallel loop copy(output.data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
+    for(uint64_t k = 0; k<block_length;k++) { // if(buffer[k] != 0) {
 	uint64_t flat_idx = block_start + k;
-	uint64_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
-			  ((flat_idx / Nx) % Ny) - x0[1],  // y
-			  (flat_idx / (Nx*Ny))   - x0[2]}; // z
+	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
+			((flat_idx / Nx) % Ny) - x0[1],  // y
+			(flat_idx / (Nx*Ny))   - x0[2]}; // z
 
 
 	voxel_type voxel = buffer[k];
 	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
 	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
-	#pragma acc atomic
-	output.data[i_v*Nw + j_w] += voxel;
+	if(i_v < 0 || j_w < 0 || i_v >= Nv || j_w >= Nw){
+	  fprintf(stderr,"(x,y,z) = (%g,%g,%g), (v,w) = (%g,%g), (i,j) = (%ld,%ld)\n",
+		  xs[0],xs[1],xs[2],
+		  v,w,
+		  i_v, j_w);
+	  abort();
+	}
+
+	if(i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw){
+          #pragma acc atomic
+	  output.data[i_v*Nw + j_w] += voxel;
+	}
       }
   }
 }
@@ -289,6 +300,7 @@ PYBIND11_MODULE(geometry, m) {
 
     m.def("center_of_mass",  &python_api::center_of_mass);
     m.def("inertia_matrix",  &python_api::inertia_matrix);
-    m.def("inertia_matrix_serial",  &python_api::inertia_matrix_serial);    
+    m.def("inertia_matrix_serial",  &python_api::inertia_matrix_serial);
+    m.def("integrate_axes",    &python_api::integrate_axes);        
     m.def("sample_plane",    &python_api::sample_plane);    
 }
