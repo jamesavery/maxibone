@@ -3,38 +3,94 @@ import numpy as np, h5py as h5, vedo, geometry, config.paths as paths, scipy.lin
 f = h5.File(f"{paths.hdf5_root}/processed/volume_matched/6x/770c_pag.h5","r")
 imp = np.array(f["voxels"][:]>140, dtype=np.float32)
 
-cm = geometry.center_of_mass(imp)
-M = np.array(geometry.inertia_matrix_serial(imp,cm)).reshape(3,3)
 
-(lam,E) = la.eig(M)
+def axis_parameter_bounds(shape, center, axis):
+    d     = len(axis)
+    signs = np.sign(axis)
 
+    # (0,0,..,0) corner and furthest corner of grid, relative to center
+    print(center)
+    x0 = -center
+    x1 = np.array(shape)[::-1]-center # Data has z,y,x-order, but we keep x,y,z in geometry calc
 
-def integrate_axes(img, x0, v_axis, w_axis):
-    X0,X1  = np.array([0.,0.,0.])-cm, np.array(imp.shape)-cm    
-    vrange = np.dot(X0,v_axis), np.dot(X1,v_axis)
-    wrange = np.dot(X0,w_axis), np.dot(X1,w_axis)
+    xmin = (signs==1)*x0 + (signs==-1)*x1 # minimizes dot(x,axis)
+    xmax = (signs==1)*x1 + (signs==-1)*x0 # maximizes dot(x,axis)
 
-    vmin = np.floor(1.2*np.min(vrange))
-    wmin = np.floor(1.2*np.min(wrange))
+    return (np.dot(xmin,axis), np.dot(xmax,axis)), (xmin,xmax)
 
-    integral = np.zeros((int(1.2*abs(vrange[1]-vrange[0])),int(1.2*abs(wrange[1]-wrange[0]))),dtype=float)
-    geometry.integrate_axes(img,x0,v_axis, w_axis,vmin, wmin,integral);
+def integrate_axes(img, cm, v_axis, w_axis):
+    (vmin,vmax), (vxmin,vxmax) = axis_parameter_bounds(img.shape, cm, v_axis)
+    (wmin,wmax), (wxmin,wxmax) = axis_parameter_bounds(img.shape, cm, w_axis)
+
+    print(f"img.shape = {img.shape}")
+    print(f"cm = {cm}; x0 = {-cm}; x1 = {np.array(img.shape)-cm}")
+    print(f"v = {v_axis};    (vmin,vmax) = {vmin,vmax};         (vxmin,vxmax) = {vxmin,vxmax}")
+    print(f"w = {w_axis};    (wmin,wmax) = {wmin,wmax};         (wxmin,wxmax) = {wxmin,wxmax}")
+
+    integral = np.zeros((int(vmax-vmin+2),int(wmax-wmin+2)),dtype=float)
+    geometry.integrate_axes(img,cm,v_axis, w_axis,vmin, wmin,integral);
 
     return integral;
 
-int_z = integrate_axes(imp, cm, E[:,1], E[:,2])
-int_y = integrate_axes(imp, cm, E[:,0], E[:,2])
-int_x = integrate_axes(imp, cm, E[:,0], E[:,1])
-plt.imshow(int_z)
-plt.imshow(int_z)
-plt.imshow(int_x)
-plt.show()
+def integrate_axis(img, x0, v_axis):
+    (vmin,vmax), (vxmin,vxmax) = axis_parameter_bounds(img.shape, x0, v_axis)
 
-# vol = vedo.Volume(imp, alpha=[0,0.01])
-# au  = vedo.shapes.Arrow(cm,cm+400*E[:,0],c='green')
-# av  = vedo.shapes.Arrow(cm,cm+400*E[:,1],c='blue')
-# aw  = vedo.shapes.Arrow(cm,cm+400*E[:,2],c='red')
+    print(f"img.shape = {img.shape}")
+    print(f"cm = {cm}; x0 = {-cm}; x1 = {np.array(img.shape)-cm}")
+    print(f"v = {v_axis};    (vmin,vmax) = {vmin,vmax};         (vxmin,vxmax) = {vxmin,vxmax}")
+
+    integral = np.zeros((int(vmax-vmin+2),1),dtype=float)
+    geometry.integrate_axes(img,x0,v_axis, [0,0,0],vmin,0,integral);
+
+    return integral.reshape(-1);
+
+def bounding_volume(mask):
+    cm = np.array(geometry.center_of_mass(mask))
+    M  = np.array(geometry.inertia_matrix_serial(mask,cm)).reshape(3,3)
+    
+    (lam,E) = la.eigh(M)
+
+    int_vw = integrate_axes(mask, cm, E[:,1], E[:,2])
+    int_uw = integrate_axes(mask, cm, E[:,0], E[:,2])
+    int_uv = integrate_axes(mask, cm, E[:,0], E[:,1])
+    int_u  = np.sum(int_uv,axis=1)
+    int_v  = np.sum(int_uv,axis=0)
+    int_w  = np.sum(int_uw,axis=0)
+
+    (umin,umax), _ = axis_parameter_bounds(mask.shape, cm, E[:,0])
+    (vmin,vmax), _ = axis_parameter_bounds(mask.shape, cm, E[:,1])
+    (wmin,wmax), _ = axis_parameter_bounds(mask.shape, cm, E[:,2])
+
+    u_prefix, u_postfix = np.sum(int_u[0:int(np.ceil(abs(umin)))]>0), np.sum(int_u[int(np.floor(abs(umin))):]>0)
+    v_prefix, v_postfix = np.sum(int_v[0:int(np.ceil(abs(vmin)))]>0), np.sum(int_v[int(np.floor(abs(vmin))):]>0)
+    w_prefix, w_postfix = np.sum(int_w[0:int(np.ceil(abs(wmin)))]>0), np.sum(int_w[int(np.floor(abs(wmin))):]>0)
+    radius = np.array([v_prefix,v_postfix,w_prefix,w_postfix]).max()
+
+    return {
+        'u_axis':E[:,0],'v_axis':E[:,1],'w_axis':E[:,2],
+        'u_range':(-u_prefix,u_postfix),
+        'v_range':(-v_prefix,v_postfix),
+        'w_range':(-w_prefix,w_postfix),
+        'centre_of_mass':cm,
+        'cylinder_radius':radius
+    };
+
+bound = bounding_volume(imp)
+
+cm = bound['centre_of_mass']
+umin, umax = bound['u_range']
+vmin, vmax = bound['v_range']
+wmin, wmax = bound['w_range']
+u_axis, v_axis, w_axis = bound['u_axis'], bound['v_axis'], bound['w_axis']
+
+vol = vedo.Volume(imp, alpha=[0,0.01])
+au  = vedo.shapes.Arrow(cm,cm+umax*u_axis,c='green')
+av  = vedo.shapes.Arrow(cm,cm+vmax*v_axis,c='blue')
+aw  = vedo.shapes.Arrow(cm,cm+wmax*w_axis,c='red')
+cyl = vedo.shapes.Cylinder((cm+umin*u_axis, cm+umax*u_axis),
+                           r=bound['cylinder_radius'],
+                           alpha=0.2)
 # x0  = vedo.shapes.Sphere(cm,r=15)
-# vedo.show([vol,au,av,aw,x0],axes=1)
+vedo.show([vol,au,av,aw,cyl],axes=1)
 
 

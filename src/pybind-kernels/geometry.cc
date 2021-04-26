@@ -139,38 +139,74 @@ void integrate_axes(const ndarray_input<voxel_type> &voxels,
   size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
   size_t Nv = output.shape[0], Nw = output.shape[1]; 
   int64_t image_length = Nx*Ny*Nz;
+  real_t *output_data = output.data;
+
+  // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
   
   for(ssize_t block_start=0;block_start<image_length;block_start += acc_block_size){
     const voxel_type *buffer  = voxels.data + block_start;
     int block_length = min(acc_block_size,image_length-block_start);
 
-    //#pragma acc parallel loop copy(output.data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
-    for(uint64_t k = 0; k<block_length;k++) { // if(buffer[k] != 0) {
+#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
+    for(uint64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
 	uint64_t flat_idx = block_start + k;
 	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
 			((flat_idx / Nx) % Ny) - x0[1],  // y
 			(flat_idx / (Nx*Ny))   - x0[2]}; // z
 
+	voxel_type voxel = buffer[k];
+	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
+	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
+
+	if(i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw){
+          #pragma acc atomic
+	  output_data[i_v*Nw + j_w] += voxel;
+	}
+      }
+  }
+}
+
+void integrate_all_axes(const ndarray_input<voxel_type> &voxels,
+			const array<real_t,3> &x0,		    
+			const array<real_t,3> &v_axis,
+			const array<real_t,3> &w_axis,
+			const real_t v_min, const real_t w_min,
+			ndarray_output<real_t> output)
+{
+  size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  size_t Nv = output.shape[0], Nw = output.shape[1]; 
+  int64_t image_length = Nx*Ny*Nz;
+  real_t *output_data = output.data;
+
+  // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
+  
+  for(ssize_t block_start=0;block_start<image_length;block_start += acc_block_size){
+    const voxel_type *buffer  = voxels.data + block_start;
+    int block_length = min(acc_block_size,image_length-block_start);
+
+#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
+    for(uint64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
+	uint64_t flat_idx = block_start + k;
+	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
+			((flat_idx / Nx) % Ny) - x0[1],  // y
+			(flat_idx / (Nx*Ny))   - x0[2]}; // z
 
 	voxel_type voxel = buffer[k];
 	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
 	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
-	if(i_v < 0 || j_w < 0 || i_v >= Nv || j_w >= Nw){
-	  fprintf(stderr,"(x,y,z) = (%g,%g,%g), (v,w) = (%g,%g), (i,j) = (%ld,%ld)\n",
-		  xs[0],xs[1],xs[2],
-		  v,w,
-		  i_v, j_w);
-	  abort();
-	}
-
-	if(i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw){
-          #pragma acc atomic
-	  output.data[i_v*Nw + j_w] += voxel;
-	}
+#pragma acc atomic
+	int_vw[j*Nk + k] += voxel;
+#pragma acc atomic	
+	int_uw[i*Nk + k] += voxel;
+#pragma acc atomic	
+	int_uv[i*Nj + j] += voxel;
+#pragma acc atomic
+	int_r[ri] += voxel;
       }
   }
 }
+
 
 
 void sample_plane(const ndarray_input<voxel_type> &voxels, const plane_t &plane, ndarray_output<voxel_type> plane_samples, array<real_t,3> L)
