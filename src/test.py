@@ -64,18 +64,30 @@ def bounding_volume(mask):
     u_prefix, u_postfix = np.sum(int_u[0:int(np.ceil(abs(umin)))]>0), np.sum(int_u[int(np.floor(abs(umin))):]>0)
     v_prefix, v_postfix = np.sum(int_v[0:int(np.ceil(abs(vmin)))]>0), np.sum(int_v[int(np.floor(abs(vmin))):]>0)
     w_prefix, w_postfix = np.sum(int_w[0:int(np.ceil(abs(wmin)))]>0), np.sum(int_w[int(np.floor(abs(wmin))):]>0)
-    radius = np.array([v_prefix,v_postfix,w_prefix,w_postfix]).max()
+
 
     return {
         'u_axis':E[:,0],'v_axis':E[:,1],'w_axis':E[:,2],
         'u_range':(-u_prefix,u_postfix),
         'v_range':(-v_prefix,v_postfix),
         'w_range':(-w_prefix,w_postfix),
-        'centre_of_mass':cm,
-        'cylinder_radius':radius
+        'centre_of_mass':cm
     };
 
+def bounding_cylinder(volume_meta):
+    u_axis       = volume_meta["u_axis"]
+    u_min, u_max = volume_meta["u_range"]
+    v_min, v_max = volume_meta["v_range"]
+    w_min, w_max = volume_meta["w_range"]
+    cn           = volume_meta["centre_of_mass"]
+    
+    radius         = np.abs([v_min,v_max,w_min,w_max]).max()
+    x_start, x_end = cm+u_min*u_axis, cm+u_max*u_axis
+    return x_start, x_end, radius
+
+
 bound = bounding_volume(imp)
+
 
 cm = bound['centre_of_mass']
 umin, umax = bound['u_range']
@@ -87,8 +99,10 @@ vol = vedo.Volume(imp, alpha=[0,0.01])
 au  = vedo.shapes.Arrow(cm,cm+umax*u_axis,c='green')
 av  = vedo.shapes.Arrow(cm,cm+vmax*v_axis,c='blue')
 aw  = vedo.shapes.Arrow(cm,cm+wmax*w_axis,c='red')
-cyl = vedo.shapes.Cylinder((cm+umin*u_axis, cm+umax*u_axis),
-                           r=bound['cylinder_radius'],
+
+p0,p1,radius = bounding_cylinder(bound)
+cyl = vedo.shapes.Cylinder((p0, p1),
+                           r=radius,
                            alpha=0.2)
 # x0  = vedo.shapes.Sphere(cm,r=15)
 vedo.show([vol,au,av,aw,cyl],axes=1)
