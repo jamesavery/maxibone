@@ -17,7 +17,7 @@ void print_timestamp(string message)
 }
 
 
-array<real_t,3> center_of_mass(const ndarray_input<voxel_type> voxels) {
+array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
   real_t cmx = 0, cmy = 0, cmz = 0;
   size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
@@ -51,7 +51,7 @@ array<real_t,3> center_of_mass(const ndarray_input<voxel_type> voxels) {
 }
 
 
-array<real_t,9> inertia_matrix_serial(const ndarray_input<voxel_type> &voxels, const array<real_t,3> &cm)
+array<real_t,9> inertia_matrix_serial(const input_ndarray<voxel_type> &voxels, const array<real_t,3> &cm)
 {
   real_t
     Ixx = 0, Ixy = 0, Ixz = 0,
@@ -84,7 +84,7 @@ array<real_t,9> inertia_matrix_serial(const ndarray_input<voxel_type> &voxels, c
 }
 
 
-array<real_t,9> inertia_matrix(const ndarray_input<voxel_type> &voxels, const array<real_t,3> &cm)
+array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const array<real_t,3> &cm)
 {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet, so must name each element.
   real_t
@@ -129,12 +129,12 @@ array<real_t,9> inertia_matrix(const ndarray_input<voxel_type> &voxels, const ar
 }
 
 
-void integrate_axes(const ndarray_input<voxel_type> &voxels,
+void integrate_axes(const input_ndarray<voxel_type> &voxels,
 		    const array<real_t,3> &x0,		    
 		    const array<real_t,3> &v_axis,
 		    const array<real_t,3> &w_axis,
 		    const real_t v_min, const real_t w_min,
-		    ndarray_output<real_t> output)
+		    output_ndarray<real_t> output)
 {
   size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
   size_t Nv = output.shape[0], Nw = output.shape[1]; 
@@ -166,50 +166,52 @@ void integrate_axes(const ndarray_input<voxel_type> &voxels,
   }
 }
 
-void integrate_all_axes(const ndarray_input<voxel_type> &voxels,
-			const array<real_t,3> &x0,		    
-			const array<real_t,3> &v_axis,
-			const array<real_t,3> &w_axis,
-			const real_t v_min, const real_t w_min,
-			ndarray_output<real_t> output)
+template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
+				       const real_t &x, const real_t &y, const real_t &z)
 {
-  size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
-  size_t Nv = output.shape[0], Nw = output.shape[1]; 
-  int64_t image_length = Nx*Ny*Nz;
-  real_t *output_data = output.data;
-
-  // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
+  size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
   
-  for(ssize_t block_start=0;block_start<image_length;block_start += acc_block_size){
-    const voxel_type *buffer  = voxels.data + block_start;
-    int block_length = min(acc_block_size,image_length-block_start);
+  real_t   X[3] = {x,y,z};
+  real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
+  uint64_t Xint[2][3];	// {Iminus[3], Iplus[3]}
+  real_t   value = 0;
 
-#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
-    for(uint64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
-	uint64_t flat_idx = block_start + k;
-	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
-			((flat_idx / Nx) % Ny) - x0[1],  // y
-			(flat_idx / (Nx*Ny))   - x0[2]}; // z
+  for(int i=0;i<3;i++){
+    double Iminus, Iplus;
+    Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+    Xfrac[1][i] = modf(X[i]+0.5,   &Iplus); // {X[i]+1/2}, floor(X[i]+1/2)
 
-	voxel_type voxel = buffer[k];
-	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
-	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
-
-#pragma acc atomic
-	int_vw[j*Nk + k] += voxel;
-#pragma acc atomic	
-	int_uw[i*Nk + k] += voxel;
-#pragma acc atomic	
-	int_uv[i*Nj + j] += voxel;
-#pragma acc atomic
-	int_r[ri] += voxel;
-      }
+    Xint[0][i] = Iminus;
+    Xint[1][i] = Iplus;	
   }
+    
+  // Resample voxel in 2x2x2 neighbourhood
+  //000 --- 
+  //001 --+
+  //010 -+-
+  //011 -++
+  //100 +--
+  //101 +-+
+  //110 ++-
+  //111 +++
+
+  for(int ijk=0; ijk<=7; ijk++) {
+    real_t  weight = 1;
+    uint64_t IJK[3];
+	
+    for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
+      int pm = ijk&(1<<axis);
+      IJK[axis] = Xint[pm][axis];
+      weight   *= Xfrac[pm][axis];
+    }
+	
+    voxel_type voxel = voxels.data[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
+    value += voxel*weight;
+  }
+  return value;
 }
 
-
-
-void sample_plane(const ndarray_input<voxel_type> &voxels, const plane_t &plane, ndarray_output<voxel_type> plane_samples, array<real_t,3> L)
+void sample_plane(const input_ndarray<voxel_type> &voxels, const plane_t &plane, output_ndarray<voxel_type> plane_samples, array<real_t,3> L)
 {
   ssize_t Ny = voxels.shape[1], Nx = voxels.shape[2];
   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];  
@@ -220,48 +222,84 @@ void sample_plane(const ndarray_input<voxel_type> &voxels, const plane_t &plane,
       real_t u = (ui-nu/2)*du, v = (vj-nv/2)*dv;
 
       real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
-      real_t   X[3] = {x,y,z};
-      real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
-      uint64_t Xint[2][3];	// {Iminus[3], Iplus[3]}
-      real_t   value = 0;
-
-      for(int i=0;i<3;i++){
-	double Iminus, Iplus;
-	Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-	Xfrac[1][i] = modf(X[i]+0.5,   &Iplus); // {X[i]+1/2}, floor(X[i]+1/2)
-
-	Xint[0][i] = Iminus;
-	Xint[1][i] = Iplus;	
-      }
-    
-      // Resample voxel in 2x2x2 neighbourhood
-      //000 --- 
-      //001 --+
-      //010 -+-
-      //011 -++
-      //100 +--
-      //101 +-+
-      //110 ++-
-      //111 +++
-
-      for(int ijk=0; ijk<=7; ijk++) {
-	real_t  weight = 1;
-	uint64_t IJK[3];
-	
-	for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
-	  int pm = ijk&(1<<axis);
-	  IJK[axis] = Xint[pm][axis];
-	  weight   *= Xfrac[pm][axis];
-	}
-	
-	voxel_type voxel = voxels.data[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
-	value += voxel*weight;
-      }
       
-      plane_samples.data[ui*nv + vj] = value;
+      plane_samples.data[ui*nv + vj] = resample2x2x2(voxels,x,y,z);
     }
 }
 
+// NB: xyz are in indices, not micrometers
+void zero_outside_bbox(const array<real_t,9> &principal_axes,
+		       const array<real_t,6> &parameter_ranges,
+		       const array<real_t,3> &cm,
+		       output_ndarray<voxel_type> voxels)
+{
+  size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  int64_t image_length = Nx*Ny*Nz;
+
+  printf("(Nx,Ny,Nz) = (%ld,%ld,%ld), image_length = %ld",Nx,Ny,Nz, image_length);
+  for(int64_t block_start=0;block_start<image_length;block_start+=acc_block_size){
+
+    voxel_type *buffer = voxels.data + block_start;
+    ssize_t this_block_length = min(acc_block_size,image_length-block_start);
+
+    #pragma acc parallel loop copy(buffer[:this_block_length]) 
+    for(uint64_t k = 0; k<this_block_length;k++){
+      real_t          m = buffer[k];      
+
+      uint64_t flat_idx = block_start + k;
+      uint64_t x = flat_idx % Nx;
+      uint64_t y = (flat_idx / Nx) % Ny;
+      uint64_t z = flat_idx / (Nx*Ny);
+      // Boilerplate until here. TODO: macroize or lambda out!
+      
+      real_t xs[3] = {x-cm[0], y-cm[1], z-cm[2]};
+
+      real_t params[3] = {0,0,0};
+
+      #pragma acc loop seq     
+      for(int uvw=0;uvw<3;uvw++)
+        #pragma acc loop seq
+	for(int xyz=0;xyz<3;xyz++)
+	  params[uvw] += xs[xyz]*principal_axes[uvw*3+xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
+
+      bool p = false;
+      #pragma acc loop seq      
+      for(int uvw=0;uvw<3;uvw++){
+	real_t param_min = parameter_ranges[uvw*2], param_max = parameter_ranges[uvw*2+1];
+	p |= (params[uvw] < param_min) | (params[uvw] > param_max);
+      }
+
+      if(p) buffer[k] = 0;
+
+    }
+  }
+}
+
+void field_histogram_resample(const input_ndarray<uint16_t> voxels,
+			      const input_ndarray<uint16_t> field,
+			      output_ndarray<uint64_t> &bins,
+			      const double vmin, const double vmax)
+{
+  const uint64_t
+    nZ = voxels.shape[0], nY = voxels.shape[1], nX = voxels.shape[2],
+    nz = field.shape[0],  ny = field.shape[1],  nx = field.shape[2],
+    nbins = bins.shape[0];
+
+  const real_t dx = nx/double(nX), dy = ny/double(nY), dz = nz/double(nZ);
+
+  // TODO: copyin voxels z and field z,z+1
+  for(ssize_t Z=0;Z<nZ;Z++)
+    for(ssize_t Y=0;Y<nY;Y++)
+      for(ssize_t X=0;X<nX;X++){
+	real_t x = X*dx, y = Y*dy, z = Z*dz;
+
+	uint16_t  voxel_value = voxels.data[Z*nY*nX+Y*nX+X];
+	uint16_t  field_value = round(resample2x2x2(field,x,y,z));
+
+	bins.data[(voxel_value>>4)*nbins + field_value]++;
+      }
+    
+}
 
 
 #include <pybind11/pybind11.h>
@@ -327,6 +365,19 @@ namespace python_api {
 		     v_min, w_min,
 		     {output_info.ptr, output_info.shape});
   }
+
+  void zero_outside_bbox(const array<real_t,9> &principal_axes,
+			 const array<real_t,6> &parameter_ranges,
+			 const array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
+			 np_voxelarray &np_voxels)
+  {
+    auto voxels_info = np_voxels.request();
+    
+    ::zero_outside_bbox(principal_axes,
+		      parameter_ranges,
+		      cm, 
+		      {voxels_info.ptr, voxels_info.shape});
+  }
 }
 
 
@@ -334,9 +385,10 @@ namespace python_api {
 PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
 
-    m.def("center_of_mass",  &python_api::center_of_mass);
-    m.def("inertia_matrix",  &python_api::inertia_matrix);
-    m.def("inertia_matrix_serial",  &python_api::inertia_matrix_serial);
-    m.def("integrate_axes",    &python_api::integrate_axes);        
-    m.def("sample_plane",    &python_api::sample_plane);    
+    m.def("center_of_mass",       &python_api::center_of_mass);
+    m.def("inertia_matrix",       &python_api::inertia_matrix);
+    m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
+    m.def("integrate_axes",       &python_api::integrate_axes);        
+    m.def("sample_plane",         &python_api::sample_plane);
+    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);    
 }

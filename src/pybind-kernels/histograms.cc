@@ -30,6 +30,25 @@ pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     return make_pair(voxel_min,voxel_max);
 }
 
+pair<float,float> float_minmax(const py::array_t<float> np_field) {
+    // Extract NumPy array basearray-pointer and length
+    auto field_info    = np_field.request();
+    size_t image_length = field_info.size;
+    const float *field = static_cast<const float*>(field_info.ptr);
+
+    float voxel_min = field[0], voxel_max = field[0];
+
+    #pragma omp parallel for reduction(min:voxel_min) reduction(max:voxel_max)
+    for (size_t i=0; i < image_length; i++) {
+      float value = field[i];
+      voxel_min = min(voxel_min, value);
+      voxel_max = max(voxel_max, value);
+    }
+
+    return make_pair(voxel_min,voxel_max);
+}
+
+
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
 void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                             py::array_t<uint64_t> &np_x_bins,
@@ -480,4 +499,5 @@ PYBIND11_MODULE(histograms, m) {
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
     m.def("field_histogram", &field_histogram);
     m.def("masked_minmax", &masked_minmax);
+    m.def("float_minmax", &float_minmax);    
 }
