@@ -6,6 +6,7 @@
 using namespace std;
 
 #include "datatypes.hh"
+#include "parallel.hh"
 
 #define dot(a,b) (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])
 
@@ -30,14 +31,15 @@ array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
     const voxel_type *buffer = voxels.data + block_start;
     ssize_t this_block_length = min(acc_block_size,image_length-block_start);
 
-#pragma acc parallel loop reduction(+:cmx,cmy,cmz,total_mass) copyin(buffer[:this_block_length])
-    for(uint64_t k = 0; k<this_block_length;k++){
+    //#pragma acc parallel loop reduction(+:cmx,cmy,cmz,total_mass) copyin(buffer[:this_block_length])
+    reduction_loop((+:cmx,cmy,cmz,total_mass),())
+    for(int64_t k = 0; k<this_block_length;k++){
       real_t          m = buffer[k];      
 
-      uint64_t flat_idx = block_start + k;
-      uint64_t x = flat_idx % Nx;
-      uint64_t y = (flat_idx / Nx) % Ny;
-      uint64_t z = flat_idx / (Nx*Ny);
+      int64_t flat_idx = block_start + k;
+      int64_t x = flat_idx % Nx;
+      int64_t y = (flat_idx / Nx) % Ny;
+      int64_t z = flat_idx / (Nx*Ny);
 
       total_mass += m;
       cmx += m*x; cmy += m*y; cmz += m*z;
@@ -58,12 +60,12 @@ array<real_t,9> inertia_matrix_serial(const input_ndarray<voxel_type> &voxels, c
              Iyy = 0, Iyz = 0,
                       Izz = 0;
   
-  size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  ssize_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
 
   print_timestamp("inertia_matrix_serial start");
-  for(uint64_t Z=0,k=0;Z<Nz;Z++)
-    for(uint64_t Y=0;Y<Ny;Y++)
-      for(uint64_t X=0;X<Nx;X++,k++){
+  for(int64_t Z=0,k=0;Z<Nz;Z++)
+    for(int64_t Y=0;Y<Ny;Y++)
+      for(int64_t X=0;X<Nx;X++,k++){
 	real_t x = X-cm[0], y = Y-cm[1], z = Z-cm[2];
 	
 	real_t m = voxels.data[k];
@@ -100,13 +102,9 @@ array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const ar
     const voxel_type *buffer  = voxels.data + block_start;
     ssize_t block_length = min(acc_block_size,image_length-block_start);
 
-#ifdef _OPENACC
-#pragma acc parallel loop copyin(buffer[:block_length]) reduction(+:M00,M01,M02,M11,M12,M22)
-#else
-#pragma omp parallel for reduction(+:M00,M01,M02,M11,M12,M22)
-#endif    
-    for(uint64_t k = 0; k<block_length;k++) {    //\if(buffer[k] != 0)
-	uint64_t flat_idx = block_start + k;
+    reduction_loop((+:M00,M01,M02,M11,M12,M22),())
+    for(int64_t k = 0; k<block_length;k++) {    //\if(buffer[k] != 0)
+	int64_t flat_idx = block_start + k;
 	real_t xs[3] = {(flat_idx % Nx)        - cm[0],  // x
 			((flat_idx / Nx) % Ny) - cm[1],  // y
 			(flat_idx / (Nx*Ny))   - cm[2]}; // z
@@ -136,8 +134,8 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<real_t> output)
 {
-  size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
-  size_t Nv = output.shape[0], Nw = output.shape[1]; 
+  ssize_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  ssize_t Nv = output.shape[0], Nw = output.shape[1]; 
   int64_t image_length = Nx*Ny*Nz;
   real_t *output_data = output.data;
 
@@ -147,9 +145,10 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
     const voxel_type *buffer  = voxels.data + block_start;
     int block_length = min(acc_block_size,image_length-block_start);
 
-#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis) 
-    for(uint64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
-	uint64_t flat_idx = block_start + k;
+    //#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis)
+    parallel_loop((output_data[:Nv*Nw]))
+    for(int64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
+	int64_t flat_idx = block_start + k;
 	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
 			((flat_idx / Nx) % Ny) - x0[1],  // y
 			(flat_idx / (Nx*Ny))   - x0[2]}; // z
@@ -159,7 +158,7 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
 	if(i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw){
-          #pragma acc atomic
+	  atomic_statement()
 	  output_data[i_v*Nw + j_w] += voxel;
 	}
       }
@@ -167,13 +166,15 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 }
 
 template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
-				       const real_t &x, const real_t &y, const real_t &z)
+					   const real_t &x, const real_t &y, const real_t &z)
 {
-  size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
-  
+  ssize_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  assert(x>=0.5 && y>=0.5 && z>= 0.5);
+  assert(x<=Nx-0.5 && y>=Ny-0.5 && z>= Nz-0.5);  
+				    
   real_t   X[3] = {x,y,z};
   real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
-  uint64_t Xint[2][3];	// {Iminus[3], Iplus[3]}
+  int64_t Xint[2][3];	// {Iminus[3], Iplus[3]}
   real_t   value = 0;
 
   for(int i=0;i<3;i++){
@@ -197,7 +198,7 @@ template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
 
   for(int ijk=0; ijk<=7; ijk++) {
     real_t  weight = 1;
-    uint64_t IJK[3];
+    int64_t IJK[3];
 	
     for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
       int pm = ijk&(1<<axis);
@@ -222,8 +223,11 @@ void sample_plane(const input_ndarray<voxel_type> &voxels, const plane_t &plane,
       real_t u = (ui-nu/2)*du, v = (vj-nv/2)*dv;
 
       real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
-      
-      plane_samples.data[ui*nv + vj] = resample2x2x2(voxels,x,y,z);
+
+      voxel_type value = resample2x2x2(voxels,x,y,z);      
+      if(x >= 0.5 && y >= 0.5 && x+0.5 <= Nx && y+0.5 <= Ny){
+	plane_samples.data[ui*nv + vj] = value;
+      }
     }
 }
 
@@ -242,28 +246,24 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
     voxel_type *buffer = voxels.data + block_start;
     ssize_t this_block_length = min(acc_block_size,image_length-block_start);
 
-    #pragma acc parallel loop copy(buffer[:this_block_length]) 
-    for(uint64_t k = 0; k<this_block_length;k++){
-      real_t          m = buffer[k];      
-
-      uint64_t flat_idx = block_start + k;
-      uint64_t x = flat_idx % Nx;
-      uint64_t y = (flat_idx / Nx) % Ny;
-      uint64_t z = flat_idx / (Nx*Ny);
+    parallel_loop((buffer[:this_block_length]))
+    for(int64_t k = 0; k<this_block_length;k++){
+      int64_t flat_idx = block_start + k;
+      int64_t x = flat_idx % Nx;
+      int64_t y = (flat_idx / Nx) % Ny;
+      int64_t z = flat_idx / (Nx*Ny);
       // Boilerplate until here. TODO: macroize or lambda out!
       
       real_t xs[3] = {x-cm[0], y-cm[1], z-cm[2]};
 
       real_t params[3] = {0,0,0};
 
-      #pragma acc loop seq     
       for(int uvw=0;uvw<3;uvw++)
-        #pragma acc loop seq
 	for(int xyz=0;xyz<3;xyz++)
 	  params[uvw] += xs[xyz]*principal_axes[uvw*3+xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
 
       bool p = false;
-      #pragma acc loop seq      
+
       for(int uvw=0;uvw<3;uvw++){
 	real_t param_min = parameter_ranges[uvw*2], param_max = parameter_ranges[uvw*2+1];
 	p |= (params[uvw] < param_min) | (params[uvw] > param_max);
@@ -280,7 +280,7 @@ void field_histogram_resample(const input_ndarray<uint16_t> voxels,
 			      output_ndarray<uint64_t> &bins,
 			      const double vmin, const double vmax)
 {
-  const uint64_t
+  const ssize_t
     nZ = voxels.shape[0], nY = voxels.shape[1], nX = voxels.shape[2],
     nz = field.shape[0],  ny = field.shape[1],  nx = field.shape[2],
     nbins = bins.shape[0];
@@ -301,94 +301,3 @@ void field_histogram_resample(const input_ndarray<uint16_t> voxels,
     
 }
 
-
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-
-
-namespace python_api { 
-  namespace py = pybind11;
-
-  typedef py::array_t<voxel_type, py::array::c_style | py::array::forcecast> np_voxelarray;
-  typedef py::array_t<real_t, py::array::c_style | py::array::forcecast> np_realarray;  
-
-  array<real_t,3> center_of_mass(const np_voxelarray &np_voxels){
-    auto voxels_info    = np_voxels.request();
-
-    return ::center_of_mass({voxels_info.ptr,voxels_info.shape});
-  }
-
-
-  array<real_t,9> inertia_matrix(const np_voxelarray &np_voxels, array<real_t,3>& cm){
-    auto voxels_info    = np_voxels.request();
-    
-    return ::inertia_matrix({voxels_info.ptr,voxels_info.shape}, cm);
-  }
-
-  array<real_t,9> inertia_matrix_serial(const np_voxelarray &np_voxels, array<real_t,3>& cm){
-    auto voxels_info    = np_voxels.request();
-    
-    return ::inertia_matrix_serial({voxels_info.ptr,voxels_info.shape}, cm);
-  }  
-
-
-  void sample_plane(const np_voxelarray &np_voxels,
-		    const array<real_t,3> &cm,
-		    const array<real_t,3> &u_axis,
-		    const array<real_t,3> &v_axis,		    
-		    np_voxelarray &np_plane_samples,
-		    const array<real_t,3> &L)
-  {
-    auto voxels_info = np_voxels.request();
-    auto plane_samples_info  = np_plane_samples.request();
-    
-    ::sample_plane({voxels_info.ptr, voxels_info.shape},
-		   {cm,u_axis,v_axis},
-		   {plane_samples_info.ptr, plane_samples_info.shape},
-		   L);
-  }
-
-
-  void integrate_axes(const np_voxelarray &np_voxels,
-		    const array<real_t,3> &x0,		    
-		    const array<real_t,3> &v_axis,
-		    const array<real_t,3> &w_axis,
-		    const real_t v_min, const real_t w_min,
-		    np_realarray &output)
-  {
-    auto voxels_info = np_voxels.request();
-    auto output_info  = output.request();
-
-    ::integrate_axes({voxels_info.ptr, voxels_info.shape},
-		     x0,v_axis,w_axis,
-		     v_min, w_min,
-		     {output_info.ptr, output_info.shape});
-  }
-
-  void zero_outside_bbox(const array<real_t,9> &principal_axes,
-			 const array<real_t,6> &parameter_ranges,
-			 const array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
-			 np_voxelarray &np_voxels)
-  {
-    auto voxels_info = np_voxels.request();
-    
-    ::zero_outside_bbox(principal_axes,
-		      parameter_ranges,
-		      cm, 
-		      {voxels_info.ptr, voxels_info.shape});
-  }
-}
-
-
-
-PYBIND11_MODULE(geometry, m) {
-    m.doc() = "Voxel Geometry Module"; // optional module docstring
-
-    m.def("center_of_mass",       &python_api::center_of_mass);
-    m.def("inertia_matrix",       &python_api::inertia_matrix);
-    m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
-    m.def("integrate_axes",       &python_api::integrate_axes);        
-    m.def("sample_plane",         &python_api::sample_plane);
-    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);    
-}
