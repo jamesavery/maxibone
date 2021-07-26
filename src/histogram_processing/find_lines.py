@@ -6,41 +6,46 @@ from scipy.ndimage import gaussian_filter1d
 from moviepy.video.io.bindings import mplfig_to_npimage
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
-import json # TODO dump after, load before - if exists
+import json
 # TODO Make program to run gui > dump config > run from cmd on multiple.
 import argparse
+import os
+
+def load_config(filename):
+    if os.path.exists(filename):
+        with open('filename', 'r') as f:
+            config = json.load(f)
+    else:
+        config = {
+            'min peak height': 1,
+            'close kernel y': 10,
+            'close kernel x': 2,
+            'line smooth': 7,
+            'iter dilate': 10,
+            'iter erode': 5,
+            'min contour size': 2000,
+            'joint kernel size': 2
+        }
+    return config
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images.")
 
     parser.add_argument('histogram', nargs='+',
         help='Specifies one or more histogram files (usually *.npz) to process.')
-    parser.add_argument('-c', 'config', default='config.json', type=str,
-        help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars. If it doesn\'t exist, the default values inside this script will be used.')
     parser.add_argument('-b', 'batch', action='store_true',
         help='Toggles whether the script should be run in batch mode. In this mode, the GUI isn\'t launched, but the provided histograms will be stored in the specified output folder.')
+    parser.add_argument('-c', 'config', default='config.json', type=str,
+        help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars. If it doesn\'t exist, the default values inside this script will be used.')
+    parser.add_argument('-d', 'dry_run', action='store_true',
+        help='Toggles whether the configuration should be saved, when running in GUI mode.')
     parser.add_argument('-o', 'output', default='output', type=str,
         help='Specifies the folder to put the resulting images in.')
     parser.add_argument('-v', 'verbose', action='store_true',
-        help="Toggles whether debug printing should be enabled.")
+        help='Toggles whether debug printing should be enabled.')
 
     args = parser.parse_args()
     return args
-
-def process_line(line, k=10, height=1000):
-    meaned = gaussian_filter1d(line, k)
-    peaks, _ = signal.find_peaks(meaned, height)
-    return meaned, peaks
-
-def scatter_peaks(hist,k=10,height=1000):
-    peaks_x = []
-    peaks_y = []
-    for i in range(len(hist)):
-        _, peaks = process_line(hist[i,:], k, height)
-        line_y = [i for _ in peaks]
-        peaks_x += list(peaks)
-        peaks_y += line_y
-    return peaks_x, peaks_y
 
 def process_histogram(hist, closing_kernel=(10,2), iter_dilate=10, iter_erode=5, k=10, height=1000):
     # Find the peaks
@@ -62,6 +67,25 @@ def process_histogram(hist, closing_kernel=(10,2), iter_dilate=10, iter_erode=5,
         result = cv2.drawContours(result, contours, i, int(i)+1, -1)
 
     return result
+
+def process_line(line, k=10, height=1000):
+    meaned = gaussian_filter1d(line, k)
+    peaks, _ = signal.find_peaks(meaned, height)
+    return meaned, peaks
+
+def save_config(config, filename):
+    with open(filename, 'w') as f:
+        json.dump(config, f)
+
+def scatter_peaks(hist,k=10,height=1000):
+    peaks_x = []
+    peaks_y = []
+    for i in range(len(hist)):
+        _, peaks = process_line(hist[i,:], k, height)
+        line_y = [i for _ in peaks]
+        peaks_x += list(peaks)
+        peaks_y += line_y
+    return peaks_x, peaks_y
 
 def show_gui(filename):
     def update_image(_):
@@ -303,7 +327,13 @@ def show_gui(filename):
 
 if __name__ == '__main__':
     args = parse_args()
-
+    config = load_config(args.config)
+    if args.batch:
+        batch()
+    else:
+        gui(config)
+        if not args.dry_run:
+            save_config(config)
     sample = '770c_pag'
     filename = f"/mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/{sample}/bins1.npz"
     mx, my = 0, 0
