@@ -130,10 +130,12 @@ def process_contours(hist, rng: _range):
     global config
 
     contours, _ = cv2.findContours(hist, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start, 3), np.uint8)
+    contours = [c for c in contours if cv2.contourArea(c) > config['min contour size']]
+    result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
+    bounding_boxes = [cv2.boundingRect(c) for c in contours]
+    (contours, _) = zip(*sorted(zip(contours, bounding_boxes), key=lambda b:b[1][0]))
     for i in np.arange(len(contours)):
-        if cv2.contourArea(contours[i]) > config['min contour size']: # TODO better labeling
-            result = cv2.drawContours(result, contours, i, (np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)), -1)
+        result = cv2.drawContours(result, contours, i, int(i), -1)
 
     return result
 
@@ -190,8 +192,10 @@ def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial
 
     return colored
 
-def save_config(config, filename):
-    with open(filename, 'w') as f:
+def save_config():
+    global config, args
+
+    with open(args.output, 'w') as f:
         json.dump(config, f)
 
 def scatter_peaks(hist):
@@ -366,13 +370,12 @@ def gui():
     cv2.createTrackbar('joint kernel size', 'Histogram lines', config['joint kernel size'], 100, update)
     cv2.setMouseCallback('Histogram lines', update_line)
     update(42)
-    cv2.waitKey(0) # Segfaults for some reason :) Looks like it's some wayland / ubuntu 20.04 error
+    cv2.waitKey(0) # Segfaults for some reason, when the key isn't escape :) Looks like it's some wayland / ubuntu 20.04 error
     #while True:
     #    key = cv2.waitKey(16)
     #    key &= 0xFF
     #    if key == 113:
     #        break
-    print (':(')
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
@@ -385,4 +388,4 @@ if __name__ == '__main__':
     else:
         gui()
         if not args.dry_run:
-            save_config(config)
+            save_config()
