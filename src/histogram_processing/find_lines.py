@@ -135,9 +135,9 @@ def process_contours(hist, rng: _range):
     bounding_boxes = [cv2.boundingRect(c) for c in contours]
     (contours, _) = zip(*sorted(zip(contours, bounding_boxes), key=lambda b:b[1][0]))
     for i in np.arange(len(contours)):
-        result = cv2.drawContours(result, contours, i, int(i), -1)
+        result = cv2.drawContours(result, contours, i, int(i+1), -1)
 
-    return result
+    return result, [i+1 for i in range(len(contours))]
 
 def process_joints(hist):
     global config
@@ -325,19 +325,24 @@ def gui():
             display_eroded[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
 
         # Find lines
-        labeled = process_contours(eroded, rng)
-        display_result = cv2.resize(labeled, partial_size)
+        labeled, labels = process_contours(eroded, rng)
+        label_colours = [(0,0,0)] + [(np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)) for _ in labels]
+        labeled_colour = np.zeros((labeled.shape[0], labeled.shape[1], 3), dtype=np.uint8)
+        for y in range(labeled.shape[0]):
+            for x in range(labeled.shape[1]):
+                labeled_colour[y,x,:] = label_colours[labeled[y,x]]
+        display_contours = cv2.resize(labeled_colour, partial_size)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
-            display_result[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
+            display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
 
         # Find joints
-        joints = process_joints(labeled)
+        joints = process_joints(labeled_colour)
         display_joints = cv2.resize(joints, partial_size)
         display_joints = cv2.cvtColor(display_joints, cv2.COLOR_GRAY2BGR)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
             display_joints[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
 
-        second_row = np.concatenate((display_eroded, display_result, display_joints), axis=1)
+        second_row = np.concatenate((display_eroded, display_contours, display_joints), axis=1)
 
         cv2.imshow('Histogram lines', np.concatenate((first_row, second_row)))
 
