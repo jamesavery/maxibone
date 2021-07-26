@@ -35,7 +35,7 @@ def batch():
 
 def load_config(filename):
     if os.path.exists(filename):
-        with open('filename', 'r') as f:
+        with open(filename, 'r') as f:
             config = json.load(f)
     else:
         config = {
@@ -90,7 +90,7 @@ def parse_args():
     parser.add_argument('-b', '--batch', action='store_true',
         help='Toggles whether the script should be run in batch mode. In this mode, the GUI isn\'t launched, but the provided histograms will be stored in the specified output folder.')
     parser.add_argument('-c', '--config', default='config.json', type=str,
-        help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars (unless the -b flag is provided). If it doesn\'t exist, the default values inside this script will be used.')
+        help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars (unless the -b flag is provided). If it doesn\'t exist, the default values inside this script will be used. NOTE: there\'s an error in libxkbcommon.so, which crashes OpenCV whenever any other key than escape is used. So to save it, close the GUI with the escape button.')
     parser.add_argument('-d', '--dry_run', action='store_true',
         help='Toggles whether the configuration should be saved, when running in GUI mode.')
     parser.add_argument('-o', '--output', default='output', type=str,
@@ -195,7 +195,7 @@ def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial
 def save_config():
     global config, args
 
-    with open(args.output, 'w') as f:
+    with open(args.config, 'w') as f:
         json.dump(config, f)
 
 def scatter_peaks(hist):
