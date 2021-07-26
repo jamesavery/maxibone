@@ -11,6 +11,28 @@ import json
 import argparse
 import os
 
+def batch():
+    global args
+
+    if not os.path.exists(args.output):
+        os.mkdir(args.output)
+
+    for histogram in args.histogram:
+        sample = ''.join(os.path.basename(histogram).split('.')[:-1])
+        f = np.load(histogram)
+        for name, bins in f.items():
+            rng = _range(0,bins.shape[1],0,bins.shape[0])
+            px, py = scatter_peaks(bins)
+            mask = np.zeros(bins.shape, dtype=np.uint8)
+            mask[py, px] = 255
+            dilated, eroded = process_closing(mask)
+            labeled = process_contours(eroded, rng)
+
+            np.save(f'{args.output}/{sample}_{name}_labeled', labeled)
+
+        if args.verbose:
+            print (f'Processed {sample}')
+
 def load_config(filename):
     if os.path.exists(filename):
         with open('filename', 'r') as f:
@@ -62,8 +84,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.")
 
     # E.g. histogram: /mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins1.npz
+    # TODO glob support / -r --recursive
     parser.add_argument('histogram', nargs='+',
-        help='Specifies one or more histogram files (usually *.npz) to process. If in GUI mode, only the first will be processed.')
+        help='Specifies one or more histogram files (usually *.npz) to process. If in GUI mode, only the first will be processed. Glob is currently not supported.')
     parser.add_argument('-b', '--batch', action='store_true',
         help='Toggles whether the script should be run in batch mode. In this mode, the GUI isn\'t launched, but the provided histograms will be stored in the specified output folder.')
     parser.add_argument('-c', '--config', default='config.json', type=str,
