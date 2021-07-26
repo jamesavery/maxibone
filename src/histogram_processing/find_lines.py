@@ -8,7 +8,24 @@ import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 import json # TODO dump after, load before - if exists
 # TODO Make program to run gui > dump config > run from cmd on multiple.
-#
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images.")
+
+    parser.add_argument('histogram', nargs='+',
+        help='Specifies one or more histogram files (usually *.npz) to process.')
+    parser.add_argument('-c', 'config', default='config.json', type=str,
+        help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars. If it doesn\'t exist, the default values inside this script will be used.')
+    parser.add_argument('-b', 'batch', action='store_true',
+        help='Toggles whether the script should be run in batch mode. In this mode, the GUI isn\'t launched, but the provided histograms will be stored in the specified output folder.')
+    parser.add_argument('-o', 'output', default='output', type=str,
+        help='Specifies the folder to put the resulting images in.')
+    parser.add_argument('-v', 'verbose', action='store_true',
+        help="Toggles whether debug printing should be enabled.")
+
+    args = parser.parse_args()
+    return args
 
 def process_line(line, k=10, height=1000):
     meaned = gaussian_filter1d(line, k)
@@ -46,8 +63,6 @@ def process_histogram(hist, closing_kernel=(10,2), iter_dilate=10, iter_erode=5,
 
     return result
 
-mx, my = 0, 0
-last_bin = 0
 def show_gui(filename):
     def update_image(_):
         hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
@@ -286,6 +301,11 @@ def show_gui(filename):
     #        break
     cv2.destroyAllWindows()
 
-sample = '770c_pag'
-filename = f"/mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/{sample}/bins1.npz"
-show_gui(filename)
+if __name__ == '__main__':
+    args = parse_args()
+
+    sample = '770c_pag'
+    filename = f"/mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/{sample}/bins1.npz"
+    mx, my = 0, 0
+    last_bin = 0
+    show_gui(filename)
