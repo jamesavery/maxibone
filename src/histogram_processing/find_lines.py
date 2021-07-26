@@ -7,7 +7,6 @@ from moviepy.video.io.bindings import mplfig_to_npimage
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 import json
-# TODO Make program to run gui > dump config > run from cmd on multiple.
 import argparse
 import os
 
@@ -233,7 +232,7 @@ def gui():
         rheight = rng.y.stop - rng.y.start
         pwidth = sizex // 3
         pheight = sizey // 2
-        dead_zone = 100 # TODO this is in global scale...
+        dead_zone = 100 # This is in global scale
         if y > sizey // 2 or x < sizex // 3:
             lx = x % pwidth
             ly = y % pheight
@@ -252,7 +251,6 @@ def gui():
                 else:
                     mx, gx = sorted((mx,gx))
                     my, gy = sorted((my,gy))
-                    # TODO sort positions, so that you can draw box in both directions
                     cv2.setTrackbarPos('range start x', 'Histogram lines', mx)
                     cv2.setTrackbarPos('range stop x', 'Histogram lines', gx)
                     cv2.setTrackbarPos('range start y', 'Histogram lines', my)
