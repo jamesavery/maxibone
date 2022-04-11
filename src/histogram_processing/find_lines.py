@@ -270,7 +270,10 @@ def gui():
     def update(_): # Note: all colors are in BGR format, as this is what OpenCV uses
         global last_bin, config, scale_x, scale_y
 
-        update_config()
+        times = []
+        if not update_config():
+            return
+        times.append(('init',time.time()))
 
         # Check if trackbar ranges should be updated
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
@@ -346,8 +349,13 @@ def gui():
     def update_config():
         global config
 
+        changed = False
         for entry in config.keys():
+            tmp = config[entry]
             config[entry] = cv2.getTrackbarPos(entry, 'Histogram lines')
+            changed |= tmp == config[entry]
+        
+        return changed
 
     f = np.load(args.histogram[0])
     keys = [key for key in f.keys()]
