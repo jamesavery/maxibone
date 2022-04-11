@@ -141,10 +141,10 @@ def process_contours(hist, rng: _range):
 def process_joints(hist):
     global config
 
-    skeleton = skeletonize(hist)
-    skeleton_gray = cv2.cvtColor(skeleton, cv2.COLOR_BGR2GRAY)
-    skeleton_gray = cv2.threshold(skeleton_gray, 1, 255, cv2.THRESH_BINARY)[1]
-    skeleton_gray = cv2.dilate(skeleton_gray, (3,3), 10)
+    tmp = cv2.threshold(hist, 1, 1, cv2.THRESH_BINARY)[1]
+    skeleton = skeletonize(tmp)
+    skeleton = skeleton.astype(np.uint8) * 255
+    skeleton_gray = cv2.dilate(skeleton, (3,3), 100)
     joint_kernel_size = config['joint kernel size']
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (joint_kernel_size,1))
     horizontal = cv2.morphologyEx(skeleton_gray, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
@@ -333,7 +333,7 @@ def gui():
             display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
 
         # Find joints
-        joints = process_joints(labeled_colour)
+        joints = process_joints(eroded)
         display_joints = cv2.resize(joints, partial_size)
         display_joints = cv2.cvtColor(display_joints, cv2.COLOR_GRAY2BGR)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
@@ -372,12 +372,12 @@ def gui():
     cv2.createTrackbar('joint kernel size', 'Histogram lines', config['joint kernel size'], 100, update)
     cv2.setMouseCallback('Histogram lines', update_line)
     update(42)
-    cv2.waitKey(0) # Segfaults for some reason, when the key isn't escape :) Looks like it's some wayland / ubuntu 20.04 error
-    #while True:
-    #    key = cv2.waitKey(16)
-    #    key &= 0xFF
-    #    if key == 113:
-    #        break
+    
+    while True:
+        key = cv2.waitKey(16)
+        key &= 0xFF
+        if key == 113:
+            break
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
