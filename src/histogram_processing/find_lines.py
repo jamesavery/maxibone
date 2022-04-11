@@ -326,9 +326,8 @@ def gui():
         labeled, labels = process_contours(eroded, rng)
         label_colours = [(0,0,0)] + [(np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)) for _ in labels]
         labeled_colour = np.zeros((labeled.shape[0], labeled.shape[1], 3), dtype=np.uint8)
-        for y in range(labeled.shape[0]):
-            for x in range(labeled.shape[1]):
-                labeled_colour[y,x,:] = label_colours[labeled[y,x]]
+        for l in labels:
+            labeled_colour[labeled == l] = label_colours[l]
         display_contours = cv2.resize(labeled_colour, partial_size)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
             display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
