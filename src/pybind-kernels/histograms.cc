@@ -481,11 +481,82 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
         uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
         uint64_t i = z*ny*nx + y*nx + x;
 
+        // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
         if((voxels[I]>=1) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
             int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - fmin)/(fmax - fmin)) );
 
             bins[field_index*voxel_bins + voxel_index]++;
         }
+    }
+}
+
+void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
+		     const py::array_t<field_type> np_field,
+		     py::array_t<uint64_t> &np_bins,
+		     const double vmin, const double vmax) {
+    printf("I have entered!\n"); fflush(stdout);
+    py::buffer_info
+        voxels_info = np_voxels.request(),
+        field_info = np_field.request(),
+        bins_info = np_bins.request();
+
+    const uint64_t
+        image_length = voxels_info.size,
+        field_length = field_info.size,
+        bins_length  = bins_info.size, 
+        field_bins   = bins_info.shape[0],
+        voxel_bins   = bins_info.shape[1];
+
+    const uint64_t
+        nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2],
+        nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
+
+    double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
+
+    const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+    const field_type *field  = static_cast<field_type*>(field_info.ptr);
+    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+
+    uint64_t I=0;
+    printf("I will try to compute min max!\n"); fflush(stdout);
+
+    float fmin=1e6, fmax=0;	// TODO: inf, -inf
+    #pragma omp parallel for reduction(min:fmin) reduction(max:fmax)
+    for (uint64_t i = 0; i < field_length; i++) {
+        fmin = field[i] > 0 ? min(field[i], fmin) : fmin; // TODO: Should we really mask field zeros?
+        fmax = max(field[i], fmax);
+    }
+    printf("f_range: %f,%f\n", fmin, fmax); fflush(stdout);
+
+    //#pragma omp parallel for private(I) reduction(+:bins[:field_bins*voxel_bins])
+    #pragma omp parallel
+    {
+        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+        #pragma omp for nowait
+        for (I = 0; I < image_length; I++) {
+            int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxels[I] - vmin)/(vmax - vmin)) );
+
+            // What are the X,Y,Z indices corresponding to voxel basearray index I?
+            uint64_t X = I % nX, Y = (I / nX) % nY, Z = I / (nX*nY);
+
+            // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+            // TODO: Sample 2x2x2 volume?
+            uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
+            uint64_t i = z*ny*nx + y*nx + x;
+
+            // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
+            if((voxels[I] >= 1) && (field[i] > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - fmin)/(fmax - fmin)) );
+
+                tmp_bins[field_index*voxel_bins + voxel_index]++;
+            }
+        }
+        #pragma omp critical
+        {
+            for (I = 0; I < bins_length; I++)
+                bins[I] += tmp_bins[I];
+        }
+        free(tmp_bins);
     }
 }
 
