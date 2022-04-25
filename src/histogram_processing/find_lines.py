@@ -141,10 +141,10 @@ def process_contours(hist, rng: _range):
 def process_joints(hist):
     global config
 
-    skeleton = skeletonize(hist)
-    skeleton_gray = cv2.cvtColor(skeleton, cv2.COLOR_BGR2GRAY)
-    skeleton_gray = cv2.threshold(skeleton_gray, 1, 255, cv2.THRESH_BINARY)[1]
-    skeleton_gray = cv2.dilate(skeleton_gray, (3,3), 10)
+    tmp = cv2.threshold(hist, 1, 1, cv2.THRESH_BINARY)[1]
+    skeleton = skeletonize(tmp)
+    skeleton = skeleton.astype(np.uint8) * 255
+    skeleton_gray = cv2.dilate(skeleton, (3,3), 100)
     joint_kernel_size = config['joint kernel size']
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (joint_kernel_size,1))
     horizontal = cv2.morphologyEx(skeleton_gray, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
@@ -270,7 +270,10 @@ def gui():
     def update(_): # Note: all colors are in BGR format, as this is what OpenCV uses
         global last_bin, config, scale_x, scale_y
 
-        update_config()
+        times = []
+        if not update_config():
+            return
+        times.append(('init',time.time()))
 
         # Check if trackbar ranges should be updated
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
@@ -326,15 +329,14 @@ def gui():
         labeled, labels = process_contours(eroded, rng)
         label_colours = [(0,0,0)] + [(np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)) for _ in labels]
         labeled_colour = np.zeros((labeled.shape[0], labeled.shape[1], 3), dtype=np.uint8)
-        for y in range(labeled.shape[0]):
-            for x in range(labeled.shape[1]):
-                labeled_colour[y,x,:] = label_colours[labeled[y,x]]
+        for l in labels:
+            labeled_colour[labeled == l] = label_colours[l]
         display_contours = cv2.resize(labeled_colour, partial_size)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
             display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
 
         # Find joints
-        joints = process_joints(labeled_colour)
+        joints = process_joints(eroded)
         display_joints = cv2.resize(joints, partial_size)
         display_joints = cv2.cvtColor(display_joints, cv2.COLOR_GRAY2BGR)
         if selected_line > rng.y.start and selected_line < rng.y.stop:
@@ -347,8 +349,13 @@ def gui():
     def update_config():
         global config
 
+        changed = False
         for entry in config.keys():
+            tmp = config[entry]
             config[entry] = cv2.getTrackbarPos(entry, 'Histogram lines')
+            changed |= tmp == config[entry]
+        
+        return changed
 
     f = np.load(args.histogram[0])
     keys = [key for key in f.keys()]
@@ -373,12 +380,12 @@ def gui():
     cv2.createTrackbar('joint kernel size', 'Histogram lines', config['joint kernel size'], 100, update)
     cv2.setMouseCallback('Histogram lines', update_line)
     update(42)
-    cv2.waitKey(0) # Segfaults for some reason, when the key isn't escape :) Looks like it's some wayland / ubuntu 20.04 error
-    #while True:
-    #    key = cv2.waitKey(16)
-    #    key &= 0xFF
-    #    if key == 113:
-    #        break
+    
+    while True:
+        key = cv2.waitKey(16)
+        key &= 0xFF
+        if key == 113:
+            break
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
