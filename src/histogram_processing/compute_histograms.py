@@ -1,5 +1,5 @@
 from matplotlib import image
-import histograms
+import pybind_kernels.histograms as histograms
 import numpy as np
 import sys
 import h5py
