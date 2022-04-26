@@ -12,7 +12,8 @@ if __name__ == "__main__":
     output_dir = os.path.dirname(input_h5)+"/"+output_rel_path;
     basename   = os.path.basename(input_h5);
 
-    scales = [2,3,4,6,8,9,12,16,24,32];
+ #   scales = [2,3,4,6,8,9,12,16,24,32];
+    scales = [2,4,8,16,32];
 
     print(f"Downscaling from {input_h5} to scales {scales} under {output_dir}")
     
@@ -46,21 +47,21 @@ if __name__ == "__main__":
 
     print("Copying voxels2x and voxels3x to JAX")
     voxels2x = jp.array(voxels2x)
-    voxels3x = jp.array(voxels3x)
+#    voxels3x = jp.array(voxels3x)
     
     print("Downscaling to all smaller scales: {scales[2:]}")
     voxels4x = downsample2x_jit(voxels2x)
 
-    voxels6x = downsample2x_jit(voxels3x)
-    voxels9x = downsample3x_jit(voxels3x)
+#    voxels6x = downsample2x_jit(voxels3x)
+#    voxels9x = downsample3x_jit(voxels3x)
 
     voxels8x = downsample2x_jit(voxels4x)
-    voxels12x = downsample3x_jit(voxels4x)
+#    voxels12x = downsample3x_jit(voxels4x)
     voxels16x = downsample2x_jit(voxels8x)
-    voxels24x = downsample3x_jit(voxels8x)    
+#    voxels24x = downsample3x_jit(voxels8x)    
     voxels32x = downsample2x_jit(voxels16x)
 
-    voxels = [voxels2x,voxels3x,voxels4x,voxels6x,voxels8x,voxels9x,voxels12x,voxels16x,voxels24x,voxels32x];
+    voxels = [voxels2x,voxels4x,voxels8x,voxels16x,voxels32x];
 
     for i in range(len(scales)):
         scale = scales[i]
