@@ -89,22 +89,23 @@ def piecewisecubic2(pc,xs):
 
 
 
-# A test:
-N, m = 100, 50
-xs = linspace(2,5,N)
-ys = sin(xs) + random.rand(N)
+if ___name___ == "___main___":
+    # A test:
+    N, m = 100, 50
+    xs = linspace(2,5,N)
+    ys = sin(xs) + random.rand(N)
+    
+    pc = fit_piecewisecubic2(xs,ys,m)
 
-pc = fit_piecewisecubic2(xs,ys,m)
+    Ys = piecewisecubic2(pc, xs)
 
-Ys = piecewisecubic2(pc, xs)
+    print(f"xs:{xs.shape}")
+    print(f"ys:{ys.shape}")
+    print(f"coefs = {pc[0]}")
 
-print(f"xs:{xs.shape}")
-print(f"ys:{ys.shape}")
-print(f"coefs = {pc[0]}")
-
-import matplotlib.pyplot as plt
-#plt.plot(xs,ys-Ys)
-plt.plot(xs,ys)
-plt.plot(xs,Ys)
-plt.axvline(x=xs[m])
-plt.show()
+    import matplotlib.pyplot as plt
+    #plt.plot(xs,ys-Ys)
+    plt.plot(xs,ys)
+    plt.plot(xs,Ys)
+    plt.axvline(x=xs[m])
+    plt.show()
