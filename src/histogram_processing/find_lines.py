@@ -27,7 +27,7 @@ def batch():
             mask = np.zeros(bins.shape, dtype=np.uint8)
             mask[py, px] = 255
             dilated, eroded = process_closing(mask, config)
-            labeled = process_contours(eroded, rng, config)
+            labeled, _ = process_contours(eroded, rng, config)
             tmp[name] = labeled
 
         np.savez(f'{args.output}/{sample}_labeled', **tmp)
