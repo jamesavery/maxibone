@@ -133,44 +133,45 @@ def fit_piecewisecubic(xs,ys, Xs):
     return (coefs,Xs)
 
 
-# A test:
-import numpy as np
+if ___name___ == "___main___":
+    # A test:
+    import numpy as np
 
-# N, m = 100, 50
-# xs = linspace(2,15,N)
-# ys = sin(xs) + sin(xs/3)# + random.rand(N) 
-# borders = [xs[0],xs[N//5],xs[2*N//5],xs[3*N//5],xs[4*N//5],xs[-1]+1]
+    # N, m = 100, 50
+    # xs = linspace(2,15,N)
+    # ys = sin(xs) + sin(xs/3)# + random.rand(N) 
+    # borders = [xs[0],xs[N//5],xs[2*N//5],xs[3*N//5],xs[4*N//5],xs[-1]+1]
+    
+    # pc = fit_piecewisecubic(xs,ys,borders)
+    
+    # Ys = piecewisecubic(pc, xs)
+    
+    # print(f"coefs = {pc[0]})")
 
-# pc = fit_piecewisecubic(xs,ys,borders)
-
-# Ys = piecewisecubic(pc, xs)
-
-# print(f"coefs = {pc[0]})")
-
-import matplotlib.pyplot as plt
-# #plt.plot(xs,ys-Ys)
-# plt.plot(xs,ys)
-# plt.plot(xs,Ys)
-# #plt.axvline(x=xs[m])
-# plt.show()
+    import matplotlib.pyplot as plt
+    # #plt.plot(xs,ys-Ys)
+    # plt.plot(xs,ys)
+    # plt.plot(xs,Ys)
+    # #plt.axvline(x=xs[m])
+    # plt.show()
 
 
-f = np.load("output_curve_values.npy")
+    f = np.load("output_curve_values.npy")
 
-vals = f[7,:,1].T
-mask = vals>0
+    vals = f[7,:,1].T
+    mask = vals>0
 
-xs      = np.argwhere(mask).astype(float).flatten()
-ys      = vals[mask]
-borders = np.linspace(xs.min(), xs.max()+1,5)
-A, b = piecewisecubic_matrix(xs,ys,borders)
+    xs      = np.argwhere(mask).astype(float).flatten()
+    ys      = vals[mask]
+    borders = np.linspace(xs.min(), xs.max()+1,5)
+    A, b = piecewisecubic_matrix(xs,ys,borders)
 
-coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
+    coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
+    
+    pc = coefs, borders
+    
+    Ys = piecewisecubic(pc,xs)
 
-pc = coefs, borders
-
-Ys = piecewisecubic(pc,xs)
-
-plt.plot(xs,ys)
-plt.plot(xs,Ys)
-plt.show()
+    plt.plot(xs,ys)
+    plt.plot(xs,Ys)
+    plt.show()
