@@ -124,20 +124,16 @@ if __name__ == '__main__':
 
     #axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=(vmin,vmax), voxel_bins=4096)
 
-    #xb, yb, zb, rb = axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    xb, yb, zb, rb = axes_histogram(vxs, func=histograms.axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
     fb = field_histogram(vxs, field, field_bins=voxel_bins, voxel_bins=voxel_bins, ranges=ranges)
-    fb[-1] = 0 # TODO "bright" mask hack 
+    fb[-1] = 0 # TODO "bright" mask hack
 
     Image.fromarray(tobyt(xb)).save(f"xb.png")
     Image.fromarray(tobyt(yb)).save(f"yb.png")
     Image.fromarray(tobyt(zb)).save(f"zb.png")
     Image.fromarray(tobyt(rb)).save(f"rb.png")
     Image.fromarray(tobyt(fb)).save(f"fb.png")
-    np.save('xb.npy', xb)
-    np.save('yb.npy', yb)
-    np.save('zb.npy', zb)
-    np.save('rb.npy', rb)
-    np.save('fb.npy', fb)
+    np.savez('bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, fileld_bins=fb)
 
     #verified = verify_axes_histogram(vxs, ranges=(vmin,vmax), voxel_bins=4096)
     #if verified:
