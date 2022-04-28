@@ -1,3 +1,4 @@
+from typing_extensions import assert_type
 from matplotlib import image
 import pybind_kernels.histograms as histograms
 import numpy as np
@@ -103,21 +104,112 @@ def load_data(experiment):
     block_size = 256
     blocks = int(np.ceil(Nz / block_size))
     blocks = 7
-    result = np.ndarray((blocks*block_size, Ny, Nx), dtype=np.uint16)
-    for i in tqdm(range(blocks), desc='Loading voxels'): # TODO nu 
+    result = np.empty((blocks*block_size, Ny, Nx), dtype=np.uint16)
+    for i in tqdm(range(blocks), desc='Loading voxels'): 
         start, stop = i*block_size, min((i+1)*block_size, dm['voxels'].shape[0]-1)
         result[start:stop] = (dm['voxels'][start:stop].astype(np.uint16) << 8) | dl['voxels'][start:stop].astype(np.uint16)
     dm.close()
     dl.close()
     return result
 
-# TODO make blocked so Anna doesn't kill it :(
+def run_in_core(sample, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
+    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+
+    Nz, Ny, Nx = dm['voxels'].shape
+    Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
+    center = ((Ny//2) - y_cutoff, Nx//2)
+    Ny -= y_cutoff
+    fz, fy, fx = fi['voxels'].shape
+    fy -= y_cutoff // 2
+
+    vmin, vmax = 0.0, float(implant_threshold)
+    fmin, fmax = 4.0, 65535.0 # TODO don't hardcode.
+
+    x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
+    y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
+    z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
+    r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
+    f_bins = np.zeros((voxel_bins//2, voxel_bins), dtype=np.uint64)
+
+    voxels = np.empty((Nz,Ny,Nx), dtype=np.uint16)
+    voxels[:,:,:] = \
+            (dm['voxels'][:,y_cutoff:,:].astype(np.uint16) << 8) | \
+            (dl['voxels'][:,y_cutoff:,:].astype(np.uint16))
+    field = np.zeros(np.array(voxels.shape)//2, dtype=np.uint16)
+    field[:fz,:fy,:fx] = fi['voxels'][:,y_cutoff//2,:].astype(np.uint16)
+
+    histograms.axis_histogram_par_cpu(voxels, (0, 0, 0), Nz, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+    histograms.field_histogram_par_cpu(voxels, field, (0, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), Nz, f_bins, (vmin, vmax), (fmin, fmax))
+
+    dm.close()
+    dl.close()
+    fi.close()
+
+    f_bins[-1] = 0 # TODO "bright" mask hack
+
+    return x_bins, y_bins, z_bins, r_bins, f_bins
+
+
+# Edition where the histogram is loaded and processed in chunks
+def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
+    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+
+    Nz, Ny, Nx = dm['voxels'].shape
+    Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
+    center = ((Ny//2) - y_cutoff, Nx//2)
+    Ny -= y_cutoff
+    voxels = np.empty((block_size, Ny, Nx), dtype=np.uint16)
+
+    blocks = (Nz // block_size) + (1 if Nz % block_size > 0 else 0)
+
+    vmin, vmax = 0.0, float(implant_threshold)
+    fmin, fmax = 4.0, 65535.0 # TODO don't hardcode.
+
+    x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
+    y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
+    z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
+    r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
+    f_bins = np.zeros((voxel_bins//2, voxel_bins), dtype=np.uint64)
+
+    fz, fy, fx = fi['voxels'].shape
+    fy -= y_cutoff // 2
+
+    for i in tqdm(range(blocks), desc='Computing histograms'):
+        field = np.zeros((block_size//2,fy,fx), dtype=np.uint16)
+        zstart = i*block_size
+        zstop = min((i+1)*block_size, Nz)
+        fzstart = i*(block_size//2)
+        fzstop = min((i+1)*(block_size//2), fz)
+
+        if fzstop-fzstart > 0:
+            field[:fzstop-fzstart,:,:] = fi['voxels'][fzstart:fzstop,y_cutoff_770c_pag//2:,:].astype(np.uint16)
+
+        voxels[:zstop-zstart,:,:] = \
+            (dm['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16) << 8) | \
+            (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
+        
+        
+        histograms.axis_histogram_par_cpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+        histograms.field_histogram_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
+    
+    dm.close()
+    dl.close()
+    fi.close()
+
+    f_bins[-1] = 0 # TODO "bright" mask hack
+
+    return x_bins, y_bins, z_bins, r_bins, f_bins
+
 if __name__ == '__main__':
     h5root = '/mnt/shared/MAXIBONE/Goats/tomograms/'
 
     y_cutoff_770c_pag = 1300
     implant_threshold_u16 = 32000
-    voxel_bins = 2048
+    voxel_bins = 4096
 
     if len(sys.argv) > 1:
         sample = sys.argv[1]
@@ -125,24 +217,7 @@ if __name__ == '__main__':
         sample = '770c_pag'
     outpath = f'{h5root}/processed/histograms/{sample}/'
 
-    dataset = load_data(sample)
-    Nz,Ny,Nx = dataset.shape
-    vxs = np.empty((Nz, Ny-y_cutoff_770c_pag, Nx), dtype=np.uint16)
-    vxs[:,:,:] = dataset[:,y_cutoff_770c_pag:,:]
-
-
-    with h5py.File(f'{h5root}/processed/implant-edt/2x/770c_pag.h5', 'r') as field_h5:
-        field = np.empty(np.array(vxs.shape)//2, dtype=np.uint16)
-        field[:,:,:] = field_h5['voxels'][:(256*7)//2,y_cutoff_770c_pag//2:,:]
-
-    ranges = masked_minmax(vxs) # vmin, vmax
-    ranges = ranges[0], min(ranges[1], implant_threshold_u16)
-
-    #axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=(vmin,vmax), voxel_bins=4096)
-
-    xb, yb, zb, rb = axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
-    fb = field_histogram(vxs, field, field_bins=voxel_bins>>1, voxel_bins=voxel_bins, ranges=ranges)
-    fb[-1] = 0 # TODO "bright" mask hack
+    xb, yb, zb, rb, fb = run_out_of_core(sample)
 
     Image.fromarray(tobyt(xb)).save(f"{outpath}/xb.png")
     Image.fromarray(tobyt(yb)).save(f"{outpath}/yb.png")
@@ -150,7 +225,3 @@ if __name__ == '__main__':
     Image.fromarray(tobyt(rb)).save(f"{outpath}/rb.png")
     Image.fromarray(tobyt(fb)).save(f"{outpath}/fb.png")
     np.savez(f'{outpath}/bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb)
-
-    #verified = verify_axes_histogram(vxs, ranges=(vmin,vmax), voxel_bins=4096)
-    #if verified:
-    #    benchmark_axes_histograms(vxs, ranges=(vmin,vmax), voxel_bins=4096, runs=1)

@@ -1,5 +1,5 @@
 
-PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -O3 -Wall -shared -fPIC -fopenmp -g
+PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -O3 -Wall -shared -fPIC -fopenmp -g -std=c++17
 PYBIND_SUFFIX = $(shell python3-config --extension-suffix)
 
 OPENCV_INCLUDE=$(shell pkg-config opencv4 --cflags)
