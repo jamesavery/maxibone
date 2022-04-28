@@ -12,6 +12,9 @@ namespace py = pybind11;
 typedef uint16_t voxel_type;
 typedef float    field_type;
 
+//#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
+#define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
+
 pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
     auto voxels_info    = np_voxels.request();
@@ -114,11 +117,12 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t y = 0; y < Ny; y++) {
                     uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                     auto voxel = voxels[flat_idx];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
-                    } else if(voxel != 0) {
+                    } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
                 }
@@ -144,11 +148,12 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t x = 0; x < Nx; x++) {
                     uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                     auto voxel = voxels[flat_idx];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
-                    } else if(voxel != 0) {
+                    } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
                 }
@@ -160,7 +165,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 y_bins[y*voxel_bins + i] = tmp[i];
         }
 
-        // r_bins
+        // z_bins
         #pragma omp for nowait
         for (uint64_t z = 0; z < Nz; z++) {
             // Init
@@ -174,11 +179,12 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t x = 0; x < Nx; x++) {
                     uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                     auto voxel = voxels[flat_idx];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
-                    } else if(voxel != 0) {
+                    } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
                 }
@@ -190,7 +196,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 z_bins[z*voxel_bins + i] = tmp[i];
         }
 
-        // z_bins
+        // r_bins
         #pragma omp for nowait collapse(2)
         for (uint64_t y = 0; y < Ny; y++) {
             for (uint64_t x = 0; x < Nx; x++) {
@@ -199,6 +205,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t i = 0; i < voxel_bins; i++)
                     tmp[i] = 0;
 
+                // TODO Radius is wrong!!!! :-( as it assumes quadratic xy-slices. It needs a correct center from which to compute.
                 uint64_t r = floor(sqrt((x-Nx/2.0)*(x-Nx/2.0) + (y-Ny/2.0)*(y-Ny/2.0)));
 
                 // Read and compute
@@ -206,11 +213,12 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t z = 0; z < Nz; z++) {
                     uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                     auto voxel = voxels[flat_idx];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
-                    } else if(voxel != 0) {
+                    } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
                 }
@@ -318,6 +326,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t j = 0; j < this_block_size; j++) {
                     uint64_t flat_idx = i*block_size + j;
                     voxel_type voxel = buffer[j];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
 
                     uint64_t x = flat_idx % Nx;
                     uint64_t y = (flat_idx / Nx) % Ny;
@@ -326,7 +335,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
 
                     int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
-                    if(voxel != 0) {
+                    if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         #pragma acc atomic
                         ++x_bins[x*voxel_bins + voxel_index];
                         #pragma acc atomic
@@ -409,11 +418,13 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
                 uint64_t r = floor(sqrt((x-Nx/2.0)*(x-Nx/2.0) + (y-Ny/2.0)*(y-Ny/2.0)));
 
                 auto voxel = voxels[flat_idx++];
+                voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
+                // TODO Check if round() is better than floor() (voxel_bins-1 should handle potential overflow)
                 int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                 if (voxel_index >= (int64_t)voxel_bins) {
                     fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
-                } else if (voxel != 0) {
+                } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                     x_bins[x*voxel_bins + voxel_index]++;
                     y_bins[y*voxel_bins + voxel_index]++;
                     z_bins[z*voxel_bins + voxel_index]++;
@@ -436,59 +447,132 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
 }
 
 // TODO: Allow field to be lower resolution than voxel data
-void field_histogram(const py::array_t<voxel_type> np_voxels,
+void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
 		     const py::array_t<field_type> np_field,
 		     py::array_t<uint64_t> &np_bins,
-		     const double vmin, const double vmax
-	     )
-{
-  py::buffer_info
-    voxels_info = np_voxels.request(),
-    field_info = np_field.request(),
-    bins_info = np_bins.request();
+		     const double vmin, const double vmax) {
+    py::buffer_info
+        voxels_info = np_voxels.request(),
+        field_info = np_field.request(),
+        bins_info = np_bins.request();
 
-  const uint64_t
-    image_length = voxels_info.size,
-    field_length = field_info.size,
-    field_bins   = bins_info.shape[0],
-    voxel_bins   = bins_info.shape[1];
+    const uint64_t
+        image_length = voxels_info.size,
+        field_length = field_info.size,
+        field_bins   = bins_info.shape[0],
+        voxel_bins   = bins_info.shape[1];
 
-  const uint64_t
-    nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2],
-    nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
+    const uint64_t
+        nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2],
+        nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
 
-  double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
+    double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
 
-  const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
-  const field_type *field  = static_cast<field_type*>(field_info.ptr);
-  uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+    const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+    const field_type *field  = static_cast<field_type*>(field_info.ptr);
+    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
 
-  uint64_t I=0;
+    uint64_t I=0;
 
-  float fmin=1e6, fmax=0;	// TODO: inf, -inf
-  for(uint64_t i=0;i<field_length;i++){
-    fmin = field[i]>0? min(field[i],fmin) : fmin; // TODO: Should we really mask field zeros?
-    fmax = max(field[i],fmax);
-  }
+    float fmin=1e6, fmax=0;	// TODO: inf, -inf
+    for (uint64_t i = 0; i < field_length; i++) {
+        fmin = field[i] > 0 ? min(field[i], fmin) : fmin; // TODO: Should we really mask field zeros?
+        fmax = max(field[i], fmax);
+    }
 
   //#pragma omp parallel for private(I) reduction(+:bins[:field_bins*voxel_bins])
-  for(I=0;I<image_length;I++){
-    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxels[I] - vmin)/(vmax - vmin)) );
+    for (I = 0; I < image_length; I++) {
+        auto voxel = voxels[I];
+        voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
+        int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
-    // What are the X,Y,Z indices corresponding to voxel basearray index I?
-    uint64_t X = I % nX, Y = (I / nX) % nY, Z = I / (nX*nY);
+        // What are the X,Y,Z indices corresponding to voxel basearray index I?
+        uint64_t X = I % nX, Y = (I / nX) % nY, Z = I / (nX*nY);
 
-    // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
-    // TODO: Sample 2x2x2 volume?
-    uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
-    uint64_t i = z*ny*nx + y*nx + x;
+        // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+        // TODO: Sample 2x2x2 volume?
+        uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
+        uint64_t i = z*ny*nx + y*nx + x;
 
-    if((voxels[I]>=1) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-      int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - fmin)/(fmax - fmin)) );
+        // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
+        if(VALID_VOXEL(voxel) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+            int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - fmin)/(fmax - fmin)) );
 
-      bins[field_index*voxel_bins + voxel_index]++;
+            bins[field_index*voxel_bins + voxel_index]++;
+        }
     }
-  }
+}
+
+void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
+		     const py::array_t<field_type> np_field,
+		     py::array_t<uint64_t> &np_bins,
+		     const double vmin, const double vmax) {
+    printf("I have entered!\n"); fflush(stdout);
+    py::buffer_info
+        voxels_info = np_voxels.request(),
+        field_info = np_field.request(),
+        bins_info = np_bins.request();
+
+    const uint64_t
+        image_length = voxels_info.size,
+        field_length = field_info.size,
+        bins_length  = bins_info.size, 
+        field_bins   = bins_info.shape[0],
+        voxel_bins   = bins_info.shape[1];
+
+    const uint64_t
+        nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2],
+        nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
+
+    double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
+
+    const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+    const field_type *field  = static_cast<field_type*>(field_info.ptr);
+    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+
+    uint64_t I=0;
+    printf("I will try to compute min max!\n"); fflush(stdout);
+
+    float fmin=1e6, fmax=0;	// TODO: inf, -inf
+    #pragma omp parallel for reduction(min:fmin) reduction(max:fmax)
+    for (uint64_t i = 0; i < field_length; i++) {
+        fmin = field[i] > 0 ? min(field[i], fmin) : fmin; // TODO: Should we really mask field zeros?
+        fmax = max(field[i], fmax);
+    }
+    printf("f_range: %f,%f\n", fmin, fmax); fflush(stdout);
+
+    //#pragma omp parallel for private(I) reduction(+:bins[:field_bins*voxel_bins])
+    #pragma omp parallel
+    {
+        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+        #pragma omp for nowait
+        for (I = 0; I < image_length; I++) {
+            auto voxel = voxels[I];
+            voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
+            int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+
+            // What are the X,Y,Z indices corresponding to voxel basearray index I?
+            uint64_t X = I % nX, Y = (I / nX) % nY, Z = I / (nX*nY);
+
+            // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+            // TODO: Sample 2x2x2 volume?
+            uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
+            uint64_t i = z*ny*nx + y*nx + x;
+
+            // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
+            if(VALID_VOXEL(voxel) && (field[i] > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - fmin)/(fmax - fmin)) );
+
+                tmp_bins[field_index*voxel_bins + voxel_index]++;
+            }
+        }
+        #pragma omp critical
+        {
+            for (I = 0; I < bins_length; I++)
+                bins[I] += tmp_bins[I];
+        }
+        free(tmp_bins);
+    }
 }
 
 PYBIND11_MODULE(histograms, m) {
@@ -497,7 +581,8 @@ PYBIND11_MODULE(histograms, m) {
     m.def("axis_histogram_seq_cpu",  &axis_histogram_seq_cpu);
     m.def("axis_histogram_par_cpu",  &axis_histogram_par_cpu);
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
-    m.def("field_histogram", &field_histogram);
+    m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
+    m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);    
 }
