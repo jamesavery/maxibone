@@ -6,6 +6,7 @@ import h5py
 import timeit
 from datetime import datetime
 from PIL import Image
+from tqdm import tqdm
 
 # TODO: Currently specialized to uint16_t
 def masked_minmax(voxels):
@@ -96,44 +97,59 @@ def tobyt(arr):
     return (((arr - mi) / (ma - mi + 1)) * 255).astype(np.uint8)
 
 def load_data(experiment):
-    dm = h5py.File(f'{h5root}/msb/{experiment}.h5', 'r')
-    dl = h5py.File(f'{h5root}/lsb/{experiment}.h5', 'r')
-    result = np.ndarray(dm['voxels'].shape, dtype=np.uint16)
-    block_size = 1024
-    blocks = int(np.ceil(dm['voxels'].shape[0] / block_size))
-    for i in range(blocks):
+    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{experiment}.h5', 'r')
+    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{experiment}.h5', 'r')
+    Nz, Ny, Nx = dm['voxels'].shape
+    block_size = 256
+    blocks = int(np.ceil(Nz / block_size))
+    blocks = 7
+    result = np.ndarray((blocks*block_size, Ny, Nx), dtype=np.uint16)
+    for i in tqdm(range(blocks), desc='Loading voxels'): # TODO nu 
         start, stop = i*block_size, min((i+1)*block_size, dm['voxels'].shape[0]-1)
         result[start:stop] = (dm['voxels'][start:stop].astype(np.uint16) << 8) | dl['voxels'][start:stop].astype(np.uint16)
     dm.close()
     dl.close()
     return result
 
+# TODO make blocked so Anna doesn't kill it :(
 if __name__ == '__main__':
-    h5root = '/mnt/shared/MAXIBONE/Goats/tomograms/hdf5-byte/'
-    if len(sys.argv) > 1:
-        dataset = load_data(sys.argv[1])
-    else:
-        dataset = load_data('770c_pag')
-    vxs = dataset
+    h5root = '/mnt/shared/MAXIBONE/Goats/tomograms/'
 
-    with h5py.File('/mnt/shared/MAXIBONE/Goats/tomograms/processed/implant-edt/2x/770c_pag.h5', 'r') as field_h5:
-        field = field_h5['voxels'][:]
+    y_cutoff_770c_pag = 1300
+    implant_threshold_u16 = 32000
+    voxel_bins = 2048
+
+    if len(sys.argv) > 1:
+        sample = sys.argv[1]
+    else:
+        sample = '770c_pag'
+    outpath = f'{h5root}/processed/histograms/{sample}/'
+
+    dataset = load_data(sample)
+    Nz,Ny,Nx = dataset.shape
+    vxs = np.empty((Nz, Ny-y_cutoff_770c_pag, Nx), dtype=np.uint16)
+    vxs[:,:,:] = dataset[:,y_cutoff_770c_pag:,:]
+
+
+    with h5py.File(f'{h5root}/processed/implant-edt/2x/770c_pag.h5', 'r') as field_h5:
+        field = np.empty(np.array(vxs.shape)//2, dtype=np.uint16)
+        field[:,:,:] = field_h5['voxels'][:(256*7)//2,y_cutoff_770c_pag//2:,:]
 
     ranges = masked_minmax(vxs) # vmin, vmax
-    voxel_bins = 4096
+    ranges = ranges[0], min(ranges[1], implant_threshold_u16)
 
     #axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=(vmin,vmax), voxel_bins=4096)
 
-    xb, yb, zb, rb = axes_histogram(vxs, func=histograms.axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
+    xb, yb, zb, rb = axes_histogram(vxs, func=histograms.axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
     fb = field_histogram(vxs, field, field_bins=voxel_bins>>1, voxel_bins=voxel_bins, ranges=ranges)
     fb[-1] = 0 # TODO "bright" mask hack
 
-    Image.fromarray(tobyt(xb)).save(f"xb.png")
-    Image.fromarray(tobyt(yb)).save(f"yb.png")
-    Image.fromarray(tobyt(zb)).save(f"zb.png")
-    Image.fromarray(tobyt(rb)).save(f"rb.png")
-    Image.fromarray(tobyt(fb)).save(f"fb.png")
-    np.savez('bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb)
+    Image.fromarray(tobyt(xb)).save(f"{outpath}/xb.png")
+    Image.fromarray(tobyt(yb)).save(f"{outpath}/yb.png")
+    Image.fromarray(tobyt(zb)).save(f"{outpath}/zb.png")
+    Image.fromarray(tobyt(rb)).save(f"{outpath}/rb.png")
+    Image.fromarray(tobyt(fb)).save(f"{outpath}/fb.png")
+    np.savez(f'{outpath}/bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb)
 
     #verified = verify_axes_histogram(vxs, ranges=(vmin,vmax), voxel_bins=4096)
     #if verified:
