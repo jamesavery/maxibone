@@ -133,7 +133,7 @@ def fit_piecewisecubic(xs,ys, Xs):
     return (coefs,Xs)
 
 
-if ___name___ == "___main___":
+if __name__ == "__main__":
     # A test:
     import numpy as np
 

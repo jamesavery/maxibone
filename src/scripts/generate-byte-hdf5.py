@@ -1,11 +1,11 @@
- # Byte-per-voxel HDF5 files for complete multi-scan tomograms
+# Byte-per-voxel HDF5 files for complete multi-scan tomograms
 # Format
 # /subvolume_dimensions:  int(n,3).      For each of the n component scans, the sub-volume dimensions (nz,ny,nx)
 # /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
 # /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
 import bohrium as bh
-from io.esrf_read import *
+from io_modules.esrf_read import *
 import numpy   as np
 import h5py
 import matplotlib.pyplot as plt
@@ -35,7 +35,7 @@ subvolume_range      = np.array([(float(m['valmin']), float(m['valmax'])) for m 
 
 global_vmin = np.min(subvolume_range[:,0])
 global_vmax = np.max(subvolume_range[:,1])
-(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0]), np.min(subvolume_dimensions[:,1]), np.min(subvolume_dimensions[:,2]))
+(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0])&~31, np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
 
 for i in range(len(subvolume_metadata)):
     print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
