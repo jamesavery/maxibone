@@ -38,25 +38,25 @@ global_vmax = np.max(subvolume_range[:,1])
 (Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0])&~31, np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
 
 for i in range(len(subvolume_metadata)):
-    print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
+    print(f"{i} {sample}/{subvolume_metadata[i]['sample']}: {subvolume_range[i]}")
 print((global_vmin, global_vmax), (Nz,Ny,Nx))    
 print(subvolume_dimensions)
 print(subvolume_range)
 
 
 #import re
-#experiment_re = re.compile("_+([0-9a-zA-Z]+)_+(\d+)_pag$")
-#re_match      = re.search(experiment_re, subvolume_metadata[0]['experiment'])
+#sample_re = re.compile("_+([0-9a-zA-Z]+)_+(\d+)_pag$")
+#re_match      = re.search(sample_re, subvolume_metadata[0]['experiment'])
 #assert(re_match)
-#experiment = re_match.group(1)
-experiment  = sample
+#sample = re_match.group(1)
+sample  = sample
 
 #print(re_match.group(0))
 #print(re_match.group(1))
 #print(re_match.group(2))
 
-msb_filename = f"{hdf5_root}/hdf5-byte/msb/{experiment}.h5";
-lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/{experiment}.h5";
+msb_filename = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5";
+lsb_filename = f"{hdf5_root}/hdf5-byte/lsb/{sample}.h5";
 
 # Make sure directory exists
 outdir = os.path.dirname(msb_filename)
@@ -108,9 +108,9 @@ for i in range(len(subvolume_metadata)):
     (ey,ex)        = (ny-(ny-Ny)//2, nx-(nx-Nx)//2)
     print((sy,ey),(sx,ex))
     
-    # print(f"Loading {subvolume_info['experiment']}")
+    # print(f"Loading {subvolume_info['sample']}")
     # tomo = normalize(esrf_full_tomogram_bh(subvolume_info), (global_vmin,global_vmax));
-    # print(f"Writing {subvolume_info['experiment']}")    
+    # print(f"Writing {subvolume_info['sample']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
     chunk = bh.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
