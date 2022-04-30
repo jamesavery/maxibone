@@ -604,6 +604,125 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
+template <typename value_type> float resample2x2x2(const value_type *voxels,
+						   const array<uint64_t,3> &shape,
+						   const array<float,3>    &X)
+{
+      auto  [Nz,Ny,Nx] = shape;
+      assert(X[0]>=0.5    && X[1]>=0.5    && X[2]>= 0.5);
+      assert(X[0]<=Nx-0.5 && X[1]>=Ny-0.5 && X[2]>= Nz-0.5);  
+				    
+      float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
+      int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
+      float   value = 0;
+
+      for(int i=0;i<3;i++){
+	double Iminus, Iplus;
+	Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+	Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+
+	Xint[0][i] = Iminus;
+	Xint[1][i] = Iplus;	
+      }
+    
+      // Resample voxel in 2x2x2 neighbourhood
+      //000 --- 
+      //001 --+
+      //010 -+-
+      //011 -++
+      //100 +--
+      //101 +-+
+      //110 ++-
+      //111 +++
+
+      for(int ijk=0; ijk<=7; ijk++) {
+	float  weight = 1;
+	int64_t IJK[3];
+	
+	for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
+	  int pm = ijk&(1<<axis);
+	  IJK[axis] = Xint[pm][axis];
+	  weight   *= Xfrac[pm][axis];
+	}
+	
+	value_type voxel = voxels[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
+	value += voxel*weight;
+      }
+      return value;
+    }
+
+    void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
+					  const py::array_t<field_type> np_field,
+					  const array<uint64_t,3> offset,
+					  const array<uint64_t,3> voxels_shape,
+					  const array<uint64_t,3> field_shape,
+					  const uint64_t block_size,
+					  py::array_t<uint64_t> &np_bins,
+					  const tuple<double, double> vrange,
+					  const tuple<double, double> frange) {
+    py::buffer_info
+        voxels_info = np_voxels.request(),
+        field_info = np_field.request(),
+        bins_info = np_bins.request();
+
+    const uint64_t
+        bins_length  = bins_info.size,
+        field_bins   = bins_info.shape[0],
+        voxel_bins   = bins_info.shape[1];
+
+    auto [nZ, nY, nX] = voxels_shape;
+    auto [nz, ny, nx] = field_shape;
+
+    float dz = nz/((float)nZ), dy = ny/((float)nY), dx = nx/((float)nX);
+
+    const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+    const field_type *field  = static_cast<field_type*>(field_info.ptr);
+    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+
+    auto [f_min, f_max] = frange;
+    auto [v_min, v_max] = vrange;
+    auto [z_start, y_start, x_start] = offset;
+    uint64_t 
+        z_end = min(z_start+block_size, nZ),
+        y_end = nY,
+        x_end = nX;
+
+    #pragma omp parallel
+    {
+        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+        #pragma omp for nowait
+        for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
+            for (uint64_t Y = y_start; Y < y_end; Y++) {
+                for (uint64_t X = x_start; X < x_end; X++) {
+                    uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
+                    auto voxel = voxels[flat_index];		    
+                    voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
+                    int64_t voxel_index = floor(static_cast<float>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+
+                    // And what are the corresponding x,y,z coordinates into the field array?
+                    array<float,3> xyz = {X*dx, Y*dy, Z*dz};
+		    uint16_t  field_value = round(resample2x2x2<field_type>(field,field_shape,xyz));		    
+
+                    // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
+                    if(VALID_VOXEL(voxel) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                        int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+
+                        tmp_bins[field_index*voxel_bins + voxel_index]++;
+                    }
+                }
+            }
+        }
+        #pragma omp critical
+        {
+            for (uint64_t i = 0; i < bins_length; i++)
+                bins[i] += tmp_bins[i];
+        }
+        free(tmp_bins);
+    }
+    
+    
+}
+
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
 
@@ -612,6 +731,7 @@ PYBIND11_MODULE(histograms, m) {
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
     m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
+    m.def("field_histogram_resample_par_cpu", &field_histogram_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);    
 }
