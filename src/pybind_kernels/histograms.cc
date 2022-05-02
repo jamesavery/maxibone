@@ -660,6 +660,8 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 					  py::array_t<uint64_t> &np_bins,
 					  const tuple<double, double> vrange,
 					  const tuple<double, double> frange) {
+      printf("field_histogram_resample_par_cpu\n");
+      
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
@@ -731,7 +733,7 @@ PYBIND11_MODULE(histograms, m) {
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
     m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
-    m.def("field_histogram_resample_par_cpu", &field_histogram_par_cpu);
+    m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);    
 }
