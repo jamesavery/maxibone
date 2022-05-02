@@ -170,7 +170,7 @@ template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
 {
   ssize_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
   assert(x>=0.5 && y>=0.5 && z>= 0.5);
-  assert(x<=Nx-0.5 && y>=Ny-0.5 && z>= Nz-0.5);  
+  assert(x<=Nx-0.5 && y<=Ny-0.5 && z<= Nz-0.5);  
 				    
   real_t   X[3] = {x,y,z};
   real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
