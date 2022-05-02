@@ -633,9 +633,9 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 						   const array<float,3>    &X)
 {
       auto  [Nz,Ny,Nx] = shape;
-      assert(X[0]>=0.5    && X[1]>=0.5    && X[2]>= 0.5);
-      assert(X[0]<=Nx-0.5 && X[1]>=Ny-0.5 && X[2]>= Nz-0.5);  
-				    
+      assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
+      assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));  
+      
       float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
       int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
       float   value = 0;
@@ -678,8 +678,8 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 					  const py::array_t<field_type> np_field,
 					  const tuple<uint64_t,uint64_t,uint64_t> offset,
-                      const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
-                      const tuple<uint64_t,uint64_t,uint64_t> field_shape,
+				          const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
+				          const tuple<uint64_t,uint64_t,uint64_t> field_shape,
 					  const uint64_t block_size,
 					  py::array_t<uint64_t> &np_bins,
 					  const tuple<double, double> vrange,
@@ -727,7 +727,14 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 
                     // And what are the corresponding x,y,z coordinates into the field array?
                     array<float,3> xyz = {X*dx, Y*dy, Z*dz};
-		    uint16_t  field_value = round(resample2x2x2<field_type>(field,field_shape,xyz));		    
+		    auto [x,y,z] = xyz;
+		    uint16_t  field_value = 0;		    
+		    if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
+		      field_value = round(resample2x2x2<field_type>(field,field_shape,xyz));
+		    else {
+		      uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);		      
+		      field_value = field[i];
+		    }
 
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                     if(VALID_VOXEL(voxel) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
