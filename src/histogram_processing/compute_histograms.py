@@ -35,7 +35,7 @@ def field_histogram(voxels, field, field_bins, voxel_bins, ranges):
     bins = np.zeros((field_bins, voxel_bins), dtype=np.uint64)
     vmin, vmax = ranges
     # python3 histograms_tester.py 770c_pag  1849.98s user 170.42s system 512% cpu 6:33.95 total
-    histograms.field_histogram_par_cpu(voxels, field, bins, vmin, vmax)
+    histograms.field_histogram_resample_par_cpu(voxels, field, bins, vmin, vmax)
     # python3 histograms_tester.py 770c_pag  1095.49s user 141.76s system 104% cpu 19:44.64 total
     #histograms.field_histogram_seq_cpu(voxels, field, bins, vmin, vmax)
 
