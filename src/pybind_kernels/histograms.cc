@@ -6,6 +6,7 @@
 #include <omp.h>
 #include <chrono>
 #include <iostream>
+#include <fstream>
 using namespace std;
 namespace py = pybind11;
 
@@ -52,6 +53,29 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     return make_pair(voxel_min,voxel_max);
 }
 
+void load_slice(py::array_t<voxel_type> &np_data, string filename, 
+                const tuple<uint64_t, uint64_t, uint64_t> offset,
+                const tuple<uint64_t, uint64_t, uint64_t> shape) {
+    auto data_info = np_data.request();
+    voxel_type *data = static_cast<voxel_type*>(data_info.ptr);
+    ifstream file;
+    file.open(filename.c_str(), ios::binary);
+    auto [Nz, Ny, Nx] = shape;
+    auto [oz, oy, ox] = offset;
+    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(voxel_type);
+    file.seekg(flat_offset, ios::beg);
+    file.read((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
+
+void append_slice(py::array_t<voxel_type> &np_data, string filename) {
+    auto data_info = np_data.request();
+    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
+    ofstream file;
+    file.open(filename.c_str(), ios::binary | ios::app);
+    file.write((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
 void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
@@ -605,7 +629,7 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
 }
 
 template <typename value_type> float resample2x2x2(const value_type *voxels,
-						   const array<uint64_t,3> &shape,
+						   const tuple<uint64_t,uint64_t,uint64_t> &shape,
 						   const array<float,3>    &X)
 {
       auto  [Nz,Ny,Nx] = shape;
@@ -651,11 +675,11 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
       return value;
     }
 
-    void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
+void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 					  const py::array_t<field_type> np_field,
-					  const array<uint64_t,3> offset,
-					  const array<uint64_t,3> voxels_shape,
-					  const array<uint64_t,3> field_shape,
+					  const tuple<uint64_t,uint64_t,uint64_t> offset,
+                      const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
+                      const tuple<uint64_t,uint64_t,uint64_t> field_shape,
 					  const uint64_t block_size,
 					  py::array_t<uint64_t> &np_bins,
 					  const tuple<double, double> vrange,
@@ -725,13 +749,14 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
-
+    m.def("load_slice", &load_slice);
+    m.def("append_slice", &append_slice);
     m.def("axis_histogram_seq_cpu",  &axis_histogram_seq_cpu);
     m.def("axis_histogram_par_cpu",  &axis_histogram_par_cpu);
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
     m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
-    m.def("field_histogram_resample_par_cpu", &field_histogram_par_cpu);
+    m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);    
 }
