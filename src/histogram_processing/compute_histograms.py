@@ -1,8 +1,8 @@
-from typing_extensions import assert_type
+import sys
+sys.path.append(sys.path[0]+"/../")
 from matplotlib import image
 import pybind_kernels.histograms as histograms
 import numpy as np
-import sys
 import h5py
 import timeit
 from datetime import datetime
@@ -97,6 +97,9 @@ def tobyt(arr):
     mi, ma = arr.min(), arr.max()
     return (((arr - mi) / (ma - mi + 1)) * 255).astype(np.uint8)
 
+def row_normalize(A):
+    return A/(1+np.max(A,axis=1))[:,np.newaxis]
+
 def load_data(experiment):
     dm = h5py.File(f'{h5root}/hdf5-byte/msb/{experiment}.h5', 'r')
     dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{experiment}.h5', 'r')
@@ -141,7 +144,7 @@ def run_in_core(sample, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000)
     field[:fz,:fy,:fx] = fi['voxels'][:,y_cutoff//2,:].astype(np.uint16)
 
     histograms.axis_histogram_par_cpu(voxels, (0, 0, 0), Nz, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-    histograms.field_histogram_par_cpu(voxels, field, (0, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), Nz, f_bins, (vmin, vmax), (fmin, fmax))
+    histograms.field_histogram_resample_par_cpu(voxels, field, (0, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), Nz, f_bins, (vmin, vmax), (fmin, fmax))
 
     dm.close()
     dl.close()
@@ -194,7 +197,7 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
         
         
         histograms.axis_histogram_par_cpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-        histograms.field_histogram_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
+        histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
     
     dm.close()
     dl.close()
@@ -219,9 +222,9 @@ if __name__ == '__main__':
 
     xb, yb, zb, rb, fb = run_out_of_core(sample)
 
-    Image.fromarray(tobyt(xb)).save(f"{outpath}/xb.png")
-    Image.fromarray(tobyt(yb)).save(f"{outpath}/yb.png")
-    Image.fromarray(tobyt(zb)).save(f"{outpath}/zb.png")
-    Image.fromarray(tobyt(rb)).save(f"{outpath}/rb.png")
-    Image.fromarray(tobyt(fb)).save(f"{outpath}/fb.png")
+    Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb.png")
+    Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb.png")
+    Image.fromarray(tobyt(row_normalize(zb))).save(f"{outpath}/zb.png")
+    Image.fromarray(tobyt(row_normalize(rb))).save(f"{outpath}/rb.png")
+    Image.fromarray(tobyt(row_normalize(fb))).save(f"{outpath}/fb.png")
     np.savez(f'{outpath}/bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb)
