@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 sys.path.append(sys.path[0]+"/../")
 from matplotlib import image
@@ -35,7 +36,7 @@ def field_histogram(voxels, field, field_bins, voxel_bins, ranges):
     bins = np.zeros((field_bins, voxel_bins), dtype=np.uint64)
     vmin, vmax = ranges
     # python3 histograms_tester.py 770c_pag  1849.98s user 170.42s system 512% cpu 6:33.95 total
-    histograms.field_histogram_resample_par_cpu(voxels, field, bins, vmin, vmax)
+    histograms.field_histogram_par_cpu(voxels, field, bins, vmin, vmax)
     # python3 histograms_tester.py 770c_pag  1095.49s user 141.76s system 104% cpu 19:44.64 total
     #histograms.field_histogram_seq_cpu(voxels, field, bins, vmin, vmax)
 
@@ -116,8 +117,8 @@ def load_block(sample, offset, block_size, y_cutoff, binary=True):
     field = np.zeros((block_size//2,fy,fx), dtype=np.uint16)
 
     if binary:
-        histograms.load_slice(voxels, f'{h5root}/binary/{sample}_voxels.bin', (offset, 0, 0), (Nz, Ny, Nx))
-        histograms.load_slice(field, f'{h5root}/binary/{sample}_field.bin', (offset//2, 0, 0), (fz, fy, fx))
+        histograms.load_slice(voxels, f'{h5root}/binary/{sample}_voxels.uint16', (offset, 0, 0), (Nz, Ny, Nx))
+        histograms.load_slice(field, f'{h5root}/binary/{sample}_field.uint16', (offset//2, 0, 0), (fz, fy, fx))
     else:
         zstart = offset
         zstop = min(offset+block_size, Nz)
@@ -218,7 +219,7 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
         
         
         histograms.axis_histogram_par_cpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-        histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
+        histograms.field_histogram_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
     
     dm.close()
     dl.close()
