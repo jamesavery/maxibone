@@ -3,12 +3,11 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 from matplotlib import image
 import pybind_kernels.histograms as histograms
-import numpy as np
-import h5py
-import timeit
+import numpy as np, h5py, timeit
 from datetime import datetime
 from PIL import Image
 from tqdm import tqdm
+from config.paths import hdf5_root, commandline_args
 
 # TODO: Currently specialized to uint16_t
 def masked_minmax(voxels):
@@ -106,9 +105,9 @@ def load_block(sample, offset, block_size, y_cutoff, binary=True):
     Loads a block of data from disk into memory.
     For binary files, it assumes that y_cutoff has been applied.
     '''
-    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
     Nz, Ny, Nx = dm['voxels'].shape
     Ny -= y_cutoff
     fz, fy, fx = fi['voxels'].shape
@@ -117,8 +116,8 @@ def load_block(sample, offset, block_size, y_cutoff, binary=True):
     field = np.zeros((block_size//2,fy,fx), dtype=np.uint16)
 
     if binary:
-        histograms.load_slice(voxels, f'{h5root}/binary/{sample}_voxels.uint16', (offset, 0, 0), (Nz, Ny, Nx))
-        histograms.load_slice(field, f'{h5root}/binary/{sample}_field.uint16', (offset//2, 0, 0), (fz, fy, fx))
+        histograms.load_slice(voxels, f'{hdf5_root}/binary/{sample}_voxels.uint16', (offset, 0, 0), (Nz, Ny, Nx))
+        histograms.load_slice(field, f'{hdf5_root}/binary/{sample}_field.uint16', (offset//2, 0, 0), (fz, fy, fx))
     else:
         zstart = offset
         zstop = min(offset+block_size, Nz)
@@ -139,9 +138,9 @@ def load_block(sample, offset, block_size, y_cutoff, binary=True):
 # Edition where the histogram is loaded and processed in chunks
 # If block_size is less than 0, then the whole thing is loaded and processed.
 def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
-    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
 
     Nz, Ny, Nx = dm['voxels'].shape
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
@@ -179,9 +178,9 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
 
 # Edition where the histogram is loaded and processed in chunks
 def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
-    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
 
     Nz, Ny, Nx = dm['voxels'].shape
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
@@ -212,7 +211,7 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
 
         if fzstop-fzstart > 0:
             print(f"Reading field voxels from z={fzstart} to z={fzstop}")
-            field[:fzstop-fzstart,:,:] = fi['voxels'][fzstart:fzstop,y_cutoff_770c_pag//2:,:].astype(np.uint16)
+            field[:fzstop-fzstart,:,:] = fi['voxels'][fzstart:fzstop,y_cutoff//2:,:].astype(np.uint16)
 
         print(f"Reading image voxels from z={zstart} to z={zstop}")            
         voxels[:zstop-zstart,:,:] = \
@@ -233,18 +232,13 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
 if __name__ == '__main__':
-    h5root = '/mnt/shared/MAXIBONE/Goats/tomograms/'
-
-    y_cutoff_770c_pag = 1300
-    implant_threshold_u16 = 32000
+    sample, y_cutoff = commandline_args({"sample":"770c_pag", "y_cutoff":1300})
+    
+    implant_threshold_u16 = 32000 # TODO: to config.constants
     voxel_bins = 4096
     block_size = 256
 
-    if len(sys.argv) > 1:
-        sample = sys.argv[1]
-    else:
-        sample = '770c_pag'
-    outpath = f'{h5root}/processed/histograms/{sample}/'
+    outpath = f'{hdf5_root}/processed/histograms/{sample}/'
 
     xb, yb, zb, rb, fb = run_out_of_core(sample, block_size)
 
