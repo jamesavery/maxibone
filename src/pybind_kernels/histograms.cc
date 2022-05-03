@@ -632,7 +632,7 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 						   const tuple<uint64_t,uint64_t,uint64_t> &shape,
 						   const array<float,3>    &X)
 {
-      auto  [Nz,Ny,Nx] = shape;
+      auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
       assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
       assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));  
       
@@ -661,15 +661,26 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 
       for(int ijk=0; ijk<=7; ijk++) {
 	float  weight = 1;
-	int64_t IJK[3];
+	int64_t IJK[3] = {0,0,0};
 	
 	for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
-	  int pm = ijk&(1<<axis);
+	  int pm = (ijk>>axis) & 1;
 	  IJK[axis] = Xint[pm][axis];
 	  weight   *= Xfrac[pm][axis];
 	}
-	
-	value_type voxel = voxels[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
+
+	auto [I,J,K] = IJK;
+	if(I<0 || J<0 || K<0){
+	  printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
+
+	  abort();
+	}
+	if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)){
+	  printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
+	  abort();
+	}	
+	uint64_t voxel_index = I+J*Nx+K*Nx*Ny;
+	value_type voxel = voxels[voxel_index];
 	value += voxel*weight;
       }
       return value;
