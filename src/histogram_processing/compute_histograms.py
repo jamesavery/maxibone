@@ -211,14 +211,17 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
         fzstop = min((i+1)*(block_size//2), fz)
 
         if fzstop-fzstart > 0:
+            print(f"Reading field voxels from z={fzstart} to z={fzstop}")
             field[:fzstop-fzstart,:,:] = fi['voxels'][fzstart:fzstop,y_cutoff_770c_pag//2:,:].astype(np.uint16)
 
+        print(f"Reading image voxels from z={zstart} to z={zstop}")            
         voxels[:zstop-zstart,:,:] = \
             (dm['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16) << 8) | \
             (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
         
-        
+        print(f"Axis histogramming")
         histograms.axis_histogram_par_cpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+        print(f"Field histogramming")
         histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
     
     dm.close()

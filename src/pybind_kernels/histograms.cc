@@ -14,6 +14,8 @@ typedef uint16_t voxel_type;
 //typedef float    field_type;
 typedef uint16_t field_type;
 
+#define INLINE __attribute__((always_inline)) inline
+
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 
@@ -628,9 +630,9 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-template <typename value_type> float resample2x2x2(const value_type *voxels,
-						   const tuple<uint64_t,uint64_t,uint64_t> &shape,
-						   const array<float,3>    &X)
+INLINE float resample2x2x2(const field_type *voxels,
+			   const tuple<uint64_t,uint64_t,uint64_t> &shape,
+			   const array<float,3>    &X)
 {
       auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
       assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
@@ -680,7 +682,7 @@ template <typename value_type> float resample2x2x2(const value_type *voxels,
 	  abort();
 	}	
 	uint64_t voxel_index = I+J*Nx+K*Nx*Ny;
-	value_type voxel = voxels[voxel_index];
+	field_type voxel = voxels[voxel_index];
 	value += voxel*weight;
       }
       return value;
@@ -695,8 +697,6 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 					  py::array_t<uint64_t> &np_bins,
 					  const tuple<double, double> vrange,
 					  const tuple<double, double> frange) {
-      printf("field_histogram_resample_par_cpu\n");
-      
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
@@ -727,7 +727,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
     #pragma omp parallel
     {
         uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
-        #pragma omp for nowait
+        #pragma omp for nowait collapse(3)
         for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
             for (uint64_t Y = y_start; Y < y_end; Y++) {
                 for (uint64_t X = x_start; X < x_end; X++) {
@@ -741,7 +741,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 		    auto [x,y,z] = xyz;
 		    uint16_t  field_value = 0;		    
 		    if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
-		      field_value = round(resample2x2x2<field_type>(field,field_shape,xyz));
+		      field_value = round(resample2x2x2(field,field_shape,xyz));
 		    else {
 		      uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);		      
 		      field_value = field[i];
