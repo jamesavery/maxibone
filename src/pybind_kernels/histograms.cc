@@ -20,6 +20,87 @@ typedef uint16_t field_type;
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
+void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
+                          const tuple<uint64_t, uint64_t, uint64_t> shape,
+                          const py::array_t<float> np_kernel,
+                          const uint64_t reps,
+                          py::array_t<float> &np_result) {
+    auto
+        voxels_info = np_voxels.request(),
+        kernel_info = np_kernel.request(),
+        result_info = np_result.request();
+
+    const float
+        *voxels = static_cast<const float*>(voxels_info.ptr),
+        *kernel = static_cast<const float*>(kernel_info.ptr);
+
+    float
+        *result = static_cast<float*>(result_info.ptr);
+
+    auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
+
+    int64_t
+        kernel_size = kernel_info.size,
+        padding = kernel_size / 2, // kx should always be odd
+        // Partial shape 
+        Pz = voxels_info.shape[0],
+        Py = voxels_info.shape[1],
+        Px = voxels_info.shape[2],
+        // Result shape
+        Rz = result_info.shape[0],
+        Ry = result_info.shape[1],
+        Rx = result_info.shape[2];
+    
+    float 
+        *tmp0 = (float *) malloc(sizeof(float) * Rz*Ry*Rx),
+        *tmp1 = (float *) malloc(sizeof(float) * Rz*Ry*Rx);
+    
+    memcpy(tmp0, voxels, Rz*Ry*Rx * sizeof(float));
+
+    for (uint64_t rep = 0; rep < reps; rep++) {
+        float *tin, *tout;
+        if (rep % 2 == 1) {
+            tin = tmp1;
+            tout = tmp0;
+        } else {
+            tin = tmp0;
+            tout = tmp1;
+        }
+
+        //#pragma omp parallel for
+        for (int64_t z = 0; z < Pz; z++) {
+            for (int64_t y = 0; y < Py; y++) {
+                for (int64_t x = 0; x < Px; x++) {
+                    float tmp = 0;
+                    //#pragma omp simd reduction(+:tmp)
+                    for (int64_t i = -padding; i < padding; i++) {
+                        if (z+i > 0 && z+i < Pz) {
+                            uint64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
+                            tmp += tin[voxel_index_z] * kernel[i+padding];
+                        }
+                        if (y+i > 0 && y+i < Py) {
+                            uint64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
+                            tmp += tin[voxel_index_y] * kernel[i+padding];
+                        }
+                        if (x+i > 0 && x+i < Px) {
+                            uint64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
+                            tmp += tin[voxel_index_x] * kernel[i+padding];
+                        }
+                        //printf("%ld, %ld, %ld, %ld\n", i, z+i, y+i, x+i);
+                    }
+
+                    uint64_t flat_index = z*Ry*Rx + y*Rx + x;
+                    tout[flat_index] = tmp;
+                }
+            }
+        }
+    }
+
+    memcpy(result, reps % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(float));
+    free(tmp0);
+    free(tmp1);
+}
+
 pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
     auto voxels_info    = np_voxels.request();
@@ -790,4 +871,5 @@ PYBIND11_MODULE(histograms, m) {
     m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);
+    m.def("gauss_filter_par_cpu", &gauss_filter_par_cpu);
 }
