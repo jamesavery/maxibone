@@ -4,6 +4,7 @@ import histograms
 import label
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def load_data(experiment):
     dm = h5py.File(f'{h5root}/msb/{experiment}.h5', 'r')
@@ -33,40 +34,64 @@ def load_probabilities(labeled, c):
 
     return Ps
 
+def nblocks(size, block_size):
+    return (size // block_size) + (1 if size % block_size > 0 else 0)
+
 if __name__ == '__main__':
-    h5root = '/mnt/shared/MAXIBONE/Goats/tomograms/hdf5-byte/'
+    h5root = '/mnt/shared/MAXIBONE/Goats/tomograms'
+    sample = '770c_pag'
 
     # Load the histograms
-    labeled = np.load('/mnt/shared/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins_relabeled.npz')
+    labeled = np.load(f'{h5root}/processed/histograms/{sample}/bins_relabeled.npz')
     materials = set()
     for value in labeled.values():
         materials |= set(value.flatten())
     materials -= {0}
     print(materials)
 
-    voxels = load_data('770c_pag')
-    with h5py.File('/mnt/shared/MAXIBONE/Goats/tomograms/processed/implant-edt/2x/770c_pag.h5', 'r') as field_h5:
-        field = field_h5['voxels'][:]
-    vmin, vmax = histograms.masked_minmax(voxels)
+    dm = h5py.File(f'{h5root}/hdf5-byte/msb/{sample}.h5', 'r')
+    dl = h5py.File(f'{h5root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    fi = h5py.File(f'{h5root}/processed/implant-edt/2x/{sample}.h5', 'r')
+
+    y_cutoff = 1300 # 770c_pag
+    implant_threshold_u16 = 32000
+    block_size = 256
+    vmin, vmax = 0, implant_threshold_u16 #histograms.masked_minmax(voxels)
     fmin, fmax = 4.000000, 65535.000000 # TODO don't hardcode.
     vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
 
-    for c in {5}:
+    sz, sy, sx = dm['voxels'].shape
+    sy -= y_cutoff
+    fz, fy, fx = fi['voxels'].shape
+    fy -= y_cutoff // 2
+    blocks = nblocks(sz, block_size)
+
+    for c in {2}:
         Pxs, Pys, Pzs, Prs, Pfield = load_probabilities(labeled, c)
 
-        for z in range((voxels.shape[0] // 1024)-1):
-            for y in range((voxels.shape[1] // 1024)-1):
-                for x in range((voxels.shape[2] // 1024)-1):
-                    ranges = np.array([z*1024, (z+1)*1024, y*1024, (y+1)*1024, x*1024, (x+1)*1024], np.uint64)
-                    result = np.zeros((1024,1024,1024), dtype=np.uint8)
+        for i in tqdm(range(blocks), desc='Computing the probability distributions'):
+            voxels = np.zeros((block_size, sy, sx), np.uint16)
+            field = np.zeros((block_size//2, fy, fx), np.uint16)
+            zstart, zstop = i*block_size, min((i+1)*block_size, sz)
+            fzstart, fzstop = i*(block_size//2), min((i+1)*(block_size//2), fz)
+            voxels[:,:,:] = \
+                    (dm['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16) << 8) | \
+                    (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
+            field = np.zeros(np.array(voxels.shape)//2, dtype=np.uint16)
+            if fzstop > fzstart:
+                print (f'fzstart:fzstop = {fzstart}:{fzstop}, field.shape = {field.shape}, fi.shape = {fi["voxels"].shape}')
 
-                    label.material_prob(
-                        voxels,
-                        Pxs, Pys, Pzs, Prs, Pfield,
-                        field,
-                        result,
-                        vranges,
-                        ranges
-                    )
+                field[:(fzstop-fzstart),:fy,:fx] = fi['voxels'][fzstart:fzstop,y_cutoff//2:,:].astype(np.uint16)
+            ranges = np.array([0, block_size, 0, sy, 0, sx], np.uint64)
+            result = np.zeros((block_size,sy,sx), dtype=np.uint8)
 
-                    np.save(f'partials/c{c}_{z}_{y}_{x}', result)
+            label.material_prob(
+                voxels,
+                Pxs, Pys, Pzs, Prs, Pfield,
+                field,
+                result,
+                (vmin, vmax), (fmin, fmax),
+                (zstart, 0, 0), (zstop, sy, sx)
+            )
+
+            np.save(f'partials/c{c}_{i}', result)
