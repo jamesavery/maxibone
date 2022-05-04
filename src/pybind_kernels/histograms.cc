@@ -18,6 +18,7 @@ typedef uint16_t field_type;
 
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
+#define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
 pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
@@ -55,7 +56,7 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     return make_pair(voxel_min,voxel_max);
 }
 
-void load_slice(py::array_t<voxel_type> &np_data, string filename, 
+void load_slice(py::array_t<voxel_type> &np_data, string filename,
                 const tuple<uint64_t, uint64_t, uint64_t> offset,
                 const tuple<uint64_t, uint64_t, uint64_t> shape) {
     auto data_info = np_data.request();
@@ -120,11 +121,11 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
         *r_bins = static_cast<uint64_t*>(r_info.ptr);
 
     auto [z_start, y_start, x_start] = offset;
-    uint64_t 
+    uint64_t
         z_end   = min(z_start+block_size, Nz),
         y_end   = Ny,
         x_end   = Nx;
-    
+
     auto [vmin, vmax] = vrange;
     auto [cy, cx] = center;
 
@@ -286,11 +287,14 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
 }
 
 void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
+                            const tuple<uint64_t,uint64_t,uint64_t> offset,
+                            const uint64_t outside_block_size,
                             py::array_t<uint64_t> &np_x_bins,
                             py::array_t<uint64_t> &np_y_bins,
                             py::array_t<uint64_t> &np_z_bins,
                             py::array_t<uint64_t> &np_r_bins,
-                            const double vmin, const double vmax,
+                            const tuple<uint64_t, uint64_t> center,
+                            const tuple<double, double> vrange,
                             const bool verbose) {
 #ifdef _OPENACC
     if (verbose) {
@@ -323,9 +327,16 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
         *z_bins = (uint64_t*)z_info.ptr,
         *r_bins = (uint64_t*)r_info.ptr;
 
-    uint64_t block_size =
-        512 * 1024 * 1024; // 1 GB
-        //64 * 1024 * 1024; // 128 MB
+    auto [z_start, y_start, x_start] = offset;
+    uint64_t
+        z_end   = min(z_start+outside_block_size, Nz),
+        y_end   = Ny,
+        x_end   = Nx;
+
+    auto [vmin, vmax] = vrange;
+    auto [cy, cx] = center;
+
+    uint64_t block_size = 1 * GB_VOXEL;
 
     uint64_t iters = image_length / block_size;
     if (iters * block_size < image_length)
@@ -366,14 +377,14 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
                     voxel_type voxel = buffer[j];
                     voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
 
-                    uint64_t x = flat_idx % Nx;
-                    uint64_t y = (flat_idx / Nx) % Ny;
-                    uint64_t z = flat_idx / (Nx*Ny);
-                    uint64_t r = floor(sqrt((x-Nx/2.0)*(x-Nx/2.0) + (y-Ny/2.0)*(y-Ny/2.0)));
-
-                    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
-
                     if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
+                        uint64_t x = flat_idx % Nx;
+                        uint64_t y = (flat_idx / Nx) % Ny;
+                        uint64_t z = (flat_idx / (Nx*Ny)) + z_start;
+                        uint64_t r = floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+
+                        int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+
                         #pragma acc atomic
                         ++x_bins[x*voxel_bins + voxel_index];
                         #pragma acc atomic
@@ -445,7 +456,7 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     auto [cy, cx] = center;
     auto [vmin, vmax] = vrange;
     auto [z_start, y_start, x_start] = offset;
-    uint64_t 
+    uint64_t
         z_end   = min(z_start+block_size, Nz),
         y_end   = Ny,
         x_end   = Nx;
@@ -526,7 +537,7 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     auto [f_min, f_max] = frange;
     auto [v_min, v_max] = vrange;
     auto [z_start, y_start, x_start] = offset;
-    uint64_t 
+    uint64_t
         z_end = min(z_start+block_size, nZ),
         y_end = nY,
         x_end = nX;
@@ -590,7 +601,7 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     auto [f_min, f_max] = frange;
     auto [v_min, v_max] = vrange;
     auto [z_start, y_start, x_start] = offset;
-    uint64_t 
+    uint64_t
         z_end = min(z_start+block_size, nZ),
         y_end = nY,
         x_end = nX;
@@ -636,8 +647,8 @@ INLINE float resample2x2x2(const field_type *voxels,
 {
       auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
       assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
-      assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));  
-      
+      assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));
+
       float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
       int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
       float   value = 0;
@@ -648,11 +659,11 @@ INLINE float resample2x2x2(const field_type *voxels,
 	Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
 	Xint[0][i] = Iminus;
-	Xint[1][i] = Iplus;	
+	Xint[1][i] = Iplus;
       }
-    
+
       // Resample voxel in 2x2x2 neighbourhood
-      //000 --- 
+      //000 ---
       //001 --+
       //010 -+-
       //011 -++
@@ -664,7 +675,7 @@ INLINE float resample2x2x2(const field_type *voxels,
       for(int ijk=0; ijk<=7; ijk++) {
 	float  weight = 1;
 	int64_t IJK[3] = {0,0,0};
-	
+
 	for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
 	  int pm = (ijk>>axis) & 1;
 	  IJK[axis] = Xint[pm][axis];
@@ -680,7 +691,7 @@ INLINE float resample2x2x2(const field_type *voxels,
 	if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)){
 	  printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
 	  abort();
-	}	
+	}
 	uint64_t voxel_index = I+J*Nx+K*Nx*Ny;
 	field_type voxel = voxels[voxel_index];
 	value += voxel*weight;
@@ -719,7 +730,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
     auto [f_min, f_max] = frange;
     auto [v_min, v_max] = vrange;
     auto [z_start, y_start, x_start] = offset;
-    uint64_t 
+    uint64_t
         z_end = min(z_start+block_size, nZ),
         y_end = nY,
         x_end = nX;
@@ -732,18 +743,18 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
             for (uint64_t Y = y_start; Y < y_end; Y++) {
                 for (uint64_t X = x_start; X < x_end; X++) {
                     uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
-                    auto voxel = voxels[flat_index];		    
+                    auto voxel = voxels[flat_index];
                     voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = floor(static_cast<float>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 
                     // And what are the corresponding x,y,z coordinates into the field array?
                     array<float,3> xyz = {X*dx, Y*dy, Z*dz};
 		    auto [x,y,z] = xyz;
-		    uint16_t  field_value = 0;		    
+		    uint16_t  field_value = 0;
 		    if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
 		      field_value = round(resample2x2x2(field,field_shape,xyz));
 		    else {
-		      uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);		      
+		      uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);
 		      field_value = field[i];
 		    }
 
@@ -763,8 +774,8 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
         }
         free(tmp_bins);
     }
-    
-    
+
+
 }
 
 PYBIND11_MODULE(histograms, m) {
@@ -778,5 +789,5 @@ PYBIND11_MODULE(histograms, m) {
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
     m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("masked_minmax", &masked_minmax);
-    m.def("float_minmax", &float_minmax);    
+    m.def("float_minmax", &float_minmax);
 }
