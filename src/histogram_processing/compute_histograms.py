@@ -128,7 +128,7 @@ def load_block(sample, offset, block_size, y_cutoff, binary=True):
                 (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
         if fzstop-fzstart > 0: # Guard since field is smaller than voxels
             field[:fzstop-fzstart,:fy,:fx] = fi['voxels'][fzstart:fzstop,y_cutoff//2:,:].astype(np.uint16)
-    
+
     dm.close()
     dl.close()
     fi.close()
@@ -171,61 +171,6 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
         voxels, field = load_block(sample, zstart, block_size, y_cutoff, True)
         histograms.axis_histogram_par_gpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
         histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
-    
-    f_bins[-1] = 0 # TODO "bright" mask hack
-
-    return x_bins, y_bins, z_bins, r_bins, f_bins
-
-# Edition where the histogram is loaded and processed in chunks
-def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
-
-    Nz, Ny, Nx = dm['voxels'].shape
-    Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
-    center = ((Ny//2) - y_cutoff, Nx//2)
-    Ny -= y_cutoff
-    voxels = np.empty((block_size, Ny, Nx), dtype=np.uint16)
-
-    blocks = (Nz // block_size) + (1 if Nz % block_size > 0 else 0)
-
-    vmin, vmax = 0.0, float(implant_threshold)
-    fmin, fmax = 4.0, 65535.0 # TODO don't hardcode.
-
-    x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
-    y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
-    z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
-    r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
-    f_bins = np.zeros((voxel_bins//2, voxel_bins), dtype=np.uint64)
-
-    fz, fy, fx = fi['voxels'].shape
-    fy -= y_cutoff // 2
-
-    for i in tqdm(range(blocks), desc='Computing histograms'):
-        field = np.zeros((block_size//2,fy,fx), dtype=np.uint16)
-        zstart = i*block_size
-        zstop = min((i+1)*block_size, Nz)
-        fzstart = i*(block_size//2)
-        fzstop = min((i+1)*(block_size//2), fz)
-
-        if fzstop-fzstart > 0:
-            print(f"Reading field voxels from z={fzstart} to z={fzstop}")
-            field[:fzstop-fzstart,:,:] = fi['voxels'][fzstart:fzstop,y_cutoff//2:,:].astype(np.uint16)
-
-        print(f"Reading image voxels from z={zstart} to z={zstop}")            
-        voxels[:zstop-zstart,:,:] = \
-            (dm['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16) << 8) | \
-            (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
-        
-        print(f"Axis histogramming")
-        histograms.axis_histogram_par_cpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-        print(f"Field histogramming")
-        histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
-    
-    dm.close()
-    dl.close()
-    fi.close()
 
     f_bins[-1] = 0 # TODO "bright" mask hack
 
@@ -233,7 +178,7 @@ def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, impl
 
 if __name__ == '__main__':
     sample, y_cutoff = commandline_args({"sample":"770c_pag", "y_cutoff":1300})
-    
+
     implant_threshold_u16 = 32000 # TODO: to config.constants
     voxel_bins = 4096
     block_size = 256
