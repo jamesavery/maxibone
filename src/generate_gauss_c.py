@@ -56,12 +56,12 @@ def tobyt(arr):
 if __name__ == '__main__':
     sample, scale = commandline_args({"sample":"<required>","scale":1})
     outpath = 'dummy'
-    display = 500
+    display = 10
     sigma = 13
-    reps = 20
+    reps =20
 
     vf = h5py.File(f'{hdf5_root_fast}/processed/implant-edt/{scale}x/{sample}.h5', 'r')
-    voxels = vf['voxels'][:,:,:]
+    voxels = vf['voxels'][512:576,:,:]
     vf.close()
 
     Image.fromarray(tobyt(voxels[display,:,:])).save(f"{outpath}/original.png")
@@ -81,8 +81,12 @@ if __name__ == '__main__':
     histograms.gauss_filter_par_cpu(implant_mask, implant_mask.shape, kernel, reps, result)
     print (f'Parallel C edition: {timeit.default_timer() - start}')
     np.save(f'{outpath}/mine', result)
-    
-    Image.fromarray(tobyt(result[display,:,:])).save(f'{outpath}/gauss1.png')
+
+    nz,ny,nx = result.shape    
+    Image.fromarray(tobyt(result[nz//2,:,:])).save(f'{outpath}/gauss-xy.png')
+    Image.fromarray(tobyt(result[:,ny//2,:])).save(f'{outpath}/gauss-xz.png')
+    Image.fromarray(tobyt(result[:,:,nx//2])).save(f'{outpath}/gauss-yz.png')
+    Image.fromarray(tobyt((np.max(np.abs(result),axis=0)!=0).astype(float))).save(f'{outpath}/gauss-xy-nonzero.png')
 
     control = implant_mask.copy()
     start = timeit.default_timer()

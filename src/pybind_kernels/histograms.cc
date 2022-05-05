@@ -52,8 +52,8 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         Rx = result_info.shape[2];
     
     float 
-        *tmp0 = (float *) malloc(sizeof(float) * Rz*Ry*Rx),
-        *tmp1 = (float *) malloc(sizeof(float) * Rz*Ry*Rx);
+        *tmp0 = (float *) calloc(Rz*Ry*Rx, sizeof(float)),
+        *tmp1 = (float *) calloc(Rz*Ry*Rx, sizeof(float));
     
     memcpy(tmp0, voxels, Rz*Ry*Rx * sizeof(float));
     uint64_t iters = 3 * reps; // 1 pass for each dimension
@@ -80,14 +80,19 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
                     const int64_t X[3] = {z,y,x};
                     const int64_t N[3] = {Pz,Py,Px};
 
-                    const int64_t stride = strides[dim], i_start = -min(padding,X[dim]), i_end = min(padding,N[dim]-X[dim]);
+                    const int64_t stride = strides[dim], i_start = -min(padding,X[dim]-1), i_end = min(padding,N[dim]-X[dim]-1);
 
-                    #pragma omp simd reduction(+:sum)
-                    for (int64_t i = i_start; i <= i_end; i++) {
-                        uint64_t voxel_index = output_index + stride*i;
-                        sum += tin[voxel_index] * kernel[i+padding];
+                    auto mask_value = voxels[output_index];
+                    if(mask_value>0) {
+                        tout[output_index] = 1;
+                    } else {
+                        #pragma omp simd reduction(+:sum)
+                        for (int64_t i = i_start; i <= i_end; i++) {
+                            uint64_t voxel_index = output_index + stride*i;
+                            sum += tin[voxel_index] * kernel[i+padding];
+                        }
+                        tout[output_index] = sum;
                     }
-                    tout[output_index] = sum;
                 }
             }
         }
