@@ -76,29 +76,30 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
                     uint64_t dim = rep % 3;
                     
                     if (dim == 0) { // z dimension
-                        for (int64_t i = -padding; i < padding; i++) {
+                    // TODO ranges i loop istedet for if sætning inde i loop
+                        for (int64_t i = -padding; i <= padding; i++) {
                             if (z+i >= 0 && z+i < Pz) {
-                                uint64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
+                                int64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
                                 tmp += tin[voxel_index_z] * kernel[i+padding];
                             }
                         }
                     } else if (dim == 1) { // y dimension
-                        for (int64_t i = -padding; i < padding; i++) {
+                        for (int64_t i = -padding; i <= padding; i++) {
                             if (y+i >= 0 && y+i < Py) {
-                                uint64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
+                                int64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
                                 tmp += tin[voxel_index_y] * kernel[i+padding];
                             }
                         }
                     } else if (dim == 2) { // x dimension
-                        for (int64_t i = -padding; i < padding; i++) {
+                        for (int64_t i = -padding; i <= padding; i++) {
                             if (x+i >= 0 && x+i < Px) {
-                                uint64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
+                                int64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
                                 tmp += tin[voxel_index_x] * kernel[i+padding];
                             }
                         }
                     }
 
-                    uint64_t flat_index = z*Ry*Rx + y*Rx + x;
+                    int64_t flat_index = z*Ry*Rx + y*Rx + x;
                     tout[flat_index] = tmp;
                 }
             }
