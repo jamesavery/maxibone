@@ -12,11 +12,13 @@ from config.paths import hdf5_root_fast, commandline_args
 from math import pi, sqrt, exp
 from scipy import ndimage as ndi
 
+# From stack overflow
 def gauss(n=11,sigma=1):
     r = range(-int(n/2),int(n/2)+1)
     g = [1 / (sigma * sqrt(2*pi)) * exp(-float(x)**2/(2*sigma**2)) for x in r]
     return np.array(g, dtype=np.float32)
 
+# A copy of the scipy implementation
 def _gaussian_kernel1d(sigma, order, radius):
     """
     Computes a 1-D Gaussian convolution kernel.
@@ -54,15 +56,13 @@ def tobyt(arr):
 if __name__ == '__main__':
     sample, scale = commandline_args({"sample":"<required>","scale":1})
     outpath = 'dummy'
-    display = 0
-    sigma = 5
+    display = 500
+    sigma = 13
+    reps = 20
 
     vf = h5py.File(f'{hdf5_root_fast}/processed/implant-edt/{scale}x/{sample}.h5', 'r')
-    voxels = vf['voxels'][500:501,:,:]
-    #vmax = np.max(vf['voxels'])
+    voxels = vf['voxels'][:,:,:]
     vf.close()
-
-    print (voxels.shape)
 
     Image.fromarray(tobyt(voxels[display,:,:])).save(f"{outpath}/original.png")
 
@@ -70,24 +70,29 @@ if __name__ == '__main__':
     implant_mask = voxels >= vmax
     implant_mask = implant_mask.astype(np.float32)
 
-    print (vmax)
-
     Image.fromarray(tobyt(implant_mask[display,:,:])).save(f"{outpath}/masked.png")
 
-    #kernel = gauss(51,13)
-    radius = int(4.0 * float(sigma) + .5)
-    kernel = _gaussian_kernel1d(sigma, 0, radius)
+    radius = int(4.0 * float(sigma) + .5) # stolen from the default scipy parameters
+    kernel = _gaussian_kernel1d(sigma, 0, radius)[::-1]
     #kernel = gauss(radius*2+1, sigma)
 
     result = np.zeros_like(implant_mask)
     start = timeit.default_timer()
-    histograms.gauss_filter_par_cpu(implant_mask, implant_mask.shape, kernel, 1, result)
+    histograms.gauss_filter_par_cpu(implant_mask, implant_mask.shape, kernel, reps, result)
     print (f'Parallel C edition: {timeit.default_timer() - start}')
+    np.save(f'{outpath}/mine', result)
     
     Image.fromarray(tobyt(result[display,:,:])).save(f'{outpath}/gauss1.png')
 
+    control = implant_mask.copy()
     start = timeit.default_timer()
-    control = ndi.gaussian_filter(implant_mask, sigma, mode='constant')
+    for _ in range(reps):
+        control = ndi.gaussian_filter(control, sigma, mode='constant')
     print (f'ndimage edition: {timeit.default_timer() - start}')
-
+    np.save(f'{outpath}/control', control)
     Image.fromarray(tobyt(control[display,:,:])).save(f'{outpath}/control1.png')
+
+    diff = np.abs(result - control)
+    print (f'Total difference: {diff.sum()}')
+    print (f'Max difference: {diff.max()}')
+    print (f'Mean difference: {diff.mean()}')

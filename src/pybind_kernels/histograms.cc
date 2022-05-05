@@ -56,8 +56,9 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         *tmp1 = (float *) malloc(sizeof(float) * Rz*Ry*Rx);
     
     memcpy(tmp0, voxels, Rz*Ry*Rx * sizeof(float));
+    uint64_t iters = 3 * reps; // 1 pass for each dimension
 
-    for (uint64_t rep = 0; rep < reps; rep++) {
+    for (uint64_t rep = 0; rep < iters; rep++) {
         float *tin, *tout;
         if (rep % 2 == 1) {
             tin = tmp1;
@@ -67,26 +68,34 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
             tout = tmp1;
         }
 
-        //#pragma omp parallel for
+        #pragma omp parallel for collapse(3)
         for (int64_t z = 0; z < Pz; z++) {
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
                     float tmp = 0;
-                    //#pragma omp simd reduction(+:tmp)
-                    for (int64_t i = -padding; i < padding; i++) {
-                        if (z+i > 0 && z+i < Pz) {
-                            uint64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
-                            tmp += tin[voxel_index_z] * kernel[i+padding];
+                    uint64_t dim = rep % 3;
+                    
+                    if (dim == 0) { // z dimension
+                        for (int64_t i = -padding; i < padding; i++) {
+                            if (z+i >= 0 && z+i < Pz) {
+                                uint64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
+                                tmp += tin[voxel_index_z] * kernel[i+padding];
+                            }
                         }
-                        if (y+i > 0 && y+i < Py) {
-                            uint64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
-                            tmp += tin[voxel_index_y] * kernel[i+padding];
+                    } else if (dim == 1) { // y dimension
+                        for (int64_t i = -padding; i < padding; i++) {
+                            if (y+i >= 0 && y+i < Py) {
+                                uint64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
+                                tmp += tin[voxel_index_y] * kernel[i+padding];
+                            }
                         }
-                        if (x+i > 0 && x+i < Px) {
-                            uint64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
-                            tmp += tin[voxel_index_x] * kernel[i+padding];
+                    } else if (dim == 2) { // x dimension
+                        for (int64_t i = -padding; i < padding; i++) {
+                            if (x+i >= 0 && x+i < Px) {
+                                uint64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
+                                tmp += tin[voxel_index_x] * kernel[i+padding];
+                            }
                         }
-                        //printf("%ld, %ld, %ld, %ld\n", i, z+i, y+i, x+i);
                     }
 
                     uint64_t flat_index = z*Ry*Rx + y*Rx + x;
@@ -96,7 +105,7 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         }
     }
 
-    memcpy(result, reps % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(float));
+    memcpy(result, iters % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(float));
     free(tmp0);
     free(tmp1);
 }
