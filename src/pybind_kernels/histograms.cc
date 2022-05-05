@@ -72,35 +72,34 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         for (int64_t z = 0; z < Pz; z++) {
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
-                    float tmp = 0;
+                    float sum = 0;
                     uint64_t dim = rep % 3;
-                    
-                    if (dim == 0) { // z dimension
-                    // TODO ranges i loop istedet for if sætning inde i loop
-                        for (int64_t i = -padding; i <= padding; i++) {
-                            if (z+i >= 0 && z+i < Pz) {
-                                int64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
-                                tmp += tin[voxel_index_z] * kernel[i+padding];
-                            }
-                        }
-                    } else if (dim == 1) { // y dimension
-                        for (int64_t i = -padding; i <= padding; i++) {
-                            if (y+i >= 0 && y+i < Py) {
-                                int64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
-                                tmp += tin[voxel_index_y] * kernel[i+padding];
-                            }
-                        }
-                    } else if (dim == 2) { // x dimension
-                        for (int64_t i = -padding; i <= padding; i++) {
-                            if (x+i >= 0 && x+i < Px) {
-                                int64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
-                                tmp += tin[voxel_index_x] * kernel[i+padding];
-                            }
-                        }
+                    int64_t i_start, i_end;
+                    uint64_t voxel_index, stride;
+                    switch(dim) { 
+                        case 0: // z-axis
+                            i_start = -min(padding,z), i_end = min(padding,Pz-z);
+                            voxel_index = (z+i_start)*Py*Px + y*Px + x;
+                            stride = Py*Px;
+                            break;
+                        case 1: // y-axis
+                            i_start = -min(padding,y), i_end = min(padding,Py-y);
+                            voxel_index = z*Py*Px + (y+i_start)*Px + x;
+                            stride = Px;
+                            break;
+                        case 2: // x-axis
+                        default:
+                            i_start = -min(padding,x), i_end = min(padding,Px-x);
+                            voxel_index = z*Py*Px + y*Px + (x+i_start);
+                            stride = 1;                    
+                            break;
                     }
 
-                    int64_t flat_index = z*Ry*Rx + y*Rx + x;
-                    tout[flat_index] = tmp;
+                    for (int64_t i = i_start; i <= i_end; i++, voxel_index += stride) 
+                        sum += tin[voxel_index] * kernel[i+padding];
+
+                    int64_t output_index = z*Ry*Rx + y*Rx + x;
+                    tout[output_index] = sum;
                 }
             }
         }
