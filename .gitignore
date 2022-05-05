@@ -10,3 +10,9 @@ cmake_install.cmake
 install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
+
+# meow data
+src/meow/meow_triggers/*
+src/meow/runner_data/*
+src/meow/runner_output/*
+src/meow/runner_processing/*
