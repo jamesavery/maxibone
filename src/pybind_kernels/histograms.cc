@@ -73,32 +73,20 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
                     float sum = 0;
-                    uint64_t dim = rep % 3;
-                    int64_t i_start, i_end;
-                    uint64_t voxel_index, stride;
-                    switch(dim) { 
-                        case 0: // z-axis
-                            i_start = -min(padding,z), i_end = min(padding,Pz-z);
-                            voxel_index = (z+i_start)*Py*Px + y*Px + x;
-                            stride = Py*Px;
-                            break;
-                        case 1: // y-axis
-                            i_start = -min(padding,y), i_end = min(padding,Py-y);
-                            voxel_index = z*Py*Px + (y+i_start)*Px + x;
-                            stride = Px;
-                            break;
-                        case 2: // x-axis
-                        default:
-                            i_start = -min(padding,x), i_end = min(padding,Px-x);
-                            voxel_index = z*Py*Px + y*Px + (x+i_start);
-                            stride = 1;                    
-                            break;
-                    }
+                    int64_t dim = rep % 3;
 
-                    for (int64_t i = i_start; i <= i_end; i++, voxel_index += stride) 
+                    const int64_t output_index = z*Ry*Rx + y*Rx + x;
+                    const int64_t strides[3] = {Py*Px,Px,1};
+                    const int64_t X[3] = {z,y,x};
+                    const int64_t N[3] = {Pz,Py,Px};
+
+                    const int64_t stride = strides[dim], i_start = -min(padding,X[dim]), i_end = min(padding,N[dim]-X[dim]);
+
+                    #pragma omp simd reduction(+:sum)
+                    for (int64_t i = i_start; i <= i_end; i++) {
+                        uint64_t voxel_index = output_index + stride*i;
                         sum += tin[voxel_index] * kernel[i+padding];
-
-                    int64_t output_index = z*Ry*Rx + y*Rx + x;
+                    }
                     tout[output_index] = sum;
                 }
             }
