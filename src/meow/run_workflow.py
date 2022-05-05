@@ -154,38 +154,38 @@ patterns = {
     # Generate byte data
     GEN_BYTE: p_00_generate_byte_data,
 
-    # Volume and intensity match
-    VOL_INT: p_01_volumne_matcher,
-
-    # Generate scales
-    GEN_SCA: p_02_generate_scales,
-
-    # Implant analysis
-    IMP_ANL: p_03_implant_analysis,
-
-    # Implant diffusion
-    IMP_DIFF: p_04_implant_diffusion,
-
-    # Implant EDT
-    IMP_EDT: p_05_implant_edt,
-
-    # Compute histograms
-    CMP_HST: p_06_compute_histogram,
-
-    # Compute ridges
-    CMP_RDG: p_07_compute_ridges,
-
-    # Compute probabilities
-    CMP_PRB: p_08_compute_probabilities,
-
-    # Compute segmentation 
-    CMP_SEG: p_09_compute_segmentation,
-
-    # Compute bone area
-    CMP_BA: p_10_bone_area,
-
-    # Repeat Histogram with constraints
-    RPT_CNT: p_11_repeat_histogram_with_constraints
+####    # Volume and intensity match
+####    VOL_INT: p_01_volumne_matcher,
+####
+####    # Generate scales
+####    GEN_SCA: p_02_generate_scales,
+####
+####    # Implant analysis
+####    IMP_ANL: p_03_implant_analysis,
+####
+####    # Implant diffusion
+####    IMP_DIFF: p_04_implant_diffusion,
+####
+####    # Implant EDT
+####    IMP_EDT: p_05_implant_edt,
+####
+####    # Compute histograms
+####    CMP_HST: p_06_compute_histogram,
+####
+####    # Compute ridges
+####    CMP_RDG: p_07_compute_ridges,
+####
+####    # Compute probabilities
+####    CMP_PRB: p_08_compute_probabilities,
+####
+####    # Compute segmentation 
+####    CMP_SEG: p_09_compute_segmentation,
+####
+####    # Compute bone area
+####    CMP_BA: p_10_bone_area,
+####
+####    # Repeat Histogram with constraints
+####    RPT_CNT: p_11_repeat_histogram_with_constraints
 }
 
 recipes = {
