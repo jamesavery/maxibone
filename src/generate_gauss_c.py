@@ -90,10 +90,10 @@ if __name__ == '__main__':
 
     control = implant_mask.copy()
     start = timeit.default_timer()
-    for _ in range(reps):
-        control = ndi.gaussian_filter(control, sigma, mode='constant')
+    #for _ in range(reps):
+    #    control = ndi.gaussian_filter(control, sigma, mode='constant')
     print (f'ndimage edition: {timeit.default_timer() - start}')
-    np.save(f'{outpath}/control', control)
+    #np.save(f'{outpath}/control', control)
     Image.fromarray(tobyt(control[display,:,:])).save(f'{outpath}/control1.png')
 
     diff = np.abs(result - control)

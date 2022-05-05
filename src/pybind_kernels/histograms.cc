@@ -13,6 +13,7 @@ namespace py = pybind11;
 typedef uint16_t voxel_type;
 //typedef float    field_type;
 typedef uint16_t field_type;
+typedef uint8_t mask_type;
 
 #define INLINE __attribute__((always_inline)) inline
 
@@ -20,7 +21,7 @@ typedef uint16_t field_type;
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
-void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
+void gauss_filter_par_cpu(const py::array_t<mask_type> np_voxels,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
                           const py::array_t<float> np_kernel,
                           const uint64_t reps,
@@ -30,12 +31,10 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         kernel_info = np_kernel.request(),
         result_info = np_result.request();
 
-    const float
-        *voxels = static_cast<const float*>(voxels_info.ptr),
-        *kernel = static_cast<const float*>(kernel_info.ptr);
+    const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    const float     *kernel = static_cast<const float*>(kernel_info.ptr);
 
-    float
-        *result = static_cast<float*>(result_info.ptr);
+    float *result = static_cast<float*>(result_info.ptr);
 
     auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
 
@@ -55,7 +54,10 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         *tmp0 = (float *) calloc(Rz*Ry*Rx, sizeof(float)),
         *tmp1 = (float *) calloc(Rz*Ry*Rx, sizeof(float));
     
-    memcpy(tmp0, voxels, Rz*Ry*Rx * sizeof(float));
+    #pragma omp parallel for
+    for (int64_t i = 0; i < voxels_info.size; i++) {
+        tmp0[i] = voxels[i];
+    }
     uint64_t iters = 3 * reps; // 1 pass for each dimension
 
     for (uint64_t rep = 0; rep < iters; rep++) {
@@ -83,7 +85,7 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
                     const int64_t stride = strides[dim], i_start = -min(padding,X[dim]-1), i_end = min(padding,N[dim]-X[dim]-1);
 
                     auto mask_value = voxels[output_index];
-                    if(mask_value>0) {
+                    if (mask_value) {
                         tout[output_index] = 1;
                     } else {
                         #pragma omp simd reduction(+:sum)
