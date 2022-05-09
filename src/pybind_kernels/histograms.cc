@@ -13,6 +13,8 @@ namespace py = pybind11;
 typedef uint16_t voxel_type;
 //typedef float    field_type;
 typedef uint16_t field_type;
+typedef uint8_t mask_type;
+typedef float gauss_type;
 
 #define INLINE __attribute__((always_inline)) inline
 
@@ -20,29 +22,27 @@ typedef uint16_t field_type;
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
-void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
+void gauss_filter_par_cpu(const py::array_t<mask_type> np_voxels,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
-                          const py::array_t<float> np_kernel,
+                          const py::array_t<gauss_type> np_kernel,
                           const uint64_t reps,
-                          py::array_t<float> &np_result) {
+                          py::array_t<gauss_type> &np_result) {
     auto
         voxels_info = np_voxels.request(),
         kernel_info = np_kernel.request(),
         result_info = np_result.request();
 
-    const float
-        *voxels = static_cast<const float*>(voxels_info.ptr),
-        *kernel = static_cast<const float*>(kernel_info.ptr);
+    const mask_type      *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    const gauss_type *kernel = static_cast<const gauss_type*>(kernel_info.ptr);
 
-    float
-        *result = static_cast<float*>(result_info.ptr);
+    gauss_type *result = static_cast<gauss_type*>(result_info.ptr);
 
     auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
 
     int64_t
         kernel_size = kernel_info.size,
         padding = kernel_size / 2, // kx should always be odd
-        // Partial shape 
+        // Partial shape
         Pz = voxels_info.shape[0],
         Py = voxels_info.shape[1],
         Px = voxels_info.shape[2],
@@ -50,16 +50,24 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
         Rz = result_info.shape[0],
         Ry = result_info.shape[1],
         Rx = result_info.shape[2];
-    
-    float 
-        *tmp0 = (float *) malloc(sizeof(float) * Rz*Ry*Rx),
-        *tmp1 = (float *) malloc(sizeof(float) * Rz*Ry*Rx);
-    
-    memcpy(tmp0, voxels, Rz*Ry*Rx * sizeof(float));
+
+    assert(kernel_size % 2 == 1);
+
+    gauss_type
+        *tmp0 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type)),
+        *tmp1 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type));
+
+    #pragma omp parallel for
+    for (int64_t i = 0; i < voxels_info.size; i++) {
+        tmp0[i] = voxels[i] ? 1 : 0;
+    }
+
     uint64_t iters = 3 * reps; // 1 pass for each dimension
+    const int64_t strides[3] = {Py*Px,Px,1};
+    const int64_t N[3] = {Pz,Py,Px};
 
     for (uint64_t rep = 0; rep < iters; rep++) {
-        float *tin, *tout;
+        gauss_type *tin, *tout;
         if (rep % 2 == 1) {
             tin = tmp1;
             tout = tmp0;
@@ -67,45 +75,40 @@ void gauss_filter_par_cpu(const py::array_t<float> np_voxels,
             tin = tmp0;
             tout = tmp1;
         }
+        int64_t dim = rep % 3;
 
-        #pragma omp parallel for collapse(3)
+        #pragma omp parallel for
         for (int64_t z = 0; z < Pz; z++) {
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
-                    float tmp = 0;
-                    uint64_t dim = rep % 3;
-                    
-                    if (dim == 0) { // z dimension
-                        for (int64_t i = -padding; i < padding; i++) {
-                            if (z+i >= 0 && z+i < Pz) {
-                                uint64_t voxel_index_z = (z+i)*Py*Px + y*Px + x;
-                                tmp += tin[voxel_index_z] * kernel[i+padding];
-                            }
-                        }
-                    } else if (dim == 1) { // y dimension
-                        for (int64_t i = -padding; i < padding; i++) {
-                            if (y+i >= 0 && y+i < Py) {
-                                uint64_t voxel_index_y = z*Py*Px + (y+i)*Px + x;
-                                tmp += tin[voxel_index_y] * kernel[i+padding];
-                            }
-                        }
-                    } else if (dim == 2) { // x dimension
-                        for (int64_t i = -padding; i < padding; i++) {
-                            if (x+i >= 0 && x+i < Px) {
-                                uint64_t voxel_index_x = z*Py*Px + y*Px + (x+i);
-                                tmp += tin[voxel_index_x] * kernel[i+padding];
-                            }
-                        }
-                    }
+                    int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
+                    int64_t X[3] = {z,y,x};
 
-                    uint64_t flat_index = z*Ry*Rx + y*Rx + x;
-                    tout[flat_index] = tmp;
+                    int64_t
+                        stride = strides[dim],
+                        i_start = -min(padding,X[dim]),
+                        i_end = min(padding,N[dim]-X[dim]-1);
+
+                    auto mask_value = voxels[output_index];
+                    if (dim % 3 == 2 && mask_value) {
+                        tout[output_index] = 1;
+                    } else {
+                        gauss_type sum = 0;
+
+                        #pragma omp simd reduction(+:sum)
+                        for (int64_t i = i_start; i <= i_end; i++) {
+                            int64_t voxel_index = output_index + stride*i;
+                            sum += tin[voxel_index] * kernel[i+padding];
+                        }
+
+                        tout[output_index] = sum;
+                    }
                 }
             }
         }
     }
 
-    memcpy(result, iters % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(float));
+    memcpy(result, iters % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
     free(tmp0);
     free(tmp1);
 }
