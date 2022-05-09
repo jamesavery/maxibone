@@ -82,17 +82,15 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_voxels,
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
                     int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
-                    int64_t X[3] = {z,y,x};
-
-                    int64_t
-                        stride = strides[dim],
-                        i_start = -min(padding,X[dim]),
-                        i_end = min(padding,N[dim]-X[dim]-1);
-
                     auto mask_value = voxels[output_index];
                     if (dim % 3 == 2 && mask_value) {
                         tout[output_index] = 1;
                     } else {
+                        int64_t 
+                            X[3] = {z, y, x},
+                            stride = strides[dim],
+                            i_start = -min(padding, X[dim]),
+                            i_end = min(padding, N[dim]-X[dim]-1);
                         gauss_type sum = 0;
 
                         #pragma omp simd reduction(+:sum)
