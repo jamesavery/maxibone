@@ -77,7 +77,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_voxels,
         }
         int64_t dim = rep % 3;
 
-        #pragma omp parallel for// collapse(3)
+        #pragma omp parallel for
         for (int64_t z = 0; z < Pz; z++) {
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
@@ -90,7 +90,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_voxels,
                         i_end = min(padding,N[dim]-X[dim]-1);
 
                     auto mask_value = voxels[output_index];
-                    if (0 && dim % 3 == 2 && mask_value) {
+                    if (dim % 3 == 2 && mask_value) {
                         tout[output_index] = 1;
                     } else {
                         gauss_type sum = 0;

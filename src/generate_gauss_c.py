@@ -21,7 +21,7 @@ def tobyt(arr):
 if __name__ == '__main__':
     sample, scale = commandline_args({"sample":"<required>","scale":1})
     outpath = 'dummy'
-    sigma = 5
+    sigma = 13
     reps = 5
 
     vf = h5py.File(f'{hdf5_root_fast}/processed/implant-edt/{scale}x/{sample}.h5', 'r')
@@ -57,8 +57,8 @@ if __name__ == '__main__':
         control = implant_mask.astype(impl_type)
         start = timeit.default_timer()
         for _ in range(reps):
-            control[:] = ndi.gaussian_filter(control, sigma, mode='constant')
-            #control[implant_mask] = 1
+            control[:] = ndi.gaussian_filter(control, sigma, mode='constant', cval=0)
+            control[implant_mask] = 1
         print (f'ndimage edition: {timeit.default_timer() - start}')
         np.save(f'{outpath}/control', control)
         Image.fromarray(tobyt(control[nz//2,:,:])).save(f'{outpath}/control1.png')
