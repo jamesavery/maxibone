@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import sys, h5py, numpy as np
+import sys, pathlib, h5py, numpy as np
 sys.path.append(sys.path[0]+"/../")
 import pybind_kernels.histograms as histograms
-from config.paths import hdf5_root, commandline_args
+from config.paths import hdf5_root, binary_root, commandline_args
 from tqdm import tqdm
 
 slice_all = slice(None)
@@ -21,8 +21,10 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     lsb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
     dmsb, dlsb  = msb_file['voxels'], lsb_file['voxels']
     Nz, Ny, Nx  = dmsb.shape    
-    
-    outfile     = f'{hdf5_root}/binary/{sample}_voxels.uint16'
+
+
+    pathlib.Path(f"{binary_root}/voxels/1x/").mkdir(parents=True, exist_ok=True)    
+    outfile = f'{binary_root}/voxels/1x/{sample}_voxels.uint16'
 
     subvolume_dims = msb_file['subvolume_dimensions'][:]
     vm_shifts      = msb_file['volume_matching_shifts'][:]
@@ -58,6 +60,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     # TODO: Come up with appropriate "file format" scheme
     # TODO: append_file should be in io pybind module, not histograms
     # TODO: command-line specified output dtype
+    # TODO: cross-section thumbnails
     z_range, y_range, x_range = region
     for i in tqdm(range(Nvols), desc=f'Loading {sample} from HDF5 and writing binary'):
         subvolume = \
