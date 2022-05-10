@@ -24,7 +24,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
 
 
     pathlib.Path(f"{binary_root}/voxels/1x/").mkdir(parents=True, exist_ok=True)    
-    outfile = f'{binary_root}/voxels/1x/{sample}_voxels.uint16'
+    outfile = f'{binary_root}/voxels/1x/{sample}.uint16'
 
     subvolume_dims = msb_file['subvolume_dimensions'][:]
     vm_shifts      = msb_file['volume_matching_shifts'][:]
