@@ -35,7 +35,9 @@ subvolume_range      = np.array([(float(m['valmin']), float(m['valmax'])) for m 
 
 global_vmin = np.min(subvolume_range[:,0])
 global_vmax = np.max(subvolume_range[:,1])
-(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0])&~31, np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
+#TODO: Should we also enforce Nz % 32 == 0? Problem: 1) volume matching will ruin it anyway, and
+#                                                    2) top or bottom can have important info (depending on orientation of scan)
+(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0]), np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
 
 for i in range(len(subvolume_metadata)):
     print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
@@ -81,7 +83,7 @@ for h5file in [h5file_msb,h5file_lsb]:
     h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
     h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
     h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="gzip");
+    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True);
 
     h5tomo.dims[0].label = 'z';
     h5tomo.dims[1].label = 'y';
