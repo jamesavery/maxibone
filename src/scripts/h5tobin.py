@@ -36,24 +36,22 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     input_zstarts         = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)
     input_zends           = (np.cumsum(Nzs) - np.concatenate([vm_shifts,[0]])).astype(int)
     
-    output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)])    
-    output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]])
-
     print(f'HDF5 voxel data:')
     print(f'subvolume_dims =\n{subvolume_dims}')
     print(f'Nzs = {Nzs}')
     print(f'vm_shifts = {vm_shifts}')    
     print(f'input_zstarts  = {input_zstarts}')
     print(f'input_zends    = {input_zends}')
-    
-    print(f'output_zstarts = {output_zstarts}')
-    print(f'output_zends   = {output_zends}')
+
+    # output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)])    
+    # output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]])    
+    # print(f'output_zstarts = {output_zstarts}')
+    # print(f'output_zends   = {output_zends}')
 
     print(f'Shape to extract:\n{region}')
     
     assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
     nzs = input_zends - input_zstarts # Actual number of z-slices per subvolume after vm-correction
- #   sys.exit(0)
 
     # TODO: z_range is ignored
     # TODO: Store metadata about region range in json
