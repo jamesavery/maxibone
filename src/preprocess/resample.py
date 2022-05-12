@@ -1,5 +1,5 @@
-#import cupy as np
-import numpy as np
+import cupy as np
+#import numpy as np
 NA = np.newaxis
 
 def downsample2x(V):

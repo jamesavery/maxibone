@@ -1,15 +1,15 @@
 import h5py, sys, pathlib
 sys.path.append(sys.path[0]+"/../")
 import numpy as np
-#import cupy  as cp
-import numpy as cp
+import cupy  as cp
+#import numpy as cp
 from resample import downsample2x, downsample3x
 from config.paths import commandline_args, hdf5_root, binary_root
 
-# mempool = cp.get_default_memory_pool()
-# pinned_mempool = cp.get_default_pinned_memory_pool()
-# mempool.free_all_blocks()
-# pinned_mempool.free_all_blocks()
+mempool = cp.get_default_memory_pool()
+pinned_mempool = cp.get_default_pinned_memory_pool()
+mempool.free_all_blocks()
+pinned_mempool.free_all_blocks()
 
 
 if __name__ == "__main__":
@@ -59,17 +59,17 @@ if __name__ == "__main__":
         voxels32x_chunk = downsample2x(voxels16x_chunk)
 
         ## if cupy
-        # voxels2x[z//2:zend//2]  = voxels2x_chunk.get()
-        # voxels4x[z//4:zend//4]  = voxels4x_chunk.get()
-        # voxels8x[z//8:zend//8]  = voxels8x_chunk.get()
-        # voxels16x[z//16:zend//16] = voxels16x_chunk.get()
-        # voxels32x[z//32:zend//32] = voxels32x_chunk.get()
+        voxels2x[z//2:zend//2]  = voxels2x_chunk.get()
+        voxels4x[z//4:zend//4]  = voxels4x_chunk.get()
+        voxels8x[z//8:zend//8]  = voxels8x_chunk.get()
+        voxels16x[z//16:zend//16] = voxels16x_chunk.get()
+        voxels32x[z//32:zend//32] = voxels32x_chunk.get()
         ## else
-        voxels2x[z//2:zend//2]  = voxels2x_chunk
-        voxels4x[z//4:zend//4]  = voxels4x_chunk
-        voxels8x[z//8:zend//8]  = voxels8x_chunk
-        voxels16x[z//16:zend//16] = voxels16x_chunk
-        voxels32x[z//32:zend//32] = voxels32x_chunk
+        # voxels2x[z//2:zend//2]  = voxels2x_chunk
+        # voxels4x[z//4:zend//4]  = voxels4x_chunk
+        # voxels8x[z//8:zend//8]  = voxels8x_chunk
+        # voxels16x[z//16:zend//16] = voxels16x_chunk
+        # voxels32x[z//32:zend//32] = voxels32x_chunk
 
 #        print(f"Used GPU memory: {mempool.used_bytes()//1000000}MB out of {mempool.total_bytes()/1000000}MB. {pinned_mempool.n_free_blocks()} free pinned blocks.")              # 0
         
