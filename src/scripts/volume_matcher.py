@@ -34,8 +34,8 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift):
 
 
 def match_all_regions(voxels,crossings,write_image_checks=True):
-    shifts = np.zeros(len(crossings),dtype=np.int)
-    errors = np.zeros(len(crossings),dtype=np.float)
+    shifts = np.zeros(len(crossings),dtype=np.int32)
+    errors = np.zeros(len(crossings),dtype=np.float32)
     match_region_jit = jax.jit(match_region,static_argnums=(2,3));
     
     print(f"Crossings at z-indices: {crossings}")

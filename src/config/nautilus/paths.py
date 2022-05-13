@@ -1,10 +1,17 @@
 hdf5_root      = "/data/MAXIBONE/Goats/tomograms"
-hdf5_root_fast = "/mnt/shared/MAXIBONE/Goats/tomograms"
-binary_root    = f"{hdf5_root_fast}/binary"
+<<<<<<< HEAD
+hdf5_root_fast = "/mnt/data/MAXIBONE/Goats/tomograms"
 esrf_data_local = f"{hdf5_root}/ESRF/"
 esrf_data_sftp  =  "/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/"
 esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013/"
 esrf_granules_root  = f"{esrf_data_local}/esrf_dental_granules_july_2012/"
+=======
+hdf5_root_fast = "/mnt/shared/MAXIBONE/Goats/tomograms"
+binary_root    = f"{hdf5_root_fast}/binary"
+esrf_implants_root  = "/home/avery/erda/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/esrf_dental_implants_april_2013/"
+esrf_granules_root  = "/home/avery/erda/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/esrf_dental_granules_july_2012/"
+
+>>>>>>> f7d3cfeaff0c186f84c62e3c6e9ef35aed0a791e
 
 # TODO: Hvorhen skal det her hen?
 import sys

@@ -1,4 +1,6 @@
 hdf5_root      = "/data/MAXIBONE/Goats/tomograms"
+hdf5_root_fast = "/data/MAXIBONE/Goats/tomograms"
+binary_root    = f"{hdf5_root_fast}/binary"
 esrf_implants_root  = "/data/MAXIBONE/manjula.esci.nbi.dk.2_localhost/esrf_dental_implants_april_2013/"
 esrf_granules_root  = "/data/MAXIBONE/manjula.esci.nbi.dk.2_localhost/esrf_dental_granules_july_2012/"
 

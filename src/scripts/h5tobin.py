@@ -1,44 +1,78 @@
 #!/usr/bin/env python3
-import sys, h5py, numpy as np
+import sys, pathlib, h5py, numpy as np
 sys.path.append(sys.path[0]+"/../")
-import pybind_kernels.histograms
-from config.paths import hdf5_root, commandline_args
+import pybind_kernels.histograms as histograms
+from config.paths import hdf5_root, binary_root, commandline_args
 from tqdm import tqdm
 
-# It dumps them chunked in block_size of xy-planes
-def dump_file_to_binary(sample, y_cutoff, block_size):
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    outfile = f'{hdf5_root}/binary/{sample}_voxels.bin'
-    Nz, Ny, Nx = dm['voxels'].shape
-    Ny -= y_cutoff
-    block_size = block_size if block_size > 0 else Nz
-    blocks = (Nz // block_size) + (1 if Nz % block_size > 0 else 0)
-    for i in tqdm(range(blocks), desc='Dumping voxels'):
-        rng = i*block_size, min((i+1)*block_size, Nz)
-        tmp = np.empty((rng[1]-rng[0], Ny, Nx), np.uint16)
-        tmp[:,:,:] = \
-            (dm['voxels'][rng[0]:rng[1],y_cutoff:,:].astype(np.uint16) << 8) | \
-            (dl['voxels'][rng[0]:rng[1],y_cutoff:,:].astype(np.uint16))
-        histograms.append_slice(tmp, outfile)
+slice_all = slice(None)
 
-    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
-    outfile = f'{hdf5_root}/binary/{sample}_field.bin'
-    Nz, Ny, Nx = fi['voxels'].shape
-    Ny -= y_cutoff // 2
-    block_size = block_size if block_size > 0 else Nz
-    blocks = (Nz // block_size) + (1 if Nz % block_size > 0 else 0)
-    for i in tqdm(range(blocks), desc='Dumping field'):
-        rng = i*block_size, min((i+1)*block_size, Nz)
-        tmp = np.empty((rng[1]-rng[0], Ny, Nx), np.uint16)
-        tmp[:,:,:] = fi['voxels'][rng[0]:rng[1],(y_cutoff//2):,:].astype(np.uint16)
-        histograms.append_slice(tmp, outfile)
+def slice_length(s,n):
+    start = s.start if s.start is not None else 0
+    stop  = s.stop  if s.stop  is not None else n # -1?
+    step  = s.step  if s.step  is not None else 1
+    return (stop - start)//step
+
+def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
+    # Generate 16 bit flat binary blob for full sample tomogram
+    # Read/write a full subbvolume at a time.x
+    # For each subvolume, correct for subvolume_matching_shifts
+    msb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    lsb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    dmsb, dlsb  = msb_file['voxels'], lsb_file['voxels']
+    Nz, Ny, Nx  = dmsb.shape    
 
 
+    pathlib.Path(f"{binary_root}/voxels/1x/").mkdir(parents=True, exist_ok=True)    
+    outfile = f'{binary_root}/voxels/1x/{sample}.uint16'
+
+    subvolume_dims = msb_file['subvolume_dimensions'][:]
+    vm_shifts      = msb_file['volume_matching_shifts'][:]
+    Nvols          = len(subvolume_dims)
+    Nzs            = subvolume_dims[:,0]
+
+    # The ith subvolume in input  starts at sum(Nzs[:(i-1)]) and ends at sum(Nzs[:i])
+    # The ith subvolume in output starts at sum(Nzs[:(i-1)]) - sum(vm_shifts[:i])
+    input_zstarts         = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)
+    input_zends           = (np.cumsum(Nzs) - np.concatenate([vm_shifts,[0]])).astype(int)
+    
+    print(f'HDF5 voxel data:')
+    print(f'subvolume_dims =\n{subvolume_dims}')
+    print(f'Nzs = {Nzs}')
+    print(f'vm_shifts = {vm_shifts}')    
+    print(f'input_zstarts  = {input_zstarts}')
+    print(f'input_zends    = {input_zends}')
+
+    # output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)])    
+    # output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]])    
+    # print(f'output_zstarts = {output_zstarts}')
+    # print(f'output_zends   = {output_zends}')
+
+    print(f'Shape to extract:\n{region}')
+    
+    assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
+    nzs = input_zends - input_zstarts # Actual number of z-slices per subvolume after vm-correction
+
+    # TODO: z_range is ignored
+    # TODO: Store metadata about region range in json
+    # TODO: Come up with appropriate "file format" scheme
+    # TODO: append_file should be in io pybind module, not histograms
+    # TODO: command-line specified output dtype
+    # TODO: cross-section thumbnails
+    z_range, y_range, x_range = region
+    for i in tqdm(range(Nvols), desc=f'Loading {sample} from HDF5 and writing binary'):
+        subvolume = \
+            (dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16) << 8) | \
+            (dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16))
+        print(f'subvolume.shape = {subvolume.shape}')
+        histograms.append_slice(subvolume, outfile)
+    
+        
 if __name__ == "__main__":
-    sample, y_cutoff, block_size = commandline_args({"sample":"<required>",
-                                                     "y_cutoff": 0,
-                                                     "block_size":256})
+    sample, y_cutoff, shift_volume_match = commandline_args({"sample":"<required>",
+                                                             "y_cutoff": 0,
+                                                             "shift_volume_match":1})
 
-    dump_file_to_binary(sample,y_cutoff,block_size)
+    region = (slice_all,slice(y_cutoff,None), slice_all)
+    h5tobin(sample,region,shift_volume_match)
     

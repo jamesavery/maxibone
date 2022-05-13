@@ -21,8 +21,10 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
                     const py::array_t<prob_type> &np_Pfield,
                     const py::array_t<field_type> &np_field,
                     py::array_t<result_type> &np_result,
-                    const py::array_t<float> &np_vrange,
-                    const py::array_t<uint64_t> &np_ranges) {
+                    const std::tuple<float, float> &vrange,
+                    const std::tuple<float, float> &frange,
+                    const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
+                    const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
 
     py::buffer_info
         voxels_info = np_voxels.request(),
@@ -32,15 +34,10 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
         r_info = np_Prs.request(),
         Pfield_info = np_Pfield.request(),
         field_info = np_field.request(),
-        result_info = np_result.request(),
-        vrange_info = np_vrange.request(),
-        ranges_info = np_ranges.request();
+        result_info = np_result.request();
     
     const uint64_t
         Nvoxel_bins = x_info.shape[1],
-        Nx = x_info.shape[0],
-        Ny = y_info.shape[0],
-        Nz = z_info.shape[0],
         Nfield_bins = field_info.shape[1];
 
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
@@ -56,25 +53,24 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
 
     result_type *result = static_cast<result_type*>(result_info.ptr);
 
-    const uint64_t *ranges = static_cast<uint64_t*>(ranges_info.ptr);
+    auto [sz, sy, sx] = offset;
+    auto [Nz, Ny, Nx] = ranges;
+    uint64_t fz = Nz / 2, fy = Ny / 2, fx = Nx / 2;
+    auto [v_min, v_max] = vrange;
+    auto [f_min, f_max] = frange;
 
-    const float *vrange = static_cast<float*>(vrange_info.ptr);
-    const float vmin = vrange[0];
-    const float vmax = vrange[1];
-    const float f_min = vrange[2];
-    const float f_max = vrange[3];
-    
     #pragma omp parallel for collapse(3) schedule(dynamic)
-    for (uint64_t z = ranges[0]; z < ranges[1]; z++) {
-        for (uint64_t y = ranges[2]; y < ranges[3]; y++) {
-            for (uint64_t x = ranges[4]; x < ranges[5]; x++) {
-                uint64_t flat_index = z*Ny*Nx + y*Nx + x;
+    for (uint64_t z = sz; z < Nz; z++) {
+        for (uint64_t y = sy; y < Ny; y++) {
+            for (uint64_t x = sx; x < Nx; x++) {
+                uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
                 // Get the voxel value and the indices
                 voxel_type voxel = voxels[flat_index];
-                int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
                 uint64_t r = floor(sqrt((x-Nx/2.0)*(x-Nx/2.0) + (y-Ny/2.0)*(y-Ny/2.0)));
 
-                field_type field_v = field[flat_index];
+                uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
+                field_type field_v = field[flat_field_index];
                 int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
 
                 // Get the probabilities
@@ -86,11 +82,7 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
                     Pf = Pfield[field_index*Nvoxel_bins + voxel_index];
                 
                 // Compute the dummy joint probability
-                uint64_t ox = ranges[5] - ranges[4];
-                uint64_t oy = ranges[3] - ranges[2];
-                uint64_t oz = ranges[1] - ranges[0];
-                uint64_t offset_index = (z-ranges[0])*oy*ox + (y-ranges[2])*ox + (x-ranges[4]);
-                result[offset_index] = ((uint8_t) floor(((Px + Py + Pz + Pr + Pf) / 5) * 255));
+                result[flat_index] = ((uint8_t) floor(((Px + Py + Pz + Pr + Pf) / 5) * 255));
             }
         }
     }
