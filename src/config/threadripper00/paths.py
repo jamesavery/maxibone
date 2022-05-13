@@ -1,8 +1,9 @@
 hdf5_root      = "/data/MAXIBONE/Goats/tomograms"
 hdf5_root_fast = "/mnt/data/MAXIBONE/Goats/tomograms"
-esrf_implants_root  = "/home/avery/erda/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/esrf_dental_implants_april_2013/"
-esrf_granules_root  = "/home/avery/erda/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/esrf_dental_granules_july_2012/"
-
+esrf_data_local = f"{hdf5_root}/ESRF/"
+esrf_data_sftp  =  "/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/"
+esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013/"
+esrf_granules_root  = f"{esrf_data_local}/esrf_dental_granules_july_2012/"
 
 # TODO: Hvorhen skal det her hen?
 import sys
