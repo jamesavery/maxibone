@@ -3,9 +3,10 @@
 # (C) James Avery for the MAXIBONE project, 2018
 import numpy as np;
 import bohrium as bh;
-import jax.numpy as jp
+#import numpy as bh;
+#import jax.numpy as jp
 import numpy.ma as ma;
-import sys,re,os;
+import sys,re,os,tqdm;
 #from joblib import Parallel, delayed
 
 # TODO: Switch more elegantly between numpy and bohrium
@@ -96,9 +97,9 @@ def esrf_edfrange_to_bh(info,region):
 
     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
     image = bh.zeros(shape,dtype=bh.float32);
-    for z in range(z_start,z_end):
-        if (z % 100 == 0):
-            print(z);
+    for z in tqdm.tqdm(range(z_start,z_end),leave=False):
+        # if (z % 100 == 0):
+        #     print(z);
         (meta,data) = esrf_edf_n_to_bh(info,z);
 
         image[z-z_start] = data[y_start:y_end,x_start:x_end];
