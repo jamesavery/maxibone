@@ -47,10 +47,10 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     # output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]])    
     # print(f'output_zstarts = {output_zstarts}')
     # print(f'output_zends   = {output_zends}')
+    # assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
 
     print(f'Shape to extract:\n{region}')
     
-    assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
     nzs = input_zends - input_zstarts # Actual number of z-slices per subvolume after vm-correction
 
     # TODO: z_range is ignored
@@ -61,11 +61,13 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     # TODO: cross-section thumbnails
     z_range, y_range, x_range = region
     for i in tqdm(range(Nvols), desc=f'Loading {sample} from HDF5 and writing binary'):
-        subvolume = \
-            (dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16) << 8) | \
-            (dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16))
-        print(f'subvolume.shape = {subvolume.shape}')
-        histograms.append_slice(subvolume, outfile)
+        subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
+        subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
+
+        histograms.append_slice((subvolume_msb << 8) | subvolume_lsb, outfile)
+
+        del subvolume_msb
+        del subvolume_lsb
     
         
 if __name__ == "__main__":
