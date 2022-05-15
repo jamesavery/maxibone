@@ -3,7 +3,7 @@
 # /subvolume_dimensions:  int(n,3).      For each of the n component scans, the sub-volume dimensions (nz,ny,nx)
 # /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
-# /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
+# /voxels:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
 import h5py, sys, os.path, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 import bohrium as bh # TODO: Get rid of Bohrium dependence without losing too much performance
@@ -83,7 +83,7 @@ for h5file in [h5file_msb,h5file_lsb]:
     h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
     h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
     h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True);
+    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True, compression="lzf" if h5file==h5file_msb else None);
 
     h5tomo.dims[0].label = 'z';
     h5tomo.dims[1].label = 'y';
