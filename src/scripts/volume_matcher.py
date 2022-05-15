@@ -7,7 +7,7 @@
 ### Fix shifted volumes ###
 ###########################
 
-import h5py, sys, jax, os.path, pathlib
+import h5py, sys, jax, os.path, pathlib, tqdm
 import numpy as np
 import jax.numpy as jp
 import h5py, jax, sys
@@ -23,14 +23,18 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift):
     # Shifts smaller than the overlap overlap with shift
     slice_size = voxels_top.shape[1]*voxels_top.shape[2] # Normalize by number of voxels (to make sums_lt and sums_ge comparable)
     sums_lt = jp.array( [ jp.sum(((voxels_top[-shift:] - voxels_bot[0:shift])/(shift*slice_size))**2)
-                          for shift in range(2,overlap)] )
+                          for shift in tqdm.tqdm(range(2,overlap),f"Mathcings shifted 0 to {overlap}")] )
     # Shifts larger than the overlap overlap with overlap
     sums_ge = jp.array( [ jp.sum(((voxels_top[-overlap:] - voxels_bot[shift:shift+overlap])/(overlap*slice_size))**2)
-                          for shift in range(0,max_shift-overlap)] )
+                          for shift in tqdm.tqdm(range(0,max_shift-overlap),f"Mathcings shifted {overlap} to {max_shift}")] )
     # print("sums_lt=",sums_lt)
     # print("sums_ge=",sums_ge)
     sums = jp.concatenate([sums_lt, sums_ge])
-    return jp.argmin( sums ), jp.sqrt(sums.min())
+    result = jp.argmin( sums ), jp.sqrt(sums.min())
+    del sums
+    del sums_lt
+    del sums_ge
+    return result
 
 
 def match_all_regions(voxels,crossings,write_image_checks=True):
@@ -57,8 +61,8 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
             image_dir = f"{volume_matched_dir}/verification"
             pathlib.Path(image_dir).mkdir(parents=True, exist_ok=True)                
             print(f"Writing images of matched slices to {image_dir} to check correctness.")
-            merged_voxels = jp.concatenate([top_voxels,bot_voxels[shift:]])
-            merged_zy_slice  = np.array(merged_voxels[:,:,Nx//2])
+            merged_zy_slice = np.concatenate([top_voxels[:,:,Nx//2],bot_voxels[shift:,:,Nx//2]])
+#            merged_zy_slice  = np.array(merged_voxels[:,:,Nx//2])
             
             Image.fromarray(merged_zy_slice.astype(np.uint8)).save(f"{image_dir}/{sample}-{i}cross-zy.png")
             
@@ -67,6 +71,8 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
             image[max_shift-shift:-shift,1980//2:] = bot_voxels[:,Ny//2-1980//4:Ny//2+1980//4,Nx//2].astype(np.uint8)    
             Image.fromarray(image).save(f"{image_dir}/{sample}-{i}bottop-zx.png")
 
+        del top_voxels
+        del bot_voxels
     return shifts,errors
 
 # Copy through the volume matched volume from the original - general interface
