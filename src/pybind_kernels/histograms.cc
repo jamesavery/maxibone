@@ -162,6 +162,16 @@ void load_slice(py::array_t<voxel_type> &np_data, string filename,
     file.close();
 }
 
+void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filename) {
+    auto data_info = np_data.request();
+    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
+    ofstream file;
+    file.open(filename.c_str(), ios::binary);
+    file.seekp(offset * sizeof(voxel_type), ios::beg);
+    file.write((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
+
 void append_slice(py::array_t<voxel_type> &np_data, string filename) {
     auto data_info = np_data.request();
     const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
@@ -873,6 +883,7 @@ PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
     m.def("load_slice", &load_slice);
     m.def("append_slice", &append_slice);
+    m.def("write_slice", &write_slice);
     m.def("axis_histogram_seq_cpu",  &axis_histogram_seq_cpu);
     m.def("axis_histogram_par_cpu",  &axis_histogram_par_cpu);
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
