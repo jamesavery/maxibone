@@ -3,15 +3,15 @@
 # /subvolume_dimensions:  int(n,3).      For each of the n component scans, the sub-volume dimensions (nz,ny,nx)
 # /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
 # /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
-# /volume:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
-import bohrium as bh
+# /voxels:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
+import h5py, sys, os.path, pathlib, tqdm
+sys.path.append(sys.path[0]+"/../")
+import bohrium as bh # TODO: Get rid of Bohrium dependence without losing too much performance
 from io_modules.esrf_read import *
-import numpy   as np
-import h5py
-import matplotlib.pyplot as plt
-import h5py, sys, os.path, pathlib
+import numpy   as np, matplotlib.pyplot as plt
 from config.paths import *
 from PIL import Image
+
 
 NA = np.newaxis
 
@@ -35,10 +35,12 @@ subvolume_range      = np.array([(float(m['valmin']), float(m['valmax'])) for m 
 
 global_vmin = np.min(subvolume_range[:,0])
 global_vmax = np.max(subvolume_range[:,1])
-(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0])&~31, np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
+#TODO: Should we also enforce Nz % 32 == 0? Problem: 1) volume matching will ruin it anyway, and
+#                                                    2) top or bottom can have important info (depending on orientation of scan)
+(Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0]), np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
 
 for i in range(len(subvolume_metadata)):
-    print(f"{i} {sample}/{subvolume_metadata[i]['sample']}: {subvolume_range[i]}")
+    print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
 print((global_vmin, global_vmax), (Nz,Ny,Nx))    
 print(subvolume_dimensions)
 print(subvolume_range)
@@ -81,12 +83,12 @@ for h5file in [h5file_msb,h5file_lsb]:
     h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
     h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
     h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True,compression="lzf");
+    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True, compression="lzf" if h5file==h5file_msb else None);
 
     h5tomo.dims[0].label = 'z';
     h5tomo.dims[1].label = 'y';
     h5tomo.dims[2].label = 'x';
-    h5tomo.attrs['voxelsize'] = np.float(subvolume_info['voxelsize']);
+    h5tomo.attrs['voxelsize'] = float(subvolume_info['voxelsize']);
 
 z_offset = 0;
 #normalize_jit = jax.jit(normalize)
@@ -101,16 +103,16 @@ def cylinder_mask(Ny,Nx):
 
 mask = bh.array(cylinder_mask(Ny,Nx))
 
-for i in range(len(subvolume_metadata)):
+for i in tqdm.tqdm(range(len(subvolume_metadata))):
     subvolume_info = subvolume_metadata[i];
     (nz,ny,nx)     = subvolume_dimensions[i];
     (sy,sx)        = ((ny-Ny)//2+((ny-Ny)%2), (nx-Nx)//2+((nx-Nx)%2))
     (ey,ex)        = (ny-(ny-Ny)//2, nx-(nx-Nx)//2)
     print((sy,ey),(sx,ex))
     
-    # print(f"Loading {subvolume_info['sample']}")
+    # print(f"Loading {subvolume_info['experiment']}")
     # tomo = normalize(esrf_full_tomogram_bh(subvolume_info), (global_vmin,global_vmax));
-    # print(f"Writing {subvolume_info['sample']}")    
+    # print(f"Writing {subvolume_info['experiment']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
     chunk = bh.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
@@ -118,13 +120,14 @@ for i in range(len(subvolume_metadata)):
         chunk_end = min(z+chunk_length,nz);
 
         region = [[sx,sy,z],[ex,ey,chunk_end]]
-        print(f"Reading slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
+        print(f"Reading chunk {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
         slab_data = esrf_edfrange_to_bh(subvolume_info,region)
-        print("Before masking:", slab_data.max())
+        print(f"Chunk shape: {slab_data.shape}")
+        print("Max value before masking:", slab_data.max())
         slab_data *= mask[NA,:,:]
-        print("After masking:", slab_data.max())        
+        print("Max value after masking:", slab_data.max())        
         chunk[:chunk_end-z] = normalize(slab_data,(global_vmin,global_vmax))
-        print("After normalizing:", chunk.max())
+        print("Max value after normalizing:", chunk.max())
 
         # for j in range(0,chunk_end-z):
         #     slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);

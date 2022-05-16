@@ -1,6 +1,7 @@
 hdf5_root      = "/data/MAXIBONE/Goats/tomograms"
-hdf5_root_fast = "/mnt/shared/MAXIBONE/Goats/tomograms"
+hdf5_root_fast = "/data/MAXIBONE/Goats/tomograms"
 binary_root    = f"{hdf5_root_fast}/binary"
+
 esrf_data_local = f"{hdf5_root}/ESRF/"
 esrf_data_sftp  =  "/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/"
 esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013/"
