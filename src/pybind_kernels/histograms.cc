@@ -166,7 +166,11 @@ void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filen
     auto data_info = np_data.request();
     const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
     ofstream file;
-    file.open(filename.c_str(), ios::binary);
+    file.open(filename.c_str(), ios::binary | ios::in);
+    if (!file.is_open()) {
+        file.clear();
+        file.open(filename.c_str(), ios::binary);
+    }
     file.seekp(offset * sizeof(voxel_type), ios::beg);
     file.write((char*) data, data_info.size * sizeof(voxel_type));
     file.close();
