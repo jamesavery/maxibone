@@ -9,14 +9,14 @@ def downsample2x(V):
     ys = np.linspace(-1,1,ny)[NA,:]
     cylinder_mask = (xs*xs + ys*ys)<=1
     
-    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
+#    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
 #    print("Extracting S1")
     S1 = V[0:(2*nz):2].astype(np.float32)
 #    print("Extracting S2",flush=True)
     S2 = V[1:(2*nz+1):2].astype(np.float32)
     
-    print(S1.shape,S2.shape)
-    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
+#    print(S1.shape,S2.shape)
+#    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
 #    print("Averaging",flush=True)
     s1 = S1[:,0:2*ny:2, 0:2*nx:2]+S1[:,0:2*ny:2, 1:(2*nx+1):2]+S1[:,1:(2*ny+1):2, 0:(2*nx):2]+S1[:,1:(2*ny+1):2, 1:(2*nx+1):2]
     s2 = S2[:,0:2*ny:2, 0:2*nx:2]+S2[:,0:2*ny:2, 1:(2*nx+1):2]+S2[:,1:(2*ny+1):2, 0:(2*nx):2]+S2[:,1:(2*ny+1):2, 1:(2*nx+1):2]
@@ -30,7 +30,7 @@ def downsample3x(V):
     ys = np.linspace(-1,1,ny)[np.newaxis,:]
     cylinder_mask = (xs*xs + ys*ys)<=1;
     
-    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
+#    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
     print("Extracting S1")
     S1 = V[0:(3*nz):3].astype(np.float32)
     print("Extracting S2",flush=True)
