@@ -43,16 +43,16 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     print(f'input_zstarts  = {input_zstarts}')
     print(f'input_zends    = {input_zends}')
 
-    # output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)])    
-    # output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]])    
-    # print(f'output_zstarts = {output_zstarts}')
-    # print(f'output_zends   = {output_zends}')
-    # assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
+    output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)]).astype(int)
+    output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]]).astype(int)
+    print(f'output_zstarts = {output_zstarts}')
+    print(f'output_zends   = {output_zends}')
+    assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
 
     print(f'Shape to extract:\n{region}')
     
     nzs = input_zends - input_zstarts # Actual number of z-slices per subvolume after vm-correction
-
+    print(f"Volume matched subvolume nzs = {nzs}")
     # TODO: z_range is ignored
     # TODO: Store metadata about region range in json
     # TODO: Come up with appropriate "file format" scheme
@@ -64,7 +64,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
         subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
 
-        histograms.append_slice((subvolume_msb << 8) | subvolume_lsb, outfile)
+        histograms.write_slice((subvolume_msb << 8) | subvolume_lsb, output_zstarts[i]*Ny*Nx, outfile)
 
         del subvolume_msb
         del subvolume_lsb
