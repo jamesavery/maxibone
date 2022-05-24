@@ -59,8 +59,8 @@ if __name__ == '__main__':
     rs = np.sqrt(xs[NA,NA,:]**2 + xs[NA,:,NA]**2)
     cylinder_mask = (rs<=1)
 
-    print(f"Writing diffusion-field to {output_dir}/{sample}.npz")
-    np.save(f'{output_dir}/{sample}.npz', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
+    print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
+    np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
 
     
     if debug:
@@ -79,7 +79,7 @@ if __name__ == '__main__':
             control[:] = ndi.gaussian_filter(control, sigma, mode='constant', cval=0)
             control[implant_mask] = 1
         print (f'ndimage edition took {timeit.default_timer() - start} seconds')
-        np.save(f'{output_dir}/{sample}_ndimage.npy')
+        np.save(f'{output_dir}/{sample}_ndimage.npy',control)
         if debug:
             Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
             Image.fromarray(toint(control[:,ny//2,:])).save(f'{output_dir}/{sample}-control-xz.png')
@@ -106,15 +106,15 @@ if __name__ == '__main__':
     
     edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
     pathlib.Path(edt_output_dir).mkdir(parents=True, exist_ok=True)
-    print(f"Writing EDT-field to {edt_output_dir}/{sample}.npz")
-    np.save(f'{edt_output_dir}/{sample}.npz', toint(fedt*cylinder_mask,np.uint16)*cylinder_mask)
+    print(f"Writing EDT-field to {edt_output_dir}/{sample}.npy")
+    np.save(f'{edt_output_dir}/{sample}.npy', toint(fedt*cylinder_mask,np.uint16)*cylinder_mask)
                 
 
     mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"    
-    print(f"Writing combined field to {mixed_output_dir}/{sample}.npz")                
+    print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")                
     pathlib.Path(mixed_output_dir).mkdir(parents=True, exist_ok=True)
     result = (result-fedt/(fedt.max()))*cylinder_mask
     result -= result.min()
     result /= result.max()
     print(f"Result (min,max) = ({result.min(),result.max()})")
-    np.save(f'{mixed_output_dir}/{sample}.npz', toint(result*cylinder_mask,np.uint16)*cylinder_mask)    
+    np.save(f'{mixed_output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)    
