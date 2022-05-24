@@ -7,12 +7,12 @@ OPENCV_LIB=$(shell pkg-config opencv4 --libs)
 
 
 # Detect if OpenACC can be used
-#ifneq (, $(shell which nvc++))
-#CXX = nvc++
-#CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
-#else
-#$(info OpenACC compiler nvc++ not found. Compiling without)
-#endif
+ifneq (, $(shell which nvc++))
+	CXX = nvc++
+	CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
+else
+	$(info OpenACC compiler nvc++ not found. Compiling without)
+endif
 
 all: histograms$(PYBIND_SUFFIX) geometry$(PYBIND_SUFFIX) label$(PYBIND_SUFFIX)
 
