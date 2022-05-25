@@ -87,13 +87,13 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 		  if (mask_value) {
 		    tout[output_index] = 1;
 		  } else {
-		    int64_t 
+		    int64_t
 		      X[3] = {z, y, x},
 		      stride = strides[dim],
 		      i_start = -min(padding, X[dim]),
 		      i_end = min(padding, N[dim]-X[dim]-1);
 		    gauss_type sum = 0;
-		    
+
                     #pragma omp simd reduction(+:sum)
 		    for (int64_t i = i_start; i <= i_end; i++) {
 		      int64_t voxel_index = output_index + stride*i;
@@ -148,37 +148,47 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     return make_pair(voxel_min,voxel_max);
 }
 
-void load_slice(py::array_t<voxel_type> &np_data, string filename,
-                const tuple<uint64_t, uint64_t, uint64_t> offset,
-                const tuple<uint64_t, uint64_t, uint64_t> shape) {
-    auto data_info = np_data.request();
-    voxel_type *data = static_cast<voxel_type*>(data_info.ptr);
+// TODO striding
+template <typename T>
+void load_binary(T *data, string filename, uint64_t offset, uint64_t num_elements) {
     ifstream file;
     file.open(filename.c_str(), ios::binary);
-    if(!file.is_open()){
-      fprintf(stderr,"load_slice: Error opening %s for reading.\n",filename.c_str());
-      exit(-1);
-    }
-    auto [Nz, Ny, Nx] = shape;
-    auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(voxel_type);
-    file.seekg(flat_offset, ios::beg);
-    file.read((char*) data, data_info.size * sizeof(voxel_type));
+    file.seekg(offset, ios::beg);
+    file.read((char*) data, num_elements * sizeof(T));
     file.close();
 }
 
-void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filename) {
+// TODO micro benchmark whether sequential read is fine, or whether parallel is needed
+template <typename T>
+void load_slice(py::array_t<T> &np_data, string filename,
+                const tuple<uint64_t, uint64_t, uint64_t> offset,
+                const tuple<uint64_t, uint64_t, uint64_t> shape) {
     auto data_info = np_data.request();
-    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
+    T *data = static_cast<T*>(data_info.ptr);
+    auto [Nz, Ny, Nx] = shape;
+    auto [oz, oy, ox] = offset;
+    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(T);
+    load_binary<T>(data, filename, flat_offset, data_info.size);
+}
+
+template <typename T>
+void write_binary(const T *data, string filename, uint64_t offset, uint64_t num_elements) {
     ofstream file;
     file.open(filename.c_str(), ios::binary | ios::in);
     if (!file.is_open()) {
         file.clear();
         file.open(filename.c_str(), ios::binary);
     }
-    file.seekp(offset * sizeof(voxel_type), ios::beg);
-    file.write((char*) data, data_info.size * sizeof(voxel_type));
+    file.seekp(offset * sizeof(T), ios::beg);
+    file.write((char*) data, num_elements * sizeof(T));
     file.close();
+}
+
+template <typename T>
+void write_slice(py::array_t<T> &np_data, uint64_t offset, string filename) {
+    auto data_info = np_data.request();
+    const T *data = static_cast<const T*>(data_info.ptr);
+    write_binary<T>(data, filename, offset, data_info.size);
 }
 
 void append_slice(py::array_t<voxel_type> &np_data, string filename) {
@@ -861,7 +871,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
                     // And what are the corresponding x,y,z coordinates into the field sub-block?
                     array<float,3> xyz = {X*dx, Y*dy, Z*dz};
 		    auto [x,y,z] = xyz;
-		    
+
 		    uint16_t  field_value = 0;
 		     if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
 		       field_value = round(resample2x2x2(field,field_shape,xyz));
@@ -869,7 +879,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 		       uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);
 		       field_value = field[i];
 		     }
-		     
+
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                     if(VALID_VOXEL(voxel) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
                         int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
@@ -891,16 +901,28 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
-    m.def("load_slice", &load_slice);
+
+    // Helper functions
+    m.def("masked_minmax", &masked_minmax);
+    m.def("float_minmax", &float_minmax);
+
+    // Binary file accessors
+    m.def("load_slice", &load_slice<field_type>);
+    m.def("load_slice", &load_slice<gauss_type>);
+    m.def("load_slice", &load_slice<voxel_type>);
     m.def("append_slice", &append_slice);
-    m.def("write_slice", &write_slice);
+    m.def("write_slice", &write_slice<field_type>);
+    m.def("write_slice", &write_slice<gauss_type>);
+    m.def("write_slice", &write_slice<voxel_type>);
+
+    // Histogramming functions
     m.def("axis_histogram_seq_cpu",  &axis_histogram_seq_cpu);
     m.def("axis_histogram_par_cpu",  &axis_histogram_par_cpu);
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);
     m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
     m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
-    m.def("masked_minmax", &masked_minmax);
-    m.def("float_minmax", &float_minmax);
+
+    // Gauss functions for diffusion approximation
     m.def("gauss_filter_par_cpu", &gauss_filter_par_cpu);
 }
