@@ -62,12 +62,12 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
         tmp0[i] = mask[i] ? 1 : 0;
     }
 
-    const uint64_t iters = 3 * reps; // 1 pass for each dimension
+    const int n_iterations = 3 * reps; // 1 pass for each dimension
     const int64_t  strides[3] = {Py*Px,Px,1};
     const int64_t  N[3]       = {Pz,Py,Px};
 
-    for (uint64_t rep = 0; rep < iters; rep++) {
-      printf("Gauss iteration %ld/%ld\n",rep,iters);
+    for (int rep=0;rep<n_iterations;rep++){
+      printf("Gauss iteration %d/%d\n",rep,n_iterations);
         gauss_type *tin, *tout;
         if (rep % 2 == 1) {
             tin  = tmp1;
@@ -107,7 +107,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
         }
     }
 
-    memcpy(result, iters % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
+    memcpy(result, n_iterations % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
     free(tmp0);
     free(tmp1);
 }
@@ -448,9 +448,9 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
 
     uint64_t block_size = 1 * GB_VOXEL;
 
-    uint64_t iters = image_length / block_size;
-    if (iters * block_size < image_length)
-        iters++;
+    uint64_t n_iterations = image_length / block_size;
+    if (n_iterations * block_size < image_length)
+        n_iterations++;
 
     uint64_t initial_block = min(image_length, block_size);
 
@@ -460,7 +460,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
         printf("Starting calculation\n");
         printf("Size of voxels is %ld bytes (%.02f Mbytes)\n", image_length * sizeof(voxel_type), (image_length * sizeof(voxel_type))/1024./1024.);
         printf("Blocksize is %ld bytes (%.02f Mbytes)\n", block_size * sizeof(voxel_type), (block_size * sizeof(voxel_type))/1024./1024.);
-        printf("Doing %d blocks\n", iters);
+        printf("Doing %d blocks\n", n_iterations);
         fflush(stdout);
     }
 
@@ -470,7 +470,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
     #pragma acc data copy(x_bins[:Nx*voxel_bins], y_bins[:Ny*voxel_bins], z_bins[:Nz*voxel_bins], r_bins[:Nr*voxel_bins])
     {
         // For each block
-        for (uint64_t i = 0; i < iters; i++) {
+        for (uint64_t i = 0; i < n_iterations; i++) {
             // Compute the block indices
             uint64_t this_block_start = i*block_size;
             uint64_t this_block_end = min(image_length, this_block_start + block_size);
