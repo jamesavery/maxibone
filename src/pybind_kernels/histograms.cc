@@ -22,6 +22,12 @@ typedef float gauss_type;
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
+template <typename T>
+void load_binary(T *data, string filename, uint64_t offset, uint64_t num_elements);
+
+template <typename T>
+void write_binary(const T *data, string filename, uint64_t offset, uint64_t num_elements);
+
 void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
                           const py::array_t<gauss_type> np_kernel,
@@ -36,8 +42,6 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
     const gauss_type *kernel = static_cast<const gauss_type*>(kernel_info.ptr);
 
     gauss_type *result = static_cast<gauss_type*>(result_info.ptr);
-
-    auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
 
     int64_t
         kernel_size = kernel_info.size,
@@ -116,32 +120,32 @@ struct {
     int64_t dim;
     int64_t N[3];
     int64_t padding;
-    int64_t offset_z;
-    int64_t block_size;
+    int64_t range[2];
     int64_t strides[3];
     gauss_type *kernel;
 } typedef gauss_command;
 
-void gauss_compute(mask_type *voxels, gauss_type *input, gauss_type *output, gauss_command *cmd) {
+void gauss_compute_cpu(mask_type *voxels, gauss_type *input, gauss_type *output, gauss_command *cmd) {
     int64_t dim = cmd->dim;
     int64_t *N = cmd->N;
     int64_t padding = cmd->padding;
-    int64_t offset_z = cmd->offset_z;
-    int64_t block_size = cmd->block_size;
     int64_t *strides = cmd->strides;
+    int64_t *range = cmd->range;
     gauss_type *kernel = cmd->kernel;
 
-    int64_t z_start = offset_z * block_size;
-    int64_t z_end = min(N[0], z_start + block_size);
+    int64_t z_start = range[0];
+    int64_t z_end = range[1];
+    int64_t z_global = range[2];
 
-    printf("%ld %ld\n", z_start, z_end);
-
+    #pragma omp parallel for collapse(3)
     for (int64_t z = z_start; z < z_end; z++) {
         for (int64_t y = 0; y < N[1]; y++) {
             for (int64_t x = 0; x < N[2]; x++) {
-                int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
-                int64_t input_index = (z+padding)*strides[0] + y*strides[1] + x*strides[2];
-                auto mask_value = voxels[output_index];
+                int64_t global_index = (z-padding+z_global)*strides[0] + y*strides[1] + x*strides[2];
+                int64_t input_index = z*strides[0] + y*strides[1] + x*strides[2];
+                int64_t output_index = (z-padding)*strides[0] + y*strides[1] + x*strides[2];
+                auto mask_value = voxels[global_index];
+
                 if (dim % 3 == 2 && mask_value) {
                     output[output_index] = 1;
                 } else {
@@ -173,11 +177,11 @@ void gauss_write(gauss_type *src, string filename, uint64_t offset, uint64_t siz
     file.close();
 }
 
-// Expects block_size > padding
+// TODO Expects block_size > padding
 void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
                                   const py::array_t<gauss_type> np_kernel,
-                                  const uint64_t reps,
-                                  const uint64_t block_size,
+                                  const int64_t reps,
+                                  const int64_t block_size,
                                   const string filename) {
     auto voxels_info = np_voxels.request(),
         kernel_info = np_kernel.request();
@@ -196,17 +200,17 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     const string tmp_file = tmpnam(nullptr);
 
     gauss_type
-        *tmp0 = (gauss_type*) calloc((block_size+(2*padding))*Ny*Nx, sizeof(gauss_type)),
-        *tmp1 = (gauss_type*) calloc(block_size*Ny*Nx, sizeof(gauss_type));
+        *tmp0 = (gauss_type*) malloc((block_size+(2*padding))*Ny*Nx * sizeof(gauss_type)), // input
+        *tmp1 = (gauss_type*) malloc(block_size*Ny*Nx * sizeof(gauss_type)); // output
 
     // Fill tmp file
-    for (uint64_t b = 0; b < blocks; b++) {
-        uint64_t z_offset = b*block_size;
-        uint64_t z_end = min(block_size, Nz-z_offset);
+    for (int64_t b = 0; b < blocks; b++) {
+        int64_t z_offset = b*block_size;
+        int64_t z_end = min(block_size, Nz-z_offset);
         #pragma omp parallel for
-        for (uint64_t z = 0; z < z_end; z++) {
-            for (uint64_t y = 0; y < Ny; y++) {
-                for (uint64_t x = 0; x < Nx; x++) {
+        for (int64_t z = 0; z < z_end; z++) {
+            for (int64_t y = 0; y < Ny; y++) {
+                for (int64_t x = 0; x < Nx; x++) {
                     tmp0[z*Ny*Nx + y*Nx + x] = voxels[(z_offset+z)*Ny*Nx + y*Nx + x];
                 }
             }
@@ -220,7 +224,6 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     cmd->N[1] = Ny;
     cmd->N[2] = Nx;
     cmd->padding = padding;
-    cmd->block_size = block_size;
     cmd->strides[0] = Ny*Nx;
     cmd->strides[1] = Nx;
     cmd->strides[2] = 1;
@@ -229,35 +232,40 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     for (int64_t rep = 0; rep < iters; rep++) {
         cmd->dim = rep;
         for (int64_t b = 0; b < blocks; b++) {
-            int64_t data_start = (b*block_size) * Ny * Nx;
-            int64_t data_size = min(block_size+padding, Nz - b*block_size) * Ny * Nx;
-            int64_t inner_start = (b*block_size) * Ny * Nx;
-            int64_t inner_size = min(((b+1)*block_size), Nz) * Ny * Nx;
-            cmd->offset_z = b*block_size;
+            int64_t z_start = b * block_size;
+            int64_t z_end = min(Nz, (b+1) * block_size);
+
+            int64_t g_start = max((int64_t)0, z_start - padding);
+            //int64_t g_end = min(Nz, z_end + padding);
+            int64_t l_start = padding + g_start - z_start;
+            //int64_t l_end = g_end - g_start + l_start;
+            
+            int64_t num_layers = (z_end - z_start);
+            int64_t num_elements = num_layers * Ny * Nx; 
+
+            cmd->range[0] = padding;
+            cmd->range[1] = padding + num_layers;
+
             //gauss_read(tmp0+(padding*Ny*Nx), tmp_file, data_start, data_size);
-            load_binary<gauss_type>(tmp0+(padding*Ny*Nx), tmp_file, data_start, data_size);
-            gauss_compute(voxels, tmp0, tmp1, cmd);
+            load_binary<gauss_type>(tmp0+(l_start*Ny*Nx), tmp_file, g_start*Ny*Nx, num_elements);
+            gauss_compute_cpu(voxels, tmp0, tmp1, cmd);
             //gauss_write(tmp1, tmp_file, inner_start, inner_size);
-            write_binary<gauss_type>(tmp1, tmp_file, inner_start, inner_size);
-            memcpy(tmp0, tmp0 + (block_size*Ny*Nx), padding*Ny*Nx);
+            write_binary<gauss_type>(tmp1, tmp_file, z_start, num_elements);
         }
     }
 
-    ofstream file;
-    file.open(filename.c_str(), ios::binary);
-    voxel_type *res = (voxel_type*) malloc(block_size*Ny*Nx*sizeof(voxel_type));
     // Store the result in the proper output file
-    for (uint64_t b = 0; b < blocks; b++) {
-        uint64_t data_size = min(block_size, Nz - (b*block_size)) * Ny*Nx;
+    voxel_type *res = (voxel_type*) malloc(block_size*Ny*Nx*sizeof(voxel_type));
+    for (int64_t b = 0; b < blocks; b++) {
+        int64_t data_size = min(block_size, Nz - (b*block_size)) * Ny*Nx;
         //gauss_read(tmp0, tmp_file, b*block_size*Ny*Nx, data_size);
         load_binary<gauss_type>(tmp0, tmp_file, b*block_size*Ny*Nx, data_size);
         #pragma omp parallel for
-        for (uint64_t i = 0; i < data_size; i++) {
+        for (int64_t i = 0; i < data_size; i++) {
             res[i] = (voxel_type) (tmp0[i] * 65535);
         }
-        file.write((char *) res, data_size * sizeof(voxel_type));
+        write_binary<voxel_type>(res, filename, b * block_size, data_size);
     }
-    file.close();
 
     // Cleanup
     remove(tmp_file.c_str());
@@ -308,7 +316,7 @@ template <typename T>
 void load_binary(T *data, string filename, uint64_t offset, uint64_t num_elements) {
     ifstream file;
     file.open(filename.c_str(), ios::binary);
-    file.seekg(offset, ios::beg);
+    file.seekg(offset * sizeof(T), ios::beg);
     file.read((char*) data, num_elements * sizeof(T));
     file.close();
 }
@@ -322,7 +330,7 @@ void load_slice(py::array_t<T> &np_data, string filename,
     T *data = static_cast<T*>(data_info.ptr);
     auto [Nz, Ny, Nx] = shape;
     auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(T);
+    uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
     load_binary<T>(data, filename, flat_offset, data_info.size);
 }
 
