@@ -111,7 +111,6 @@ def load_block(sample, offset, block_size, y_cutoff, field_names):
     pbar.update(); pbar.refresh();
 
     dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')        
     Nz, Ny, Nx = dm['voxels'].shape
     Nz -= np.sum(dm["volume_matching_shifts"][:])
     Ny -= y_cutoff              # TODO: Specify block range to extract instead
@@ -134,7 +133,6 @@ def load_block(sample, offset, block_size, y_cutoff, field_names):
     pbar.update(); pbar.refresh();
     pbar.close()
     dm.close()
-    dl.close()
 
     return voxels, fields
 
@@ -142,7 +140,6 @@ def load_block(sample, offset, block_size, y_cutoff, field_names):
 # If block_size is less than 0, then the whole thing is loaded and processed.
 def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4096, y_cutoff=0, implant_threshold=32000, field_names=["gauss","edt","gauss+edt"]):
     dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
 
     Nz, Ny, Nx = dm['voxels'].shape
     Nz -= np.sum(dm["volume_matching_shifts"][:])
@@ -166,7 +163,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4
     f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
 
     dm.close()
-    dl.close()
+
 
     for b in tqdm(range(n_blocks), desc='Computing histograms'):
         zstart = z_offset + b*block_size
