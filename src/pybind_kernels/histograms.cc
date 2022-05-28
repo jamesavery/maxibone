@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+#include <tqdm.h>
 using namespace std;
 namespace py = pybind11;
 
@@ -21,6 +22,45 @@ typedef float gauss_type;
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
+
+
+template <typename T> void convolve1d(const py::array_t<T> np_kernel,
+		const py::array_t<T> np_from,
+		py::array_t<T> &np_to,
+		int axis)
+{
+  auto
+    kernel_info = np_kernel.request(),
+    from_info   = np_from.request(),
+    to_info     = np_kernel.request();
+
+  const T *kernel = static_cast<const T*>(kernel_info.ptr);
+  const T *from   = static_cast<const T*>(from_info.ptr);
+  T       *to     = static_cast<T*>       (to_info.ptr);
+
+  
+  int64_t
+    kernel_size = kernel_info.size,
+    padding = kernel_size / 2, // kx should always be odd
+    // Partial shape
+    Nz = from_info.shape[0],
+    Ny = from_info.shape[1],
+    Nx = from_info.shape[2];
+
+  assert(Nz == to_info.shape[0] && Ny == to_info.shape[1] && Nx == to_info.shape[2]);
+
+  constexpr size_t n_cache = 65536 / sizeof(T); // Get from OS?
+  constexpr size_t n_parallel = n_cache / kernel_size;
+
+  T rolling_buffer[n_cache];
+  // i_center = (z_start + padding) % kernel_size
+  // update: 1) Load new line into column z_start of rolling_buffer; 2) z_start = (z_start+1) % kernel_size
+  // convolve: for(thread = 0; thread < n_parallel; thread++){
+  //              T sum = 0;
+  //              for(i = 0, z=z_start; i<kernel_size; i++, z = (z+1)%kernel_size) sum += rolling_buffer[thread*kernel_size + z]*kernel[z];
+  
+}
+		
 
 void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
@@ -66,8 +106,11 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
     const int64_t  strides[3] = {Py*Px,Px,1};
     const int64_t  N[3]       = {Pz,Py,Px};
 
+    tqdm progress_bar;
+    progress_bar.set_label("Gauss iteration");
     for (int rep=0;rep<n_iterations;rep++){
-      printf("Gauss iteration %d/%d\n",rep,n_iterations);
+      //      printf("Gauss iteration %d/%d\n",rep,n_iterations);
+        progress_bar.progress(rep,n_iterations);
         gauss_type *tin, *tout;
         if (rep % 2 == 1) {
             tin  = tmp1;
@@ -78,7 +121,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
         }
         int64_t dim = rep % 3;
 
-        #pragma omp parallel for
+#pragma omp parallel for
         for (int64_t z = 0; z < Pz; z++) {
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
@@ -439,9 +482,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
 
     auto [z_start, y_start, x_start] = offset;
     uint64_t
-        z_end   = min(z_start+outside_block_size, Nz),
-        y_end   = Ny,
-        x_end   = Nx;
+      z_end   = min(z_start+outside_block_size, Nz);
 
     auto [vmin, vmax] = vrange;
     auto [cy, cx] = center;
@@ -567,9 +608,10 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     auto [vmin, vmax] = vrange;
     auto [z_start, y_start, x_start] = offset;
     uint64_t
-        z_end   = min(z_start+block_size, Nz),
+      z_end   = min(z_start+block_size, Nz),
         y_end   = Ny,
         x_end   = Nx;
+      
 
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
 
