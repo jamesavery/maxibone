@@ -157,7 +157,7 @@ void gauss_compute_cpu(mask_type *voxels, gauss_type *input, gauss_type *output,
                         outp[local_index] = 1;
                     } else {
                         int64_t
-                            X[3] = {z+z_global, y, x},
+                            X[3] = {z-padding+z_global, y, x},
                             stride = strides[dim],
                             i_start = -min(padding, X[dim]),
                             i_end = min(padding, N[dim]-X[dim]-1);
