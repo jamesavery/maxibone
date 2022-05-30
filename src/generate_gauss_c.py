@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     print(f"Loading implant mask from {binary_root}/masks/implant/{scale}x/{sample}.npz")
     with np.load(f"{binary_root}/masks/implant/{scale}x/{sample}.npz") as f:
-        implant_mask = f['implant_mask'][:]
+    print(f"Implant mask shape is {implant_mask.shape}")
 
     nz,ny,nx = implant_mask.shape
 
@@ -52,9 +52,11 @@ if __name__ == '__main__':
 
     print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={radius} coefficients)")
     #histograms.gauss_filter_par_cpu(implant_mask, implant_mask.shape, kernel, reps, result)
-    histograms.gauss_filter_par_cpu_blocked(implant_mask, kernel, reps, 16, f'{output_dir}/aoeu.bin')
+    # Block size of 90 is around 1 GB
+    histograms.gauss_filter_par_cpu_blocked(implant_mask, kernel, reps, 90, f'{output_dir}/aoeu.bin')
     if verify:
-        print (f'Parallel C edition took {timeit.default_timer() - start} seconds')
+        parallel_time = timeit.default_timer() - start
+        print (f'Parallel C edition took {parallel_time} seconds')
     histograms.load_slice(result, f'{output_dir}/aoeu.bin', (0,0,0), result.shape)
 
     xs = np.linspace(-1,1,nx)
@@ -81,7 +83,9 @@ if __name__ == '__main__':
             control[implant_mask] = 1
         control *= 65535
         control = control.astype(np.uint16)
-        print (f'ndimage edition took {timeit.default_timer() - start} seconds')
+        ndimage_time = timeit.default_timer() - start
+        print (f'ndimage edition took {ndimage_time} seconds')
+        print (f'Speedup is {ndimage_time / parallel_time:02f}')
         np.save(f'{output_dir}/{sample}_ndimage.npy',control)
         if debug:
             Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
