@@ -246,7 +246,7 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
             int64_t g_start = max((int64_t)0, z_start - padding);
             int64_t g_end = min(Nz, z_end + padding);
             int64_t l_start = padding + g_start - z_start;
-            int64_t l_end = g_end - g_start + l_start;
+            //int64_t l_end = g_end - g_start + l_start;
 
             int64_t num_layers = (z_end - z_start);
             int64_t num_elements = num_layers * Ny * Nx;
