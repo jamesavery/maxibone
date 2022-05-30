@@ -196,7 +196,8 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     mask_type *voxels = static_cast<mask_type*>(voxels_info.ptr);
     gauss_type *kernel = static_cast<gauss_type*>(kernel_info.ptr);
 
-    const string tmp_file = tmpnam(nullptr);
+    const string tmp_file0 = tmpnam(nullptr);
+    const string tmp_file1 = tmpnam(nullptr);
 
     gauss_type
         *tmp0 = (gauss_type*) malloc((block_size+(2*padding))*Ny*Nx * sizeof(gauss_type)), // input
@@ -214,8 +215,7 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
                 }
             }
         }
-        //gauss_write(tmp0, tmp_file, z_offset*Nx*Ny, z_end);
-        write_binary<gauss_type>(tmp0, tmp_file, z_offset*Ny*Nx, z_end * Ny*Nx);
+        write_binary<gauss_type>(tmp0, tmp_file0, z_offset*Ny*Nx, z_end * Ny*Nx);
     }
 
     // Compute the result
@@ -229,7 +229,16 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     cmd->strides[2] = 1;
     cmd->kernel = kernel;
 
+    string tmp_file_in, tmp_file_out;
+
     for (int64_t rep = 0; rep < reps; rep++) {
+        if (rep % 2 == 0) {
+            tmp_file_in = tmp_file0;
+            tmp_file_out = tmp_file1;
+        } else {
+            tmp_file_in = tmp_file1;
+            tmp_file_out = tmp_file0;
+        }
         for (int64_t b = 0; b < blocks; b++) {
             int64_t z_start = b * block_size;
             int64_t z_end = min(Nz, (b+1) * block_size);
@@ -242,27 +251,25 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
             int64_t num_layers = (z_end - z_start);
             int64_t num_elements = num_layers * Ny * Nx;
 
-            cmd->range[0] = l_start;
-            cmd->range[1] = l_end;
+            cmd->range[0] = padding;
+            cmd->range[1] = padding + num_layers;
             cmd->range[2] = z_start;
 
-            //gauss_read(tmp0+(padding*Ny*Nx), tmp_file, data_start, data_size);
-            std::cout << "local=" << l_start << ":" << l_end << " z=" << z_start << ":" << z_end << " global=" << g_start << ":" << g_end << " num_layers=" << num_layers << std::endl;
-            load_binary<gauss_type>(tmp0+(l_start*Ny*Nx), tmp_file, g_start*Ny*Nx, (g_end - g_start)*Ny*Nx);
-            for (int i = 0; i < l_start*Ny*Nx; i++) tmp0[i] = 0; // Zero potential initial space
-            for (int i = l_end*Ny*Nx; i < (2*padding + block_size)*Ny*Nx; i++) tmp0[i] = 0; // Zero potential leading space
+            // Debug printing
+            //std::cout << "local=" << l_start << ":" << l_end << " z=" << z_start << ":" << z_end << " global=" << g_start << ":" << g_end << " num_layers=" << num_layers << std::endl;
+            load_binary<gauss_type>(tmp0+(l_start*Ny*Nx), tmp_file_in, g_start*Ny*Nx, (g_end - g_start)*Ny*Nx);
             gauss_compute_cpu(voxels, tmp0, tmp1, cmd);
-            //gauss_write(tmp1, tmp_file, inner_start, inner_size);
-            write_binary<gauss_type>(tmp1+(padding*Ny*Nx), tmp_file, z_start*Ny*Nx, num_elements);
+            write_binary<gauss_type>(tmp1+(padding*Ny*Nx), tmp_file_out, z_start*Ny*Nx, num_elements);
         }
     }
+
+    string tmp_file = reps % 2 == 0 ? tmp_file0 : tmp_file1;
 
     // Store the result in the proper output file
     voxel_type *res = (voxel_type*) malloc(block_size*Ny*Nx*sizeof(voxel_type));
     for (int64_t b = 0; b < blocks; b++) {
         int64_t start = b*block_size*Ny*Nx;
         int64_t data_size = min(block_size, Nz - (b*block_size)) * Ny*Nx;
-        //gauss_read(tmp0, tmp_file, start, data_size);
         load_binary<gauss_type>(tmp0, tmp_file, start, data_size);
         #pragma omp parallel for
         for (int64_t i = 0; i < data_size; i++) {
@@ -272,7 +279,8 @@ void gauss_filter_par_cpu_blocked(const py::array_t<mask_type> np_voxels,
     }
 
     // Cleanup
-    remove(tmp_file.c_str());
+    remove(tmp_file0.c_str());
+    remove(tmp_file1.c_str());
     free(res);
     free(cmd);
     free(tmp0);
