@@ -224,7 +224,7 @@ if __name__ == '__main__':
     np.savez(f'{outpath}/bins{suffix}.npz',
              axis_bins =[xb, yb, zb, rb, fb],
              axis_names=["x","y","z","r"],
-             field_bins=field_bins,
+             field_bins=fb,
              field_names=field_names, suffix=suffix, y_cutoff=y_cutoff,
              sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks)
     
