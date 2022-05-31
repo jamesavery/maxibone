@@ -13,7 +13,7 @@ sample, scale, chunk_size = commandline_args({"sample":"<required>","scale":8, "
 # Load metadata. TODO: Clean up, make automatic function.
 meta_filename = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
 h5meta     = h5py.File(meta_filename,'r')
-vm_shifts  = h5meta['volume_matching_shifts']
+vm_shifts  = h5meta['volume_matching_shifts'][:]
 full_Nz, Ny, Nx = h5meta['voxels'].shape    # Full image resolution
 Nz         = full_Nz - np.sum(vm_shifts)    # Full volume matched image resolution
 nz,ny,nx   = np.array([Nz,Ny,Nx])//scale    # Volume matched image resolution at chosen scale
@@ -23,7 +23,15 @@ global_vmin = np.min(h5meta['subvolume_range'][:,0])
 global_vmax = np.max(h5meta['subvolume_range'][:,1])
 values      = np.linspace(global_vmin,global_vmax,2**16)
 implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
-print(f"Implant threshold {implant_threshold} -> {implant_threshold_u16} as uint16")
+
+print(f"Reading metadata from {meta_filename}.\n"+
+      f"volume_matching_shifts = {vm_shifts}\n"+
+      f"full_Nz,Ny,Nx = {full_Nz,Ny,Nx}\n"+
+      f"Nz            = {Nz}\n"+
+      f"nz,ny,nx      = {nz,ny,nx}\n"+
+      f"voxelsize     = {voxelsize}\n"+
+      f"vmin,vmax     = {global_vmin,global_vmax}\n"+
+      f"Implant threshold {implant_threshold} -> {implant_threshold_u16} as uint16")
 h5meta.close()
 
 output_dir = f"{binary_root}/masks/implant/{scale}x"
