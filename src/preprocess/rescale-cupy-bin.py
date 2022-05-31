@@ -57,8 +57,13 @@ if __name__ == "__main__":
         # voxels1x_np = np.empty((zend-z,Ny,Nx),dtype=T);
         # load_slice(voxels1x_np,input_bin,(z,0,0),voxels1x_np.shape)
         # voxels1x_chunk = cp.array(voxels1x_np)
-        # NB: count is in items, offset is in bytes! Jesus Christ.                   
-        voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx) 
+        # NB: count is in items, offset is in bytes! Jesus Christ.
+        try:
+            voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx)
+        except:
+            print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
+            sys.exit(-1)
+            
 #        print(f"Used GPU memory: {mempool.used_bytes()//1000000}MB out of {mempool.total_bytes()/1000000}MB. {pinned_mempool.n_free_blocks()} free pinned blocks.")
         voxels2x_chunk = downsample2x(voxels1x_chunk)
         del voxels1x_chunk

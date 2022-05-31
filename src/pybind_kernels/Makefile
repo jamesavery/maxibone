@@ -1,18 +1,18 @@
-
-PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -O3 -march=native -mtune=native -Wall -shared -fPIC -fopenmp -g -std=c++17
+PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -O3 -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17
 PYBIND_SUFFIX = $(shell python3-config --extension-suffix)
 
 OPENCV_INCLUDE=$(shell pkg-config opencv4 --cflags)
 OPENCV_LIB=$(shell pkg-config opencv4 --libs)
 
-
 # Detect if OpenACC can be used
 ifneq (, $(shell which nvc++))
-	CXX = nvc++
-	CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
+CXX = nvc++
+CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
 else
-	$(info OpenACC compiler nvc++ not found. Compiling without)
+$(info OpenACC compiler nvc++ not found. Compiling without)
 endif
+
+CXXFLAGS += -I../contrib/cpptqdm/
 
 all: histograms$(PYBIND_SUFFIX) geometry$(PYBIND_SUFFIX) label$(PYBIND_SUFFIX)
 
