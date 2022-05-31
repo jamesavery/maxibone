@@ -221,15 +221,13 @@ def save_config():
         json.dump(config, f)
 
 def scatter_peaks(hist, config):
-    peaks_x = []
-    peaks_y = []
-    for i in range(len(hist)):
-        _, peaks = process_line(hist[i,:], config)
-        line_y = [i for _ in peaks]
-        peaks_x += list(peaks)
-        peaks_y += line_y
-
-    return peaks_x, peaks_y
+    meaned = gaussian_filter1d(hist, config['line smooth'], axis=1)
+    maxs = meaned.max(axis=1)*.01*config['min peak height']
+    fp = lambda x,y: signal.find_peaks(x, y)[0]
+    peaks_x = [fp(row, maxval) for row, maxval in zip(meaned, maxs)]
+    peaks_y = [[i]*len(peaks) for i, peaks in enumerate(peaks_x)]
+    flatten = lambda x: [elem for li in x for elem in li]
+    return flatten(peaks_x), flatten(peaks_y)
 
 def gui():
     global last, args
