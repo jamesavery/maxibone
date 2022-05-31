@@ -85,11 +85,20 @@ class _range:
     y = inner_range()
 
     def update(self):
+        changed = False
+        tmp = self.x.start
         self.x.start = cv2.getTrackbarPos('range start x', 'Histogram lines')
+        changed |= tmp == self.x.start
+        tmp = self.x.stop
         self.x.stop  = cv2.getTrackbarPos('range stop x', 'Histogram lines')
+        changed |= tmp == self.x.stop
+        tmp = self.y.start
         self.y.start = cv2.getTrackbarPos('range start y', 'Histogram lines')
+        changed |= tmp == self.y.start
+        tmp = self.y.stop
         self.y.stop  = cv2.getTrackbarPos('range stop y', 'Histogram lines')
-        return self
+        changed |= tmp == self.y.stop
+        return changed, self
 
     def __init__(self, range_x_start=0, range_x_stop=0, range_y_start=0, range_y_stop=0):
         self.x.start = range_x_start
@@ -125,9 +134,9 @@ def plot_line(line, rng: _range):
 
     meaned, peaks = process_line(line[rng.x.start:rng.x.stop], config)
     fig, ax = plt.subplots()
-    ax.plot(line[rng.x.start:rng.x.stop])
-    ax.plot(meaned)
-    ax.scatter(peaks, meaned[peaks], c='red')
+    ax.plot(line[rng.x.start:rng.x.stop], zorder=0)
+    ax.plot(meaned, zorder=1)
+    ax.scatter(peaks, meaned[peaks], c='red', zorder=2)
     line_plot = mplfig_to_npimage(fig)
     line_plot = cv2.cvtColor(line_plot, cv2.COLOR_RGB2BGR)
     plt.close()
@@ -223,7 +232,7 @@ def scatter_peaks(hist, config):
     return peaks_x, peaks_y
 
 def gui():
-    global last_bin, args
+    global last, args
     def update_image(_):
         hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
         cv2.setTrackbarMax('range start x', 'Histogram lines', hist_shape[1]-1)
@@ -241,7 +250,7 @@ def gui():
 
         sizex = cv2.getTrackbarPos('size x', 'Histogram lines')
         sizey = cv2.getTrackbarPos('size y', 'Histogram lines')
-        rng = _range().update()
+        range_updated, rng = _range().update()
         rwidth = rng.x.stop - rng.x.start
         rheight = rng.y.stop - rng.y.start
         pwidth = sizex // 3
@@ -270,7 +279,7 @@ def gui():
                     cv2.setTrackbarPos('range start y', 'Histogram lines', my)
                     cv2.setTrackbarPos('range stop y', 'Histogram lines', gy)
                     print ('Set bounds', mx, my, gy, gy)
-                    #update(42)
+                    update(force=True)
             elif (event == cv2.EVENT_MBUTTONDOWN):
                 print ('reset bounding box')
                 hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
@@ -281,8 +290,8 @@ def gui():
                 #update(42)
 
     # TODO Only do recomputation, whenever parameters that have an effect are changed.
-    def update(_): # Note: all colors are in BGR format, as this is what OpenCV uses
-        global last_bin, config, scale_x, scale_y
+    def update(force=False): # Note: all colors are in BGR format, as this is what OpenCV uses
+        global last, config, scale_x, scale_y
 
         times = []
         if not update_config():
@@ -290,10 +299,12 @@ def gui():
         times.append(('init',time.time()))
 
         # Check if trackbar ranges should be updated
+        modified = force or False
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
         hist = f[keys[bin]]
-        if bin != last_bin:
-            last_bin = bin
+        if bin != last['bin']:
+            modified = True
+            last['bin'] = bin
             # Set trackbar max values
             cv2.setTrackbarMax('range start x', 'Histogram lines', hist.shape[1]-1)
             cv2.setTrackbarMax('range stop x', 'Histogram lines', hist.shape[1]-1)
@@ -309,55 +320,101 @@ def gui():
             cv2.setTrackbarPos('line', 'Histogram lines', 0)
 
         # Show the original image, along with the line
-        rng = _range().update()
+        updated_rng, rng = _range().update()
         selected_line = cv2.getTrackbarPos('line', 'Histogram lines')
+        modified |= updated_rng
 
         times.append(('trackbar parsing',time.time()))
 
         partial_width = cv2.getTrackbarPos('size x', 'Histogram lines') // 3
         partial_height = cv2.getTrackbarPos('size y', 'Histogram lines') // 2
-        partial_size = (partial_width, partial_height)
-        scale_x = partial_width / hist.shape[1]
-        scale_y = partial_height / hist.shape[0]
+        if partial_width != last['partial_width'] or partial_height != last['partial_height'] or selected_line != last['selected_line'] or modified:
+            last['partial_width'] = partial_width
+            last['partial_height'] = partial_height
+            last['selected_line'] = selected_line
+            modified = True
+            partial_size = (partial_width, partial_height)
+            scale_x = partial_width / hist.shape[1]
+            scale_y = partial_height / hist.shape[0]
 
-        colored = process_with_box(hist, rng, selected_line, scale_x, scale_y, partial_size)
+            colored = process_with_box(hist, rng, selected_line, scale_x, scale_y, partial_size)
+            last['colored'] = colored
+        else:
+            colored = last['colored']
+            partial_size = (last['partial_width'], last['partial_height'])
 
         times.append(('processed with box',time.time()))
 
         # Show the plot of a single line
-        line_plot = plot_line(hist[selected_line, :], rng)
-        lp_resized = cv2.resize(line_plot, partial_size)
+        line_params = ['line smooth', 'min peak height']
+        line_changed = [last[param] != config[param] for param in line_params]
+        if any(line_changed) or modified:
+            #modified = True # TODO this should not affect the later ones...? It should actually. 
+            line_plot = plot_line(hist[selected_line, :], rng)
+            lp_resized = cv2.resize(line_plot, partial_size)
+            last['lp_resized'] = lp_resized
+            for param in line_params:
+                last[param] = config[param]
+        else:
+            lp_resized = last['lp_resized']
 
         times.append(('plot line',time.time()))
 
-        scatter_plot, py, px = process_scatter_peaks(hist, rng, peaks=args.peaks)
-        sp_resized = cv2.resize(scatter_plot, partial_size)
+        if modified:
+            modified = True
+            scatter_plot, py, px = process_scatter_peaks(hist, rng, peaks=args.peaks)
+            sp_resized = cv2.resize(scatter_plot, partial_size)
+            last['sp_resized'] = sp_resized
+            last['px'] = px
+            last['py'] = py
+        else:
+            sp_resized = last['sp_resized']
+            px = last['px']
+            py = last['py']
 
         times.append(('scatter peaks',time.time()))
 
         first_row = np.concatenate((colored, lp_resized, sp_resized), axis=1)
 
-        local_scale_y = partial_height / (rng.y.stop - rng.y.start)
-        mask = np.zeros((rng.y.stop-rng.y.start,rng.x.stop-rng.x.start), dtype=np.uint8)
-        mask[py, px] = 255
+        close_params = ['close kernel x', 'close kernel y', 'iter erode', 'iter dilate']
+        changed = [config[entry] != last[entry] for entry in close_params]
 
-        dilated, eroded = process_closing(mask, config)
-        display_eroded = cv2.resize(eroded, partial_size)
-        display_eroded = cv2.cvtColor(display_eroded, cv2.COLOR_GRAY2BGR)
-        if selected_line > rng.y.start and selected_line < rng.y.stop:
-            display_eroded[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
+        local_scale_y = partial_height / (rng.y.stop - rng.y.start)
+        if any(changed) or modified:
+            for param in close_params:
+                last[param] = config[param]
+            modified = True
+            mask = np.zeros((rng.y.stop-rng.y.start,rng.x.stop-rng.x.start), dtype=np.uint8)
+            mask[py, px] = 255
+
+            dilated, eroded = process_closing(mask, config)
+            display_eroded = cv2.resize(eroded, partial_size)
+            display_eroded = cv2.cvtColor(display_eroded, cv2.COLOR_GRAY2BGR)
+            if selected_line > rng.y.start and selected_line < rng.y.stop:
+                display_eroded[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
+            last['eroded'] = eroded
+            last['display_eroded'] = display_eroded
+        else:
+            eroded = last['eroded']
+            display_eroded = last['display_eroded']
 
         times.append(('closing',time.time()))
 
         # Find lines
-        labeled, labels = process_contours(eroded, rng, config)
-        label_colours = [(0,0,0)] + [(np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)) for _ in labels]
-        labeled_colour = np.zeros((labeled.shape[0], labeled.shape[1], 3), dtype=np.uint8)
-        for l in labels:
-            labeled_colour[labeled == l] = label_colours[l]
-        display_contours = cv2.resize(labeled_colour, partial_size)
-        if selected_line > rng.y.start and selected_line < rng.y.stop:
-            display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
+        if config['min contour size'] != last['min contour size'] or modified:
+            last['min contour size'] = config['min contour size']
+            modified = True
+            labeled, labels = process_contours(eroded, rng, config)
+            label_colours = [(0,0,0)] + [(np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255)) for _ in labels]
+            labeled_colour = np.zeros((labeled.shape[0], labeled.shape[1], 3), dtype=np.uint8)
+            for l in labels:
+                labeled_colour[labeled == l] = label_colours[l]
+            display_contours = cv2.resize(labeled_colour, partial_size)
+            if selected_line > rng.y.start and selected_line < rng.y.stop:
+                display_contours[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
+            last['display_contours'] = display_contours
+        else:
+            display_contours = last['display_contours']
 
         times.append(('find lines',time.time()))
 
@@ -371,7 +428,7 @@ def gui():
 
         times.append(('find joints',time.time()))
 
-        second_row = np.concatenate((display_eroded, display_contours, display_contours), axis=1)
+        second_row = np.concatenate((display_eroded, display_contours, np.zeros_like(display_contours)), axis=1)
 
         cv2.imshow('Histogram lines', np.concatenate((first_row, second_row)))
 
@@ -394,14 +451,39 @@ def gui():
     keys = [key for key in f.keys()]
     print ('keys', keys)
     first_hist = f[keys[0]]
-    last_bin = 0
+    last = {
+        # Trackbars
+        'bin': None,
+        'partial_width': None,
+        'partial_height': None,
+        'selected_line': None,
+        'close kernel x': None,
+        'close kernel y': None,
+        'iter dilate': None,
+        'iter erode': None,
+        'min contour size': None,
+        'line smooth': None, 
+        'min peak height': None,
+
+        # First row 
+        'px': None,
+        'py': None,
+        'colored': None,
+        'lp_resized': None,
+        'sp_resized': None,
+
+        # Second row
+        'eroded': None,
+        'display_eroded': None,
+        'display_contours': None
+    }
     cv2.namedWindow('Histogram lines')
     cv2.createTrackbar('range start x', 'Histogram lines', 0, first_hist.shape[1]-1, update)
     cv2.createTrackbar('range stop x', 'Histogram lines', first_hist.shape[1]-1, first_hist.shape[1]-1, update)
     cv2.createTrackbar('range start y', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('range stop y', 'Histogram lines', first_hist.shape[0]-1, first_hist.shape[0]-1, update)
-    cv2.createTrackbar('size x', 'Histogram lines', 1024, 1920, update)
-    cv2.createTrackbar('size y', 'Histogram lines', 512, 1080, update)
+    cv2.createTrackbar('size x', 'Histogram lines', 1920, 1920, update)
+    cv2.createTrackbar('size y', 'Histogram lines', 1080, 1080, update)
     cv2.createTrackbar('bins', 'Histogram lines', 0, len(keys)-1, update_image)
     cv2.createTrackbar('line', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('line smooth', 'Histogram lines', config['line smooth'], 50, update)
