@@ -45,7 +45,7 @@ if(sphere_diameter>1):
 implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
 
 
-# TODO multiply by scale to get 1x coordinates, or scale*voxel_size to get physical coordinates
+# TODO multiply by scale to get 1x coordinates, or voxel_size to get physical coordinates
 Nz,Ny,Nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
 IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
@@ -68,7 +68,7 @@ implant_uvws = implant_zyxs @ E                       # Implant points in u,v,w-
 w0  = implant_uvws[:,2].min();  # In {scale}x voxel units
 w0v = np.array([0,0,w0])        # w-shift to get to center of implant back-plane
 
-implant_UVWs = (implant_uvws - w0v)*scale*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
+implant_UVWs = (implant_uvws - w0v)*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
 implant_Us,implant_Vs,implant_Ws = implant_UVWs.T     # Implant point coordinates
 implant_thetas = np.arctan2(implant_Vs,implant_Ws)
 implant_rs     = np.sqrt(implant_Vs**2 + implant_Ws**2)
