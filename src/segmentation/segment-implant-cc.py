@@ -26,9 +26,6 @@ implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
 print(f"Implant threshold {implant_threshold} -> {implant_threshold_u16} as uint16")
 h5meta.close()
 
-output_dir = f"{hdf5_root}/masks/"
-pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-
 noisy_implant = np.empty((nz,ny,nx),dtype=bool)
 voxel_chunk   = np.empty((chunk_size,ny,nx),dtype=np.uint16)
 
@@ -47,9 +44,12 @@ bincnts           = np.bincount(label[label>0],minlength=n_features+1)
 largest_cc_ix     = np.argmax(bincnts)
 implant_mask=(label==largest_cc_ix)
 
+output_dir = f"{hdf5_root}/masks/{scale}x/"
+pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 print(f"Writing largest connected component to {output_dir}/{sample}.h5")
 
 update_hdf5(f"{output_dir}/{sample}.h5",
+            group="implant",
             datasets={'mask':mask},
             attributes={'scale':scale,'voxel_size':voxel_size,
                         'sample':sample, name="implant_mask"))

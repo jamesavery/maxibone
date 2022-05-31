@@ -28,11 +28,11 @@ NA = np.newaxis
 
 sample, scale = commandline_args({"sample":"<required>","scale":8})
 
-implant = np.load(f"{binary_root}/masks/implant/{scale}x/{sample}.npz")["implant_mask"]
-h5meta  = h5py.File(f"{hdf5_root}/hdf5-byte/msb/770c_pag.h5","a")
+implant_file = h5py.File(f"{binary_root}/masks/{scale}x/{sample}.h5",'r')
+implant    = implant_file["implant/mask"][:]
+voxel_size = implant_file["implant"].attr("voxel_size")
 
-voxel_size = 1.85               # TODO: get from h5meta
-
+voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
 sphere_diameter = 2*int(80/(voxel_size*scale)+0.5)+1
 if(sphere_diameter>1):
@@ -46,48 +46,68 @@ Nz,Ny,Nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
 IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
 ls,E  = la.eigh(IM)
-E[:,0] *= -1                    # TODO: Automatic
+
+# TODO: Automatic!!!
+if sample == "770c_pag":
+    E[:,0] *= -1
+if sample == "770_pag":
+    E[:,2] *= -1
+    
 ix = np.argsort(np.abs(ls));
 ls, E = ls[ix], E[:,ix]
 u_vec,v_vec,w_vec = E.T
 
 # Per-nonzero-point stuff
-implant_zyxs = np.array(np.nonzero(implant)).T - cm   # Implant points in z,y,x-coordinates (relative to upper-left-left corner, in raw voxel scale)
-implant_uvws = implant_zyxs @ E                       # Implant points in u,v,w-coordinates (relative to origin cm, in raw voxel scale)
+implant_zyxs = np.array(np.nonzero(implant)).T - cm   # Implant points in z,y,x-coordinates (relative to upper-left-left corner, in {scale}x voxel units)
+implant_uvws = implant_zyxs @ E                       # Implant points in u,v,w-coordinates (relative to origin cm, in {scale}x voxel units)
 
-w0         = np.array([0,0,implant_uvws[:,2].min()])  # w-shift to get to center of implant back-plane
+w0  = implant_uvws[:,2].min();  # In {scale}x voxel units
+w0v = np.array([0,0,w0])        # w-shift to get to center of implant back-plane
 
-# implant_UVWs = (implant_uvws - w0)*scale*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
-# implant_Us,implant_Vs,implant_Ws = implant_UVWs.T     # Implant point coordinates
-# implant_thetas = np.arctan2(implant_Vs,implant_Ws)
-# implant_rs     = np.sqrt(implant_Vs**2 + implant_Ws**2)
-# implant_radius = implant_rs.max()                      # Full radius of the implant
+implant_UVWs = (implant_uvws - w0v)*scale*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
+implant_Us,implant_Vs,implant_Ws = implant_UVWs.T     # Implant point coordinates
+implant_thetas = np.arctan2(implant_Vs,implant_Ws)
+implant_rs     = np.sqrt(implant_Vs**2 + implant_Ws**2)
+implant_radius = implant_rs.max()                      # Full radius of the implant
 
-# theta_integrals, theta_bins = np.histogram(implant_thetas[implant_rs>0.55*implant_radius],200)
+theta_integrals, theta_bins = np.histogram(implant_thetas[implant_rs>0.55*implant_radius],200)
 
-# theta_from, theta_to = -np.pi/2,np.pi/2 # TODO: Tag fra implant_thetas
-# theta_center   = theta_from + (theta_to-theta_from)/2  # Angle between cutoffs points forward, + pi points backwards
+theta_from, theta_to = -np.pi/2,np.pi/2 # TODO: Tag fra implant_thetas
+theta_center   = theta_from + (theta_to-theta_from)/2  # Angle between cutoffs points forward, + pi points backwards
 
-# front_facing_mask = (implant_thetas>theta_from)&(implant_thetas<theta_center)&(implant_rs>0.55*implant_rs.max())
-# U_integrals, U_bins = np.histogram(implant_Us[front_facing_mask],200)
-# V_integrals, V_bins = np.histogram(implant_Vs[front_facing_mask],200)
-# W_integrals, W_bins = np.histogram(implant_Ws[front_facing_mask],200)
-# Z_integrals, Z_bins = np.histogram(implant_zyxs[:,0],implant.shape[0])
+front_facing_mask = (implant_thetas>theta_from)&(implant_thetas<theta_center)&(implant_rs>0.55*implant_rs.max())
+U_integrals, U_bins = np.histogram(implant_Us[front_facing_mask],200)
+V_integrals, V_bins = np.histogram(implant_Vs[front_facing_mask],200)
+W_integrals, W_bins = np.histogram(implant_Ws[front_facing_mask],200)
+Z_integrals, Z_bins = np.histogram(implant_zyxs[:,0],implant.shape[0])
 
-# implant_shell = implant_UVWs[implant_rs>0.55*implant_radius]
+implant_shell = implant_UVWs[implant_rs>0.55*implant_radius]
 
-# # Voxel-image-shaped stuff
-# zyxs = coordinate_image(implant.shape)
-# uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
-# UVWs = (uvws - w0) * scale * voxel_size # Micrometer scale relative to almost-center-of-implant-before-sawing-in-half
-# Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # Physical image coordinates
-# thetas, rs = np.arctan2(Vs,Ws), np.sqrt(Vs**2+Ws**2)    
+# Voxel-image-shaped stuff
+zyxs = coordinate_image(implant.shape)
+uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
+UVWs = (uvws - w0v) * scale * voxel_size # Micrometer scale relative to almost-center-of-implant-before-sawing-in-half
+Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # Physical image coordinates
+thetas, rs = np.arctan2(Vs,Ws), np.sqrt(Vs**2+Ws**2)    
 
-# rmaxs = (rs*(implant==True)).reshape(Nz,-1).max(axis=1)[:,NA,NA]
+rmaxs = (rs*(implant==True)).reshape(Nz,-1).max(axis=1)[:,NA,NA]
 
-# implant_shell_image = implant*(rs >= 0.55*rmaxs)
+implant_shell_image = implant*(rs >= 0.55*rmaxs)
 
+back_part  = voxels*(Ws<0)
+front_part = voxels*(Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=theta_to)
 
+output_dir = f"{binary_root}/masks/cut_cylinder_air/{scale}x/"
+pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+print(f"Saving cut_cylinder_air_mask to {output_dir}/{sample}.npz")
+np.savez(f"{output_dir}/{sample}.npz",mask=back_part, name="cut_cylinder_air_mask",
+        sample=sample, scale=scale,voxel_size=voxel_size)
+
+output_dir = f"{binary_root}/masks/cut_cylinder_bone/{scale}x/"
+pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+print(f"Saving cut_cylinder_bone_mask to {output_dir}/{sample}.npz")
+np.savez(f"{output_dir}/{sample}.npz",mask=front_part, name="cut_cylinder_bone_mask", 
+        sample=sample, scale=scale,voxel_size=voxel_size)
 
 group = h5meta.require_group("implant_FoR")
 
@@ -99,9 +119,9 @@ h5cm.dims[0].label = 'xyz in micrometers';
 h5cm[:] = cm*scale*voxel_size
 
 
-h5w0 = group.require_dataset("backplane_center",shape=w0.shape, dtype=w0.dtype)
+h5w0 = group.require_dataset("backplane_center",shape=w0v.shape, dtype=w0v.dtype)
 h5w0.dims[0].label = 'UVW in micrometers';
-h5w0[:] =w0*scale*voxel_size
+h5w0[:] = w0v*scale*voxel_size
 
 
 
