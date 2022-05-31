@@ -254,21 +254,23 @@ def gui():
         update(42)
 
     def update_line(event, x, y, flags, param):
-        global mx, my, scale_x, scale_y, last_bin
+        global mx, my, scale_x, scale_y, disable_matplotlib
 
+        width_factor = 3
+        height_factor = 1 if disable_matplotlib else 2
         sizex = cv2.getTrackbarPos('size x', 'Histogram lines')
         sizey = cv2.getTrackbarPos('size y', 'Histogram lines')
         range_updated, rng = _range().update()
         rwidth = rng.x.stop - rng.x.start
         rheight = rng.y.stop - rng.y.start
-        pwidth = sizex // 3
-        pheight = sizey // 2
+        pwidth = sizex // width_factor
+        pheight = sizey // height_factor
         dead_zone = 100 # This is in global scale
-        if y > sizey // 2 or x < sizex // 3:
+        if y > sizey // height_factor or x < sizex // width_factor:
             lx = x % pwidth
             ly = y % pheight
-            gx = int(lx * (1./scale_x)) if y < sizey // 2 else int(rng.x.start + lx * (1./(pwidth / rwidth)))
-            gy = int(ly * (1./scale_y)) if y < sizey // 2 else int(rng.y.start + ly * (1./(pheight / rheight)))
+            gx = int(lx * (1./scale_x)) if y < sizey // height_factor else int(rng.x.start + lx * (1./(pwidth / rwidth)))
+            gy = int(ly * (1./scale_y)) if y < sizey // height_factor else int(rng.y.start + ly * (1./(pheight / rheight)))
             if (event == cv2.EVENT_LBUTTONDOWN):
                 print ('down', gx, gy)
                 mx = gx
@@ -299,7 +301,7 @@ def gui():
 
     # TODO Only do recomputation, whenever parameters that have an effect are changed.
     def update(force=False): # Note: all colors are in BGR format, as this is what OpenCV uses
-        global last, config, scale_x, scale_y
+        global last, config, scale_x, scale_y, disable_matplotlib
 
         times = []
         if not update_config():
@@ -335,7 +337,10 @@ def gui():
         times.append(('trackbar parsing',time.time()))
 
         partial_width = cv2.getTrackbarPos('size x', 'Histogram lines') // 3
-        partial_height = cv2.getTrackbarPos('size y', 'Histogram lines') // 2
+        if disable_matplotlib:
+            partial_height = cv2.getTrackbarPos('size y', 'Histogram lines')
+        else:
+            partial_height = cv2.getTrackbarPos('size y', 'Histogram lines') // 2
         if partial_width != last['partial_width'] or partial_height != last['partial_height'] or selected_line != last['selected_line'] or modified:
             last['partial_width'] = partial_width
             last['partial_height'] = partial_height
@@ -382,7 +387,8 @@ def gui():
 
         times.append(('scatter peaks',time.time()))
 
-        first_row = np.concatenate((colored, lp_resized, sp_resized), axis=1)
+        if not disable_matplotlib:
+            first_row = np.concatenate((colored, lp_resized, sp_resized), axis=1)
 
         close_params = ['close kernel x', 'close kernel y', 'iter erode', 'iter dilate']
         changed = [config[entry] != last[entry] for entry in close_params]
@@ -436,9 +442,12 @@ def gui():
 
         times.append(('find joints',time.time()))
 
-        second_row = np.concatenate((display_eroded, display_contours, np.zeros_like(display_contours)), axis=1)
+        if disable_matplotlib:
+            cv2.imshow('Histogram lines', np.concatenate((colored, display_eroded, display_contours), axis=1))
+        else:
+            second_row = np.concatenate((display_eroded, display_contours, np.zeros_like(display_contours)), axis=1)
+            cv2.imshow('Histogram lines', np.concatenate((first_row, second_row)))
 
-        cv2.imshow('Histogram lines', np.concatenate((first_row, second_row)))
 
         for i in range(1, len(times)):
             label, tim = times[i]
