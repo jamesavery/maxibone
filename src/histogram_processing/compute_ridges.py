@@ -11,6 +11,8 @@ import argparse
 import os
 import time
 
+from torch import dtype
+
 def batch():
     global args, config
 
@@ -119,6 +121,8 @@ def parse_args():
         help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars (unless the -b flag is provided). If it doesn\'t exist, the default values inside this script will be used. NOTE: there\'s an error in libxkbcommon.so, which crashes OpenCV whenever any other key than escape is used. So to save it, close the GUI with the escape button.')
     parser.add_argument('-d', '--dry_run', action='store_true',
         help='Toggles whether the configuration should be saved, when running in GUI mode.')
+    parser.add_argument('--disable-matplotlib', action='store_true',
+        help='Toggles whether the matplotlib plots should be shown')
     parser.add_argument('-o', '--output', default='output', type=str,
         help='Specifies the folder to put the resulting images in.')
     parser.add_argument('-p', '--peaks', action='store_true',
@@ -130,16 +134,19 @@ def parse_args():
     return args
 
 def plot_line(line, rng: _range):
-    global config
+    global config, disable_matplotlib
 
-    meaned, peaks = process_line(line[rng.x.start:rng.x.stop], config)
-    fig, ax = plt.subplots()
-    ax.plot(line[rng.x.start:rng.x.stop], zorder=0)
-    ax.plot(meaned, zorder=1)
-    ax.scatter(peaks, meaned[peaks], c='red', zorder=2)
-    line_plot = mplfig_to_npimage(fig)
-    line_plot = cv2.cvtColor(line_plot, cv2.COLOR_RGB2BGR)
-    plt.close()
+    if disable_matplotlib:
+        line_plot = np.zeros((3,3,3), dtype=np.uint8)
+    else:
+        meaned, peaks = process_line(line[rng.x.start:rng.x.stop], config)
+        fig, ax = plt.subplots()
+        ax.plot(line[rng.x.start:rng.x.stop], zorder=0)
+        ax.plot(meaned, zorder=1)
+        ax.scatter(peaks, meaned[peaks], c='red', zorder=2)
+        line_plot = mplfig_to_npimage(fig)
+        plt.close()
+        line_plot = cv2.cvtColor(line_plot, cv2.COLOR_RGB2BGR)
 
     return line_plot
 
@@ -187,19 +194,22 @@ def process_line(line, config):
     return meaned, peaks
 
 def process_scatter_peaks(hist, rng: _range, peaks=None):
-    global config
+    global config, disable_matplotlib
 
     # Show the peaks scattered on the cutout of the original
     px, py = scatter_peaks(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], config)
-    fig, ax = plt.subplots()
-    ax.imshow(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], cmap='jet')
-    if peaks:
-        ax.scatter(px, py, color='red', alpha=.008)
-    scatter_plot = mplfig_to_npimage(fig)
-    scatter_plot = cv2.cvtColor(scatter_plot, cv2.COLOR_RGB2BGR)
-    plt.close()
+    if disable_matplotlib:
+        scatter_plot = np.zeros((3,3,3), dtype=np.uint8)
+    else:
+        fig, ax = plt.subplots()
+        ax.imshow(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], cmap='jet')
+        if peaks:
+            ax.scatter(px, py, color='red', alpha=.008)
+        scatter_plot = mplfig_to_npimage(fig)
+        plt.close()
+        scatter_plot = cv2.cvtColor(scatter_plot, cv2.COLOR_RGB2BGR)
 
-    return scatter_plot, py, px
+    return scatter_plot, px, py
 
 def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial_size):
     display = ((hist.astype(np.float32) / hist.max()) * 255.0).astype(np.uint8)
@@ -360,7 +370,7 @@ def gui():
 
         if modified:
             modified = True
-            scatter_plot, py, px = process_scatter_peaks(hist, rng, peaks=args.peaks)
+            scatter_plot, px, py = process_scatter_peaks(hist, rng, peaks=args.peaks)
             sp_resized = cv2.resize(scatter_plot, partial_size)
             last['sp_resized'] = sp_resized
             last['px'] = px
@@ -505,6 +515,7 @@ def gui():
 if __name__ == '__main__':
     args = parse_args()
     config = load_config(args.config)
+    disable_matplotlib = args.disable_matplotlib
     if args.batch:
         batch()
     else:
