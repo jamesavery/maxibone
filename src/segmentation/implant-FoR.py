@@ -7,8 +7,9 @@ from pybind_kernels.histograms import load_slice
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
+from io_modules.io import update_hdf5
 
-# Hvor skal dissehen?
+# Hvor skal disse hen?
 def sphere(n):
     xs = np.linspace(-1,1,n)
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
@@ -28,20 +29,23 @@ NA = np.newaxis
 
 sample, scale = commandline_args({"sample":"<required>","scale":8})
 
-implant_file = h5py.File(f"{binary_root}/masks/{scale}x/{sample}.h5",'r')
-implant    = implant_file["implant/mask"][:]
-voxel_size = implant_file["implant"].attr("voxel_size")
+print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
+implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
+implant      = implant_file["implant/mask"][:]
+voxel_size   = implant_file["implant"].attrs["voxel_size"]
+implant_file.close()
 
+print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
 voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
-sphere_diameter = 2*int(80/(voxel_size*scale)+0.5)+1
+sphere_diameter = 2*int(60/(voxel_size)+0.5)+1
 if(sphere_diameter>1):
     sph5 = sphere(sphere_diameter)
 
-#implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
+implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
 
 
-# TODO multiply by scale to get 1x coordinates, or scale*voxel_size to get physical coordinates
+# TODO multiply by scale to get 1x coordinates, or voxel_size to get physical coordinates
 Nz,Ny,Nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
 IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
@@ -64,7 +68,7 @@ implant_uvws = implant_zyxs @ E                       # Implant points in u,v,w-
 w0  = implant_uvws[:,2].min();  # In {scale}x voxel units
 w0v = np.array([0,0,w0])        # w-shift to get to center of implant back-plane
 
-implant_UVWs = (implant_uvws - w0v)*scale*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
+implant_UVWs = (implant_uvws - w0v)*voxel_size   # Physical U,V,W-coordinates, relative to actual implant center(*TODO, now center of implant back-plane), in micrometers
 implant_Us,implant_Vs,implant_Ws = implant_UVWs.T     # Implant point coordinates
 implant_thetas = np.arctan2(implant_Vs,implant_Ws)
 implant_rs     = np.sqrt(implant_Vs**2 + implant_Ws**2)
@@ -97,35 +101,31 @@ implant_shell_image = implant*(rs >= 0.55*rmaxs)
 back_part  = voxels*(Ws<0)
 front_part = voxels*(Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=theta_to)
 
-output_dir = f"{binary_root}/masks/cut_cylinder_air/{scale}x/"
+output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-print(f"Saving cut_cylinder_air_mask to {output_dir}/{sample}.npz")
-np.savez(f"{output_dir}/{sample}.npz",mask=back_part, name="cut_cylinder_air_mask",
-        sample=sample, scale=scale,voxel_size=voxel_size)
+print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
+update_hdf5(f"{output_dir}/{sample}.h5",
+            group_name="cut_cylinder_air",
+            datasets={"mask":back_part},
+            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
-output_dir = f"{binary_root}/masks/cut_cylinder_bone/{scale}x/"
-pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-print(f"Saving cut_cylinder_bone_mask to {output_dir}/{sample}.npz")
-np.savez(f"{output_dir}/{sample}.npz",mask=front_part, name="cut_cylinder_bone_mask", 
-        sample=sample, scale=scale,voxel_size=voxel_size)
+print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
+update_hdf5(f"{output_dir}/{sample}.h5",
+            group_name="cut_cylinder_bone",
+            datasets={"mask":front_part},
+            attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
-group = h5meta.require_group("implant_FoR")
-
-h5UVW = group.require_dataset("UVW",shape=E.shape, dtype=E.dtype)
-h5UVW[:] = E.T
-
-h5cm = group.require_dataset("center_of_mass",shape=cm.shape, dtype=cm.dtype)
-h5cm.dims[0].label = 'xyz in micrometers';
-h5cm[:] = cm*scale*voxel_size
-
-
-h5w0 = group.require_dataset("backplane_center",shape=w0v.shape, dtype=w0v.dtype)
-h5w0.dims[0].label = 'UVW in micrometers';
-h5w0[:] = w0v*scale*voxel_size
+output_dir = f"{hdf5_root}/hdf5-byte/msb/"
+print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
+update_hdf5(f"{output_dir}/{sample}.h5",
+            group_name="implant-FoR",
+            datasets={"UVW":E.T, "center_of_mass":cm*voxel_size},
+            attributes={"backplane_W_shift":w0*voxel_size},
+            dimensions={"center_of_mass":"xyz in micrometers"},
+            chunk_shape=None
+)
 
 
-
-h5meta.close()
 
 
     
