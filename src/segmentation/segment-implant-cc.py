@@ -49,10 +49,10 @@ pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 print(f"Writing largest connected component to {output_dir}/{sample}.h5")
 
 update_hdf5(f"{output_dir}/{sample}.h5",
-            group="implant",
-            datasets={'mask':mask},
+            group_name="implant",
+            datasets={'mask':implant_mask},
             attributes={'scale':scale,'voxel_size':voxel_size,
-                        'sample':sample, name="implant_mask"))
+                        'sample':sample, 'name':"implant_mask"})
 
 
 # np.savez_compressed(f"{output_dir}/{sample}",mask=mask, scale=scale,voxel_size=voxel_size,
