@@ -21,7 +21,7 @@ void print_timestamp(string message)
 array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
   real_t cmx = 0, cmy = 0, cmz = 0;
-  size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   int64_t image_length = Nx*Ny*Nz;
 
   print_timestamp("center_of_mass start");
@@ -37,9 +37,9 @@ array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
       real_t          m = buffer[k];      
 
       int64_t flat_idx = block_start + k;
-      int64_t x = flat_idx % Nx;
-      int64_t y = (flat_idx / Nx) % Ny;
-      int64_t z = flat_idx / (Nx*Ny);
+      int64_t x = flat_idx / (Ny*Nz);
+      int64_t y = (flat_idx / Nz) % Ny;
+      int64_t z = flat_idx % Nz;
 
       total_mass += m;
       cmx += m*x; cmy += m*y; cmz += m*z;
@@ -60,12 +60,12 @@ array<real_t,9> inertia_matrix_serial(const input_ndarray<voxel_type> &voxels, c
              Iyy = 0, Iyz = 0,
                       Izz = 0;
   
-  ssize_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
 
   print_timestamp("inertia_matrix_serial start");
-  for(int64_t Z=0,k=0;Z<Nz;Z++)
+  for(int64_t X=0,k=0;X<Nx;X++)
     for(int64_t Y=0;Y<Ny;Y++)
-      for(int64_t X=0;X<Nx;X++,k++){
+      for(int64_t Z=0;Z<Nz;Z++,k++){
 	real_t x = X-cm[0], y = Y-cm[1], z = Z-cm[2];
 	
 	real_t m = voxels.data[k];
@@ -94,7 +94,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const ar
              M11 = 0, M12 = 0,
                       M22 = 0;
   
-  size_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  size_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   ssize_t image_length = Nx*Ny*Nz;
 
   print_timestamp("inertia_matrix start");    
@@ -105,9 +105,9 @@ array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const ar
     reduction_loop((+:M00,M01,M02,M11,M12,M22),())
     for(int64_t k = 0; k<block_length;k++) {    //\if(buffer[k] != 0)
 	int64_t flat_idx = block_start + k;
-	real_t xs[3] = {(flat_idx % Nx)        - cm[0],  // x
-			((flat_idx / Nx) % Ny) - cm[1],  // y
-			(flat_idx / (Nx*Ny))   - cm[2]}; // z
+	real_t xs[3] = {(flat_idx  / (Ny*Nz))  - cm[0],  // x
+			((flat_idx / Nz) % Ny) - cm[1],  // y
+			(flat_idx  % Nz)       - cm[2]}; // z
 
 	real_t m = buffer[k];
 	real_t diag = dot(xs,xs);
@@ -134,7 +134,7 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<real_t> output)
 {
-  ssize_t Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   ssize_t Nv = output.shape[0], Nw = output.shape[1]; 
   int64_t image_length = Nx*Ny*Nz;
   real_t *output_data = output.data;
@@ -149,9 +149,9 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
     parallel_loop((output_data[:Nv*Nw]))
     for(int64_t k = 0; k<block_length;k++) if(buffer[k] != 0) {
 	int64_t flat_idx = block_start + k;
-	real_t xs[3] = {(flat_idx % Nx)        - x0[0],  // x
-			((flat_idx / Nx) % Ny) - x0[1],  // y
-			(flat_idx / (Nx*Ny))   - x0[2]}; // z
+	real_t xs[3] = {(flat_idx  / (Ny*Nz))  - x0[0],  // x
+			((flat_idx / Nz) % Ny) - x0[1],  // y
+			(flat_idx  % Nz)       - x0[2]}; // z
 
 	voxel_type voxel = buffer[k];
 	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
@@ -168,13 +168,13 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
 					   const real_t &x, const real_t &y, const real_t &z)
 {
-  ssize_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  ssize_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   assert(x>=0.5 && y>=0.5 && z>= 0.5);
   assert(x<=Nx-0.5 && y<=Ny-0.5 && z<= Nz-0.5);  
 				    
   real_t   X[3] = {x,y,z};
   real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
-  int64_t Xint[2][3];	// {Iminus[3], Iplus[3]}
+  int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
   real_t   value = 0;
 
   for(int i=0;i<3;i++){
@@ -237,7 +237,7 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
 		       const array<real_t,3> &cm,
 		       output_ndarray<voxel_type> voxels)
 {
-  size_t  Nz = voxels.shape[0], Ny = voxels.shape[1], Nx = voxels.shape[2];
+  size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   int64_t image_length = Nx*Ny*Nz;
 
   printf("(Nx,Ny,Nz) = (%ld,%ld,%ld), image_length = %ld",Nx,Ny,Nz, image_length);
@@ -249,9 +249,9 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
     parallel_loop((buffer[:this_block_length]))
     for(int64_t k = 0; k<this_block_length;k++){
       int64_t flat_idx = block_start + k;
-      int64_t x = flat_idx % Nx;
-      int64_t y = (flat_idx / Nx) % Ny;
-      int64_t z = flat_idx / (Nx*Ny);
+      int64_t x = flat_idx  / (Ny*Nz);
+      int64_t y = (flat_idx / Nz) % Ny;
+      int64_t z = flat_idx  % Nz;
       // Boilerplate until here. TODO: macroize or lambda out!
       
       real_t xs[3] = {x-cm[0], y-cm[1], z-cm[2]};
@@ -273,31 +273,5 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
 
     }
   }
-}
-
-void field_histogram_resample(const input_ndarray<uint16_t> voxels,
-			      const input_ndarray<uint16_t> field,
-			      output_ndarray<uint64_t> &bins,
-			      const double vmin, const double vmax)
-{
-  const ssize_t
-    nZ = voxels.shape[0], nY = voxels.shape[1], nX = voxels.shape[2],
-    nz = field.shape[0],  ny = field.shape[1],  nx = field.shape[2],
-    nbins = bins.shape[0];
-
-  const real_t dx = nx/double(nX), dy = ny/double(nY), dz = nz/double(nZ);
-
-  // TODO: copyin voxels z and field z,z+1
-  for(ssize_t Z=0;Z<nZ;Z++)
-    for(ssize_t Y=0;Y<nY;Y++)
-      for(ssize_t X=0;X<nX;X++){
-	real_t x = X*dx, y = Y*dy, z = Z*dz;
-
-	uint16_t  voxel_value = voxels.data[Z*nY*nX+Y*nX+X];
-	uint16_t  field_value = round(resample2x2x2(field,x,y,z));
-
-	bins.data[(voxel_value>>4)*nbins + field_value]++;
-      }
-    
 }
 
