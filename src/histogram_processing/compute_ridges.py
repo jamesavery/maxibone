@@ -24,8 +24,8 @@ def batch():
         axis_names  = ["x","y","z","r"] # TODO: Skriv i compute_histograms
         field_names = f["field_names"]
         
-        for i,name in axis_names:
-            bins = f["axis_bins"][i]
+        for name in axis_names:
+            bins = f[f"{name}_bins"]
             rng = _range(0,bins.shape[1],0,bins.shape[0])
             px, py = scatter_peaks(bins, config)
             mask = np.zeros(bins.shape, dtype=np.uint8)
