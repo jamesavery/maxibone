@@ -38,20 +38,22 @@ implant_file.close()
 print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
 voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
-sphere_diameter = 2*int(60/(voxel_size)+0.5)+1
-if(sphere_diameter>1):
-    sph5 = sphere(sphere_diameter)
+# sphere_diameter = 2*int(60/(voxel_size)+0.5)+1
+# if(sphere_diameter>1):
+#     sph5 = sphere(sphere_diameter)
+# implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
 
-implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
 
-
-# TODO multiply by scale to get 1x coordinates, or voxel_size to get physical coordinates
 Nz,Ny,Nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
 IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
 ls,E  = la.eigh(IM)
 
-# TODO: Automatic!!!
+# TODO: Make automatic! Requires additional analysis:
+#  - u-direction: find implant head, that's up
+#  - w-direction: find round direction (largest midpoint between theta_integrals peaks).
+#    w-direction with positive dot-product is the right one
+#  - v-direction: Either one works, but choose according to right-hand rule
 if sample == "770c_pag":
     E[:,0] *= -1
 if sample == "770_pag":
@@ -98,21 +100,24 @@ rmaxs = (rs*(implant==True)).reshape(Nz,-1).max(axis=1)[:,NA,NA]
 
 implant_shell_image = implant*(rs >= 0.55*rmaxs)
 
-back_part  = voxels*(Ws<0)
-front_part = voxels*(Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=theta_to)
+back_mask  = (Ws<0)
+front_mask = (Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=theta_to)
+
+back_part = voxels*back_mask
+front_pat = voxels*front_mask
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_air",
-            datasets={"mask":back_part},
+            datasets={"mask":back_mask},
             attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
 print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_bone",
-            datasets={"mask":front_part},
+            datasets={"mask":front_mask},
             attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
 output_dir = f"{hdf5_root}/hdf5-byte/msb/"

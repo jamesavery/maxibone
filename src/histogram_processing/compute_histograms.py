@@ -9,9 +9,10 @@ from tqdm import tqdm
 from config.paths import *
 from config.constants import implant_threshold
 
+NA = np.newaxis
+
 # TODO: Currently specialized to uint16_t
-def masked_minmax(voxels):
-    return histograms.masked_minmax(voxels)
+masked_minmax = histograms.masked_minmax
 
 def axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
     (Nz,Ny,Nx) = voxels.shape
@@ -101,42 +102,49 @@ def row_normalize(A):
     return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
 #TODO: Get load_slice to work with ranges so we can look at sub-regions 
-def load_block(sample, offset, block_size, field_names):
+def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     '''
     Loads a block of data from disk into memory.
     '''
     Nfields = len(field_names)
-    pbar = tqdm(["Load HDF5 metadata",f"Load {sample}.npz", "Load voxels",f"Load {Nfields} fields","Done"],desc="load_block", leave=True)
-    pbar.update(); pbar.refresh();
 
     dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
     Nz, Ny, Nx = dm['voxels'].shape
     Nz -= np.sum(dm["volume_matching_shifts"][:])
-
-    pbar.update(); pbar.refresh();
+    dm.close()
+   
     block_size       = min(block_size, Nz-offset)
     
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
     fields = np.zeros((Nfields,block_size//2,Ny//2,Nx//2), dtype=np.uint16)    
 
-    pbar.update(); pbar.refresh();
+    if mask_name is not None:
+        for i in tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5", leave=True):
+            with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
+                mask = h5mask[mask_name]["mask"][offset//mask_scale:offset//mask_scale + block_size//mask_scale]
+            
     #TODO: Make voxel & field scale command line parameters
-    histograms.load_slice(voxels, f'{binary_root}/voxels/1x/{sample}.uint16', (offset, 0, 0), (Nz, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
-    pbar.update(); pbar.refresh();
+    for i in tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/1x/{sample}.uint16", leave=True):    
+        histograms.load_slice(voxels, f'{binary_root}/voxels/1x/{sample}.uint16', (offset, 0, 0), (Nz, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
 
     for i in tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/2x/{sample}.npy",leave=True):
         fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/2x/{sample}.npy", mmap_mode='r')
-        fields[i,:] = fi[offset//2:offset//2 + block_size//2,:Ny//2,:Nx//2]
+        fields[i,:] = fi[offset//2:offset//2 + block_size//2]
 
-    pbar.update(); pbar.refresh();
-    pbar.close()
-    dm.close()
-
+    if mask_name is not None:
+        nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
+        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale, ny,mask_scale, nx,mask_scale))
+        mask_1x = mask_1x.reshape(nz*mask_scale,ny*mask_scale,nx*mask_scale)
+        voxels[:nz*mask_scale] *= mask_1x               # block_size may not be divisible by mask_scale
+        voxels[nz*mask_scale:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
+        
     return voxels, fields
 
 # Edition where the histogram is loaded and processed in chunks
 # If block_size is less than 0, then the whole thing is loaded and processed.
-def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4096, mask, implant_threshold=32000, field_names=["gauss","edt","gauss+edt"]):
+def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
+                    mask=None, mask_scale=8, voxel_bins=4096,
+                    implant_threshold=32000, field_names=["gauss","edt","gauss+edt"]):
     dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
 
     vm_shifts  = dm["volume_matching_shifts"][:]
@@ -145,6 +153,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
     # center = ((Ny//2) - y_cutoff, Nx//2)
     # Ny -= y_cutoff
+    center = (Ny//2,Nx//2)
 
     if block_size == 0:
         # If block_size is 0, let each block be exactly a full subvolume
@@ -167,8 +176,11 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4
         if n_blocks == 0:
             n_blocks = Nz // block_size + (Nz % block_size > 0)
 
-    vmin, vmax = 0.0, float(implant_threshold)
-    fmin, fmax = 1.0, 65535.0 # TODO don't hardcode.
+    dm.close()
+    
+#    vmin, vmax = 0.0, float(implant_threshold)
+    vmin, vmax = 10000.0, 30000.0 # TODO: Compute from overall histogram, store in result
+    fmin, fmax = 1.0, 65535.0     # TODO: Compute from overall histogram, store in result
 
     Nfields = len(field_names)
     x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
@@ -176,8 +188,6 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4
     z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
     f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
-
-    dm.close()
 
 
     for b in tqdm(range(n_blocks), desc='Computing histograms'):
@@ -187,13 +197,14 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0, voxel_bins=4
         else:
             zstart = z_offset + b*block_size
             
-        voxels, fields = load_block(sample, zstart, block_size, mask, field_names)
+        voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
             histograms.axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
             histograms.field_histogram_resample_par_cpu(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
 
-    f_bins[-1] = 0 # TODO "bright" mask hack
+    f_bins[:, 0,:] = 0 # TODO EDT mask hack            
+    f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
@@ -201,15 +212,20 @@ if __name__ == '__main__':
     # Special parameter values:
     # - block_size == 0 means "do one full subvolume at the time, interpret z_offset as start-at-subvolume-number"
     # - n_blocks   == 0 means "all blocks"
-    sample, mask, block_size, z_offset, n_blocks, suffix, voxel_bins = commandline_args({"sample":"<required>", "mask":"none", "block_size":256, "z_offset": 0, "n_blocks":0, "suffix":"", "voxel_bins":4096})
+    sample, block_size, z_offset, n_blocks, suffix, \
+    mask, mask_scale, voxel_bins, field_bins = commandline_args({"sample":"<required>",
+                                                                 "block_size":256, "z_offset": 0, "n_blocks":0, "suffix":"",
+                                                                 "mask":"None", "mask_scale": 8, "voxel_bins":4096, "field_bins":2048})
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
-    field_names=["gauss","edt","gauss+edt"] # Should this be commandline defined?
+    field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
     
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)    
     
-    xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks, voxel_bins, None if mask=="none" else mask, implant_threshold_u16, field_names)
+    xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
+                                         None if mask=="None" else mask, mask_scale, voxel_bins,
+                                         implant_threshold_u16, field_names)
 
     Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb{suffix}.png")
     Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb{suffix}.png")
