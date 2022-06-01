@@ -8,6 +8,7 @@ from PIL import Image
 from tqdm import tqdm
 from config.paths import *
 from config.constants import implant_threshold
+from helper_functions import *
 
 NA = np.newaxis
 
@@ -144,43 +145,21 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
 # If block_size is less than 0, then the whole thing is loaded and processed.
 def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
                     mask=None, mask_scale=8, voxel_bins=4096,
-                    implant_threshold=32000, field_names=["gauss","edt","gauss+edt"]):
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+                    implant_threshold=32000, field_names=["gauss","edt","gauss+edt"],
+                    value_ranges=((1e4,3e4),(1,2**16-1))
+):
 
-    vm_shifts  = dm["volume_matching_shifts"][:]
-    Nz, Ny, Nx = dm['voxels'].shape
-    Nz -= np.sum(vm_shifts)
-    Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
-    # center = ((Ny//2) - y_cutoff, Nx//2)
-    # Ny -= y_cutoff
-    center = (Ny//2,Nx//2)
 
-    if block_size == 0:
-        # If block_size is 0, let each block be exactly a full subvolume
-        blocks_are_subvolumes = True
-        subvolume_dimensions  = dm['subvolume_dimensions'][:]
-        subvolume_nzs         = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
-        subvolume_starts      = np.concatenate([[0],np.cumsum(subvolume_nzs)[:-1]])
-
-        # Do either n_blocks subvolumes, or if n_blocks == 0: all remaining after offset
-        if n_blocks == 0:
-            n_blocks = len(subvolume_nzs)-z_offset        
-        
-        print(f"Blocks are subvolumes with subvolume_nzs = {subvolume_nzs} and subvolume_starts = {subvolume_starts}")
-        print(f"Processing {n_blocks} from offset {z_offset}: "+
-              f"{subvolume_nzs[z_offset:z_offset+n_blocks]}")
-        print(f"subvolume_starts = {subvolume_starts[z_offset:z_offset+n_blocks]}")
-
-    else:
-        blocks_are_subvolumes = False        
-        if n_blocks == 0:
-            n_blocks = Nz // block_size + (Nz % block_size > 0)
-
-    dm.close()
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size)
+    (Nz,Ny,Nx,Nr) = bi['dimensions']
+    block_size    = bi['block_size']
+    n_blocks      = bi['n_blocks']    
+    blocks_are_subvolumes = bi['blocks_are_subvolumes']
     
+    center = (Ny//2,Nx//2)                
 #    vmin, vmax = 0.0, float(implant_threshold)
-    vmin, vmax = 10000.0, 30000.0 # TODO: Compute from overall histogram, store in result
-    fmin, fmax = 1.0, 65535.0     # TODO: Compute from overall histogram, store in result
+    # TODO: Compute from overall histogram, store in result
+    (vmin,vmax), (fmin,fmax) = value_ranges
 
     Nfields = len(field_names)
     x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
@@ -189,11 +168,11 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
     f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
 
-
     for b in tqdm(range(n_blocks), desc='Computing histograms'):
+        # NB: Kopier til andre steder, som skal virke på samme voxels        
         if blocks_are_subvolumes:
-            zstart     = subvolume_starts[z_offset+b]
-            block_size = subvolume_nzs[z_offset+b]
+            zstart     = bi['subvolume_starts'][z_offset+b]
+            block_size = bi['subvolume_nzs'][z_offset+b]
         else:
             zstart = z_offset + b*block_size
             
@@ -218,6 +197,7 @@ if __name__ == '__main__':
                                                                  "mask":"None", "mask_scale": 8, "voxel_bins":4096, "field_bins":2048})
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
+    (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
     field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
     
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
@@ -225,7 +205,7 @@ if __name__ == '__main__':
     
     xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
                                          None if mask=="None" else mask, mask_scale, voxel_bins,
-                                         implant_threshold_u16, field_names)
+                                         implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)))
 
     Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb{suffix}.png")
     Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb{suffix}.png")
@@ -239,5 +219,5 @@ if __name__ == '__main__':
              x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
              axis_names=np.array(["x","y","z","r"]),
              field_names=field_names, suffix=suffix, mask=mask,
-             sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks)
+             sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges)
     
