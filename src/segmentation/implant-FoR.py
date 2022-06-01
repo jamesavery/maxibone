@@ -140,16 +140,34 @@ midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1
 print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
 bone_mask1 = front_part > midpoint
+label, n_features = ndi.label(bone_mask1)
+print(f"Picking largest connected component volume")
+bincnts           = np.bincount(label[label>0],minlength=n_features+1)
 
-sphere_diameter = 500           # micrometers
-sphere_voxels   = 2*int(round(sphere_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-if(sphere_voxels>1):
-    print(f"Closing with sphere of diameter {sphere_diameter} micrometers, {sphere_voxels} voxels.\n")
-    closing_sphere = sphere(sphere_voxels)    
-    bone_area_mask = ndi.binary_closing(bone_mask1,closing_sphere)
+largest_cc_ix     = np.argmax(bincnts)
+bone_mask2=(label==largest_cc_ix)
 
 
-    
+                                                                                                                                                                                                                                       
+closing_diameter, opening_diameter = 800, 60           # micrometers                                                                                                                                                                   
+closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length                                                                                                                                        
+opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+
+print(f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n")
+bone_region_mask = ndi.binary_closing(bone_mask1,sphere(closing_voxels))                                                                                                                                                             
+
+print(f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n")
+bone_region_mask &= ~implant_shell_image #ndi.binary_dilation(implant_shell_image,sphere(opening_diameter))
+
+print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
+update_hdf5(f"{output_dir}/{sample}.h5",
+            group_name="bone_region",
+            datasets={"mask":bone_region_mask},
+            attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
+
+
+
+
 
     
     
