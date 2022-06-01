@@ -101,6 +101,15 @@ front_mask = (Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=t
 back_part = voxels*back_mask
 front_part = voxels*front_mask
 
+output_dir = f"{hdf5_root}/hdf5-byte/msb/"
+print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
+update_hdf5(f"{output_dir}/{sample}.h5",
+            group_name="implant-FoR",
+            datasets={"UVW":E.T, "center_of_mass":cm*voxel_size},
+            attributes={"backplane_W_shift":w0*voxel_size},
+            dimensions={"center_of_mass":"xyz in micrometers"},
+            chunk_shape=None
+)
 
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
@@ -116,17 +125,6 @@ update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_bone",
             datasets={"mask":front_mask},
             attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
-
-output_dir = f"{hdf5_root}/hdf5-byte/msb/"
-print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
-            group_name="implant-FoR",
-            datasets={"UVW":E.T, "center_of_mass":cm*voxel_size},
-            attributes={"backplane_W_shift":w0*voxel_size},
-            dimensions={"center_of_mass":"xyz in micrometers"},
-            chunk_shape=None
-)
-
 
 
 print(f"Computing bone region")
