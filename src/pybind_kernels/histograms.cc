@@ -60,7 +60,111 @@ template <typename T> void convolve1d(const py::array_t<T> np_kernel,
   //              for(i = 0, z=z_start; i<kernel_size; i++, z = (z+1)%kernel_size) sum += rolling_buffer[thread*kernel_size + z]*kernel[z];
   
 }
-		
+
+template <typename Op> void morphology_3d_sphere_cpu(
+        const py::array_t<mask_type> &np_voxels,
+        const float_t radius,
+        const py::array_t<mask_type> np_result
+) {
+    auto 
+        voxels_info = np_voxels.request(),
+        result_info = np_result.request();
+    
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t N[3] = {Nz, Ny, Nx};
+    int64_t strides[3] = {Ny*Nx, Nx, 1};
+
+    const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    mask_type *result = static_cast<mask_type*>(result_info.ptr);
+
+    Op op;
+
+    #pragma omp parallel for collapse(3)
+    for (int64_t z = 0; z < Nz; z++) {
+        for (int64_t y = 0; y < Ny; y++) {
+            for (int64_t x = 0; x < Nx; x++) {
+                // Compute boundaries
+                int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
+                int64_t X[3] = {z, y, x};
+                int64_t limits[6];
+                for (int i = 0; i < 3; i++) {
+                    limits[(i*2)] = -min((int64_t) radius, X[i]);
+                    limits[(i*2)+1] = min((int64_t) radius, N[i] - X[i] - 1);
+                }
+                
+                // Apply the spherical kernel
+                mask_type tmp = 1;
+                //#pragma omp simd collapse(3) reduction(op:tmp)
+                for (int64_t pz = limits[0]; pz < limits[1]; pz++) {
+                    for (int64_t py = limits[2]; py < limits[3]; py++) {
+                        for (int64_t px = limits[4]; px < limits[5]; px++) {
+                            mask_type within = sqrt(px*px + py*py + pz*pz) < radius; // sphere kernel
+                            int64_t offset = pz*strides[0] + py*strides[1] + px*strides[0];
+                            tmp = op(voxels[flat_index + offset], within);
+                        }
+                    }
+                }
+
+                // Store the results
+                result[flat_index] = tmp;
+            }
+        }
+    }
+}
+
+template <typename Op> void morphology_3d_sphere_gpu(
+        const py::array_t<mask_type> &np_voxels,
+        const float_t radius,
+        const py::array_t<mask_type> np_result
+) {
+    auto 
+        voxels_info = np_voxels.request(),
+        result_info = np_result.request();
+    
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t N[3] = {Nz, Ny, Nx};
+    int64_t strides[3] = {Ny*Nx, Nx, 1};
+
+    const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    mask_type *result = static_cast<mask_type*>(result_info.ptr);
+
+    Op op;
+
+    #pragma acc data copy(voxels[:Nz*Ny*Nx], result[:Nz*Ny*Nx])
+    {
+        #pragma acc parallel loop collapse(3)
+        for (int64_t z = 0; z < Nz; z++) {
+            for (int64_t y = 0; y < Ny; y++) {
+                for (int64_t x = 0; x < Nx; x++) {
+                    // Compute boundaries
+                    int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
+                    int64_t X[3] = {z, y, x};
+                    int64_t limits[6];
+                    for (int i = 0; i < 3; i++) {
+                        limits[(i*2)] = -min((int64_t) radius, X[i]);
+                        limits[(i*2)+1] = min((int64_t) radius, N[i] - X[i] - 1);
+                    }
+                    
+                    // Apply the spherical kernel
+                    mask_type tmp = 1;
+                    //#pragma omp simd collapse(3) reduction(op:tmp)
+                    for (int64_t pz = limits[0]; pz < limits[1]; pz++) {
+                        for (int64_t py = limits[2]; py < limits[3]; py++) {
+                            for (int64_t px = limits[4]; px < limits[5]; px++) {
+                                mask_type within = sqrt(px*px + py*py + pz*pz) < radius; // sphere kernel
+                                int64_t offset = pz*strides[0] + py*strides[1] + px*strides[0];
+                                tmp = op(voxels[flat_index + offset], within);
+                            }
+                        }
+                    }
+
+                    // Store the results
+                    result[flat_index] = tmp;
+                }
+            }
+        }
+    }
+}
 
 void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
@@ -945,4 +1049,8 @@ PYBIND11_MODULE(histograms, m) {
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);
     m.def("gauss_filter_par_cpu", &gauss_filter_par_cpu);
+    m.def("dilate_3d_sphere_cpu", &morphology_3d_sphere_cpu<std::bit_or<mask_type>>);
+    m.def("erode_3d_sphere_cpu", &morphology_3d_sphere_cpu<std::bit_and<mask_type>>);
+    m.def("dilate_3d_sphere_gpu", &morphology_3d_sphere_gpu<std::bit_or<mask_type>>);
+    m.def("erode_3d_sphere_gpu", &morphology_3d_sphere_gpu<std::bit_and<mask_type>>);
 }
