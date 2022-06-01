@@ -22,7 +22,7 @@ uint64_t number_of_set_bits(uint64_t number) {
     return count;
 }
 
-void material_prob(const py::array_t<voxel_type> np_voxels,
+void material_prob(const py::array_t<voxel_type> &np_voxels,
                    const py::array_t<field_type> &np_field,
                    const py::list li_axes_probs,
                    const uint64_t axes_probs_mask,
@@ -33,7 +33,7 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
                    const std::tuple<float, float> &frange,
                    const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
                    const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
-    
+
     // Extract the probability arrays
     uint64_t n_axes = number_of_set_bits(axes_probs_mask);
     py::array_t<prob_type> np_axes_probs[n_axes];
@@ -56,7 +56,7 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
     py::array_t<prob_type> np_field_probs[li_field_probs.size()];
     py::buffer_info field_probs_info[li_field_probs.size()];
     const prob_type* field_probs[li_field_probs.size()];
-    i = 0, j = 0; 
+    i = 0, j = 0;
     for (py::handle array: li_field_probs) {
         if ((field_probs_mask >> j) & 1) {
             np_field_probs[i] = py::cast<py::array_t<prob_type>>(array);
@@ -71,11 +71,11 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
         result_info = np_result.request();
-    
-    // TODO this might fail if the first of each is not enabled by the mask. 
+
+    // TODO this might fail if the first of each is not enabled by the mask.
     const uint64_t
-        Nvoxel_bins = axes_probs_info[0].shape[1],
-        Nfield_bins = field_probs_info[0].shape[1];
+        Nvoxel_bins = n_axes > 0 ? axes_probs_info[0].shape[1] : 0,
+        Nfield_bins = n_fields > 0 ? field_probs_info[0].shape[1] : 0;
 
     const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
     const field_type *field = static_cast<const field_type*>(field_info.ptr);
@@ -83,9 +83,9 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
 
     auto [sz, sy, sx] = offset;
     auto [Nz, Ny, Nx] = ranges;
-    uint64_t 
+    uint64_t
         //fz = Nz / 2, // Commented due to unused warning
-        fy = Ny / 2, 
+        fy = Ny / 2,
         fx = Nx / 2;
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
@@ -94,7 +94,7 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
     for (uint64_t z = sz; z < Nz; z++) {
         for (uint64_t y = sy; y < Ny; y++) {
             for (uint64_t x = sx; x < Nx; x++) {
-                // TODO Only compute the indices and such if they're actually used. 
+                // TODO Only compute the indices and such if they're actually used.
                 uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
                 // Get the voxel value and the indices
                 voxel_type voxel = voxels[flat_index];
@@ -113,7 +113,7 @@ void material_prob(const py::array_t<voxel_type> np_voxels,
                 for (uint64_t i = 0; i < n_fields; i++) {
                     p += field_probs[i][field_index*Nvoxel_bins + voxel_index];
                 }
-                
+
                 // Compute the dummy joint probability
                 result[flat_index] = ((uint8_t) floor((p / (n_axes + n_fields)) * 255));
             }
