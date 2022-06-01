@@ -38,11 +38,6 @@ implant_file.close()
 print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
 voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
-# sphere_diameter = 2*int(60/(voxel_size)+0.5)+1
-# if(sphere_diameter>1):
-#     sph5 = sphere(sphere_diameter)
-# implant[sphere_diameter//2:-sphere_diameter//2] = ndi.binary_closing(implant,sph5)[sphere_diameter//2:-sphere_diameter//2]
-
 
 Nz,Ny,Nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
@@ -104,7 +99,9 @@ back_mask  = (Ws<0)
 front_mask = (Ws>100)*(rs>=0.7*rmaxs)*(~implant)*(thetas>=theta_from)*(thetas<=theta_to)
 
 back_part = voxels*back_mask
-front_pat = voxels*front_mask
+front_part = voxels*front_mask
+
+
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -132,6 +129,27 @@ update_hdf5(f"{output_dir}/{sample}.h5",
 
 
 
+print(f"Computing bone region")
+hist, bins = np.histogram(front_part, 256)
+hist[0] = 0
+peaks, info = signal.find_peaks(hist,height=0.5*hist.max())
+
+p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
+
+midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
+print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
+
+bone_mask1 = front_part > midpoint
+
+sphere_diameter = 500           # micrometers
+sphere_voxels   = 2*int(round(sphere_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+if(sphere_voxels>1):
+    print(f"Closing with sphere of diameter {sphere_diameter} micrometers, {sphere_voxels} voxels.\n")
+    closing_sphere = sphere(sphere_voxels)    
+    bone_area_mask = ndi.binary_closing(bone_mask1,closing_sphere)
+
+
+    
 
     
     
