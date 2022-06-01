@@ -7,7 +7,7 @@
 namespace python_api { 
   namespace py = pybind11;
 
-  typedef py::array_t<voxel_type, py::array::c_style | py::array::forcecast> np_voxelarray;
+  typedef py::array_t<mask_type, py::array::c_style | py::array::forcecast> np_voxelarray;
   typedef py::array_t<real_t, py::array::c_style | py::array::forcecast> np_realarray;  
 
   array<real_t,3> center_of_mass(const np_voxelarray &np_voxels){
