@@ -115,6 +115,8 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     dm.close()
    
     block_size       = min(block_size, Nz-offset)
+
+    print(f"block_size = {block_size}")
     
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
     fields = np.zeros((Nfields,block_size//2,Ny//2,Nx//2), dtype=np.uint16)    
@@ -136,6 +138,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
         nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
         mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale, ny,mask_scale, nx,mask_scale))
         mask_1x = mask_1x.reshape(nz*mask_scale,ny*mask_scale,nx*mask_scale)
+        print(f"{voxels.shape}, {mask_1x.shape}")
         voxels[:nz*mask_scale] *= mask_1x               # block_size may not be divisible by mask_scale
         voxels[nz*mask_scale:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
         
@@ -150,12 +153,12 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 ):
 
 
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size)
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size, n_blocks)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
     block_size    = bi['block_size']
     n_blocks      = bi['n_blocks']    
     blocks_are_subvolumes = bi['blocks_are_subvolumes']
-    
+
     center = (Ny//2,Nx//2)                
 #    vmin, vmax = 0.0, float(implant_threshold)
     # TODO: Compute from overall histogram, store in result
@@ -175,6 +178,8 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
             block_size = bi['subvolume_nzs'][z_offset+b]
         else:
             zstart = z_offset + b*block_size
+
+            
             
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
@@ -219,5 +224,5 @@ if __name__ == '__main__':
              x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
              axis_names=np.array(["x","y","z","r"]),
              field_names=field_names, suffix=suffix, mask=mask,
-             sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges)
+             sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
     

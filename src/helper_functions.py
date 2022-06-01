@@ -11,20 +11,20 @@ def block_info(h5meta_filename,block_size, n_blocks):
 
 
         subvolume_dimensions =  dm['subvolume_dimensions'][:]                
-        subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0),
+        subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
 
         if block_size == 0:
             # If block_size is 0, let each block be exactly a full subvolume
             blocks_are_subvolumes = True
-            
+
             # Do either n_blocks subvolumes, or if n_blocks == 0: all remaining after offset
             if n_blocks == 0:
                 n_blocks = len(subvolume_nzs)-z_offset 
                 
-            else:
-                blocks_are_subvolumes = False        
-                if n_blocks == 0:
-                    n_blocks = Nz // block_size + (Nz % block_size > 0)
+        else:
+            blocks_are_subvolumes = False        
+            if n_blocks == 0:
+                n_blocks = Nz // block_size + (Nz % block_size > 0)
 
 
         return {'dimensions':(Nz,Ny,Nx,Nr),
