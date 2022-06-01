@@ -1,10 +1,10 @@
 #include <array>
 #include <vector>
 
-typedef uint8_t voxel_type;	// TODO: Template + explicit instantiation
+typedef uint8_t mask_type;	// TODO: Template + explicit instantiation
 typedef double real_t;
 
-constexpr ssize_t acc_block_size =  1024 * 1024 * 1024/sizeof(voxel_type); // 1 GB
+constexpr ssize_t acc_block_size =  1024 * 1024 * 1024/sizeof(mask_type); // 1 GB
 
 struct plane_t {
   array<real_t,3> cm, u_axis, v_axis;

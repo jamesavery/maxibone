@@ -29,6 +29,12 @@ def smooth_fun(xs,ys,n_segments):
 
 # Extract voxel values (as ys) for each coordinate value (as xs)
 xs,ys = material_points(f_labels[f'{axis}_bins'],material_id)
+
+plt.imshow(f_labels[f'{axis}_bins'])
+plt.show()
+
+plt.scatter(xs,ys)
+plt.show()
 # Compute smooth piecewise cubic least-squares approximation
 pc = smooth_fun(xs,ys,n_segments)
 

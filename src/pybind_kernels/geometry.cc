@@ -18,7 +18,7 @@ void print_timestamp(string message)
 }
 
 
-array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
+array<real_t,3> center_of_mass(const input_ndarray<mask_type> voxels) {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
   real_t cmx = 0, cmy = 0, cmz = 0;
   size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
@@ -28,7 +28,7 @@ array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
   real_t total_mass = 0;  
   for(int64_t block_start=0;block_start<image_length;block_start+=acc_block_size){
 
-    const voxel_type *buffer = voxels.data + block_start;
+    const mask_type *buffer = voxels.data + block_start;
     ssize_t this_block_length = min(acc_block_size,image_length-block_start);
 
     //#pragma acc parallel loop reduction(+:cmx,cmy,cmz,total_mass) copyin(buffer[:this_block_length])
@@ -53,7 +53,7 @@ array<real_t,3> center_of_mass(const input_ndarray<voxel_type> voxels) {
 }
 
 
-array<real_t,9> inertia_matrix_serial(const input_ndarray<voxel_type> &voxels, const array<real_t,3> &cm)
+array<real_t,9> inertia_matrix_serial(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm)
 {
   real_t
     Ixx = 0, Ixy = 0, Ixz = 0,
@@ -86,7 +86,7 @@ array<real_t,9> inertia_matrix_serial(const input_ndarray<voxel_type> &voxels, c
 }
 
 
-array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const array<real_t,3> &cm)
+array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm)
 {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet, so must name each element.
   real_t
@@ -99,7 +99,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const ar
 
   print_timestamp("inertia_matrix start");    
   for(ssize_t block_start=0;block_start<image_length;block_start+=acc_block_size){
-    const voxel_type *buffer  = voxels.data + block_start;
+    const mask_type *buffer  = voxels.data + block_start;
     ssize_t block_length = min(acc_block_size,image_length-block_start);
 
     reduction_loop((+:M00,M01,M02,M11,M12,M22),())
@@ -127,7 +127,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<voxel_type> &voxels, const ar
 }
 
 
-void integrate_axes(const input_ndarray<voxel_type> &voxels,
+void integrate_axes(const input_ndarray<mask_type> &voxels,
 		    const array<real_t,3> &x0,		    
 		    const array<real_t,3> &v_axis,
 		    const array<real_t,3> &w_axis,
@@ -142,7 +142,7 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
   // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
   
   for(ssize_t block_start=0;block_start<image_length;block_start += acc_block_size){
-    const voxel_type *buffer  = voxels.data + block_start;
+    const mask_type *buffer  = voxels.data + block_start;
     int block_length = min(acc_block_size,image_length-block_start);
 
     //#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis)
@@ -153,7 +153,7 @@ void integrate_axes(const input_ndarray<voxel_type> &voxels,
 			((flat_idx / Nz) % Ny) - x0[1],  // y
 			(flat_idx  % Nz)       - x0[2]}; // z
 
-	voxel_type voxel = buffer[k];
+	mask_type voxel = buffer[k];
 	real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
 	int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
@@ -206,13 +206,13 @@ template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
       weight   *= Xfrac[pm][axis];
     }
 	
-    voxel_type voxel = voxels.data[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
+    mask_type voxel = voxels.data[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
     value += voxel*weight;
   }
   return value;
 }
 
-void sample_plane(const input_ndarray<voxel_type> &voxels, const plane_t &plane, output_ndarray<voxel_type> plane_samples, array<real_t,3> L)
+void sample_plane(const input_ndarray<mask_type> &voxels, const plane_t &plane, output_ndarray<mask_type> plane_samples, array<real_t,3> L)
 {
   ssize_t Ny = voxels.shape[1], Nx = voxels.shape[2];
   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];  
@@ -224,7 +224,7 @@ void sample_plane(const input_ndarray<voxel_type> &voxels, const plane_t &plane,
 
       real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
 
-      voxel_type value = resample2x2x2(voxels,x,y,z);      
+      mask_type value = resample2x2x2(voxels,x,y,z);      
       if(x >= 0.5 && y >= 0.5 && x+0.5 <= Nx && y+0.5 <= Ny){
 	plane_samples.data[ui*nv + vj] = value;
       }
@@ -235,7 +235,7 @@ void sample_plane(const input_ndarray<voxel_type> &voxels, const plane_t &plane,
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
 		       const array<real_t,6> &parameter_ranges,
 		       const array<real_t,3> &cm,
-		       output_ndarray<voxel_type> voxels)
+		       output_ndarray<mask_type> voxels)
 {
   size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
   int64_t image_length = Nx*Ny*Nz;
@@ -243,7 +243,7 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
   printf("(Nx,Ny,Nz) = (%ld,%ld,%ld), image_length = %ld",Nx,Ny,Nz, image_length);
   for(int64_t block_start=0;block_start<image_length;block_start+=acc_block_size){
 
-    voxel_type *buffer = voxels.data + block_start;
+    mask_type *buffer = voxels.data + block_start;
     ssize_t this_block_length = min(acc_block_size,image_length-block_start);
 
     parallel_loop((buffer[:this_block_length]))
