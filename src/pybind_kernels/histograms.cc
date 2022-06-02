@@ -1039,6 +1039,94 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 
 }
 
+void otsu(
+        const py::array_t<uint64_t> np_bins,
+        py::array_t<uint64_t> np_result,
+        uint64_t step_size) {
+    py::buffer_info
+        bins_info = np_bins.request(),
+        result_info = np_result.request();
+
+    uint64_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
+    uint64_t N_threshes = N_cols / step_size;
+
+    const uint64_t *bins = static_cast<const uint64_t*>(bins_info.ptr);
+    uint64_t *result = static_cast<uint64_t*>(result_info.ptr);
+
+    #pragma omp parallel for
+    for (uint64_t i = 0; i < N_rows; i++) {
+        const uint64_t *row = bins + (i*N_cols);
+        
+        uint64_t *guesses = (uint64_t*) malloc(sizeof(uint64_t) * N_threshes); 
+        for (uint64_t guess = 0; guess < N_threshes; guess++) {
+            uint64_t w0 = 0, w1 = 0, th = guess * step_size;
+            
+            // w0 = row[:th].sum()
+            #pragma omp simd reduction(+:w0)
+            for (uint64_t j = 0; j < th; j++) {
+                w0 += row[j];
+            }
+
+            // w1 = row[th:].sum()
+            #pragma omp simd reduction(+:w1)
+            for (uint64_t j = th; j < N_cols; j++) {
+                w1 += row[j];
+            }
+            float_t fw0 = 1.0f / w0, fw1 = 1.0f / w1;
+            
+            //if w0 <= 0 or w1 <= 0:
+            //    return np.inf
+            if (w0 == 0 || w1 == 0) {
+                guesses[guess] = (uint64_t) -1;
+            } else {
+                float_t m0 = 0, m1 = 0;
+                // m0 = (1/w0) * (np.arange(th)*row[:th]).sum()
+                #pragma omp simd reduction(+:m0)
+                for (uint64_t j = 0; j < th; j++) {
+                    m0 += j * row[j];
+                }
+                m0 *= fw0;
+
+                // m1 = (1/w1) * (np.arange(row.shape[0]-th)*row[th:]).sum()
+                #pragma omp simd reduction(+:m1)
+                for (uint64_t j = th; j < N_cols; j++) {
+                    m1 += j * row[j];
+                }
+                m1 *= fw1;
+
+
+                float_t s0 = 0, s1 = 0;
+                // s0 = (1/w0) * (((np.arange(th)-m0)**2)*row[:th]).sum()
+                #pragma omp simd reduction(+:s0)
+                for (uint64_t j = 0; j < th; j++) {
+                    uint64_t im0 = j - m0;
+                    s0 += (im0*im0) * row[j];
+                }
+                s0 *= fw0;
+
+                // s1 = (1/w1) * (((np.arange(row.shape[0]-th)-m1)**2)*row[th:]).sum()
+                #pragma omp simd reduction(+:s1)
+                for (uint64_t j = th; j < N_cols; j++) {
+                    uint64_t im1 = j - m1;
+                    s1 += (im1*im1) * row[j];
+                }
+                s1 *= fw1;
+
+                // return w0*s0 + w1*s1
+                guesses[guess] = (uint64_t) floor(w0*s0 + w1*s1);
+            }
+        }
+
+        uint64_t min_idx = 0;
+        for (uint64_t guess = 1; guess < N_threshes; guess++) {
+            min_idx = guesses[guess] < guesses[min_idx] ? guess : min_idx;
+        }
+        free(guesses);
+
+        result[i] = min_idx * step_size;
+    }
+}
+
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
     m.def("load_slice", &load_slice);
@@ -1057,4 +1145,5 @@ PYBIND11_MODULE(histograms, m) {
     m.def("erode_3d_sphere_cpu", &morphology_3d_sphere_cpu<std::bit_and<mask_type>, true>);
     m.def("dilate_3d_sphere_gpu", &morphology_3d_sphere_gpu<std::bit_or<mask_type>, false>);
     m.def("erode_3d_sphere_gpu", &morphology_3d_sphere_gpu<std::bit_and<mask_type>, true>);
+    m.def("otsu", &otsu);
 }
