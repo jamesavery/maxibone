@@ -3,7 +3,7 @@ sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root, commandline_args
 from pybind_kernels.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
-from pybind_kernels.histograms import load_slice
+from pybind_kernels.histograms import load_slice, erode_3d_sphere_gpu as erode_3d, dilate_3d_sphere_gpu as dilate_3d
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
@@ -13,6 +13,29 @@ from io_modules.io import update_hdf5
 def sphere(n):
     xs = np.linspace(-1,1,n)
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
+
+def close_3d(image, r):
+    (Nz,Ny,Nx) = image.shape
+    I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
+    I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
+    I1[r:-r,r:-r,r:-r] = image;
+
+    dilate_3d(I1,r,I2);
+    erode_3d (I2,r,I1)
+
+    return I1[r:-r,r:-r,r:-r].astype(image.dtype)
+
+def open_3d(image, r):
+    (Nz,Ny,Nx) = image.shape
+    I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
+    I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
+    I1[r:-r,r:-r,r:-r] = image;
+
+    erode_3d (I1,r,I2);
+    dilate_3d(I2,r,I1)
+
+    return I1[r:-r,r:-r,r:-r].astype(image.dtype)
+
 
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
@@ -138,25 +161,26 @@ midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1
 print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
 bone_mask1 = front_part > midpoint
-label, n_features = ndi.label(bone_mask1)
+                                                                                                                                                                                                                                       
+closing_diameter, opening_diameter = 500, 300           # micrometers                                                                                                                                                                   
+closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+
+for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
+    bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
+
+for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
+    bone_region_mask &= ~implant_shell_image #~open_3d(implant_shell_image, opening_voxels)
+    bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
+
+label, n_features = ndi.label(bone_region_mask)
 print(f"Picking largest connected component volume")
 bincnts           = np.bincount(label[label>0],minlength=n_features+1)
 
-largest_cc_ix     = np.argmax(bincnts)
-bone_mask2=(label==largest_cc_ix)
-
-
-                                                                                                                                                                                                                                       
-closing_diameter, opening_diameter = 800, 60           # micrometers                                                                                                                                                                   
-closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length                                                                                                                                        
-opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-
-print(f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n")
-bone_region_mask = ndi.binary_closing(bone_mask1,sphere(closing_voxels))                                                                                                                                                             
-
-print(f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n")
-bone_region_mask &= ~implant_shell_image #ndi.binary_dilation(implant_shell_image,sphere(opening_diameter))
-
+largest_cc_ix   = np.argmax(bincnts)
+bone_region_mask=(label==largest_cc_ix)
+    
+    
 print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="bone_region",
