@@ -312,26 +312,29 @@ hist, bins = np.histogram(front_part, 256)
 hist[0] = 0
 peaks, info = signal.find_peaks(hist,height=0.5*hist.max())
 
-p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
+try:
+    p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
+    midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
+    print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
-midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
-print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
+    bone_mask1 = front_part > midpoint                                                                                                                                                                                                                                       
+    closing_diameter, opening_diameter = 500, 300           # micrometers                                                                                                                                                                   
+    closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
 
-bone_mask1 = front_part > midpoint
-                                                                                                                                                                                                                                       
-closing_diameter, opening_diameter = 500, 300           # micrometers                                                                                                                                                                   
-closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
+        bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
 
-for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
-    bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
-
-for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
-    bone_region_mask &= ~solid_implant #~open_3d(implant_shell_mask, opening_voxels)
-    bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
+    for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
+        bone_region_mask &= ~solid_implant #~open_3d(implant_shell_mask, opening_voxels)
+        bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
 
     
-bone_region_mask = largest_cc_of(bone_region_mask)
+    bone_region_mask = largest_cc_of(bone_region_mask)
+
+except:
+    print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
+    bone_region_mask = np.ones_like(implant)
     
 print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
