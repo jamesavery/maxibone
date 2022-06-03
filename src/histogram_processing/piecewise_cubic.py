@@ -1,4 +1,5 @@
 from numpy import array, linspace, sin, empty, zeros, linalg, random, pad, concatenate
+import numpy.linalg as la
 # Scheme:
 #  Fit an N-segment piecewise cubic polynomial to a set of points with linear least squares with
 #  two exact conditions:
@@ -74,8 +75,8 @@ def piecewisecubic_matrix(xs,ys, Xs):
     M = len(xs)                 # M data points 
     N = len(Xs)-1               # N segments, i.e. N+1 borders 
     
-    A = empty((M,2*(N+1)),dtype=float)
-    b = empty((M,1),dtype=float)
+    A = zeros((M,2*(N+1)),dtype=float)
+    b = zeros((M,1),dtype=float)
 
     n = 0                        # Start in first region
     Xleft, Xright = Xs[0], Xs[1] 
@@ -132,6 +133,15 @@ def fit_piecewisecubic(xs,ys, Xs):
 
     return (coefs,Xs)
 
+
+def smooth_fun(xs,ys,n_segments):
+    borders = linspace(xs.min(), xs.max()+1,n_segments)    
+
+    A, b = piecewisecubic_matrix(xs,ys,borders)
+    coefs, residuals, rank, sing = la.lstsq(A,b,rcond=None)    
+    pc = coefs, borders
+
+    return pc
 
 if __name__ == "__main__":
     # A test:
