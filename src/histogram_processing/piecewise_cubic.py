@@ -75,8 +75,8 @@ def piecewisecubic_matrix(xs,ys, Xs):
     M = len(xs)                 # M data points 
     N = len(Xs)-1               # N segments, i.e. N+1 borders 
     
-    A = empty((M,2*(N+1)),dtype=float)
-    b = empty((M,1),dtype=float)
+    A = zeros((M,2*(N+1)),dtype=float)
+    b = zeros((M,1),dtype=float)
 
     n = 0                        # Start in first region
     Xleft, Xright = Xs[0], Xs[1] 
