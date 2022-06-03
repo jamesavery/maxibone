@@ -8,6 +8,8 @@ import numpy as np
 from config.paths import binary_root, hdf5_root_fast as hdf5_root
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from histogram_processing.piecewise_cubic import piecewisecubic, piecewisecubic_matrix, smooth_fun
+from PIL import Image
 
 debug = True
 
@@ -28,25 +30,54 @@ def load_block(sample, offset, block_size, field_names):
 
     return voxels, fields
 
-def apply_otsu(bins, c):
+def apply_otsu(bins, c, name=None):
     P = np.zeros(bins.shape, dtype=np.float32)
     threshes = np.empty(bins.shape[0], dtype=np.uint64)
     histograms.otsu(bins, threshes, 1)
-    for i, row in enumerate(bins):
-        ma = max(1,np.float32(row.sum()))
-        if c:
-            P[i,:threshes[i]] = row[:threshes[i]].astype(np.float32) / ma
+    ##
+    start = 0
+    for i in range(bins.shape[0]):
+        if np.isnan(threshes[i]) or threshes[i] == 0 or np.isinf(threshes[i]):
+            start = i+1
         else:
-            P[i,threshes[i]:] = row[threshes[i]:].astype(np.float32) / ma
+            break
+    if start < bins.shape[0]:
+        threshes[:start] = threshes[start]
+        ##
+        li = list(range(bins.shape[0]))
+        li.reverse()
+        for i in li:
+            if np.isnan(threshes[i]) or threshes[i] == 0 or np.isinf(threshes[i]):
+                end = i
+            else:
+                break
+        if end >= 0:
+            threshes[end:] = threshes[end-1]
+    xs = np.arange(bins.shape[0], dtype=float)
+    pc = smooth_fun(np.arange(bins.shape[0], dtype=float), threshes, 6)
+    new_threshes = piecewisecubic(pc, xs)
+    for i, row in enumerate(bins):
+        ma = max(1,np.float32(row.max()))
+        if c:
+            P[i,:int(new_threshes[i])] = row[:int(new_threshes[i])].astype(np.float32) / ma
+        else:
+            P[i,int(new_threshes[i]):] = row[int(new_threshes[i]):].astype(np.float32) / ma
+    if debug:
+        display_cubic = ((bins / bins.max()) * 255).astype(np.uint8)
+        display_cubic = cv2.cvtColor(display_cubic, cv2.COLOR_GRAY2RGB)
+        for i, thresh in enumerate(new_threshes):
+            display_cubic[i,int(threshes[i])-2:int(threshes[i])+2] = (0,255,0)
+            display_cubic[i,int(thresh)-2:int(thresh)+2] = (255,0,0)
+        Image.fromarray(display_cubic).save(f'partials/cubic_{name}.png')
     return P
 
 def load_probabilities(labeled, axes_names, field_names, c):
-    P_axes = [apply_otsu(labeled[f'{name}_bins'], c) for name in axes_names]
+    P_axes = [apply_otsu(labeled[f'{name}_bins'], c, name) for name in axes_names]
     P_fields = []
     for name in field_names:
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
-        P_fields.append(apply_otsu(bins, c))
+        P_fields.append(apply_otsu(bins, c, name))
     
     if debug:
         for i, name in enumerate(axes_names):
@@ -87,10 +118,9 @@ if __name__ == '__main__':
     axes_names = ["x", "y", "z", "r"]
     field_names = ["gauss", "edt", "gauss+edt"]
 
-    for c in {False}:
+    for c in {True}:
         P_axes, P_fields = load_probabilities(labeled, axes_names, field_names, c)
         print ([P.min() for P in P_axes], [P.max() for P in P_axes], [P.min() for P in P_fields], [P.max() for P in P_fields])
-        #Pxs, Pys, Pzs, Prs, Pfield = load_probabilities(labeled, c)
 
         for i in tqdm(range(blocks), desc='Computing the probability distributions'):
             voxels = np.zeros((block_size, sy, sx), np.uint16)
