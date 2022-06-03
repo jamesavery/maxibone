@@ -8,7 +8,7 @@
 #include <iostream>
 namespace py = pybind11;
 
-typedef uint8_t  result_type;
+typedef uint16_t result_type;
 typedef uint16_t voxel_type;
 typedef float_t  prob_type;
 typedef uint16_t field_type;
@@ -67,15 +67,16 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
         j++;
     }
 
+
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
         result_info = np_result.request();
 
     // TODO this might fail if the first of each is not enabled by the mask.
-    const uint64_t
+    const uint32_t
         Nvoxel_bins = n_axes > 0 ? axes_probs_info[0].shape[1] : 0,
-        Nfield_bins = n_fields > 0 ? field_probs_info[0].shape[1] : 0;
+        Nfield_bins = n_fields > 0 ? field_probs_info[0].shape[2] : 0;
 
     const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
     const field_type *field = static_cast<const field_type*>(field_info.ptr);
@@ -84,13 +85,13 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
     auto [sz, sy, sx] = offset;
     auto [Nz, Ny, Nx] = ranges;
     uint64_t
-        //fz = Nz / 2, // Commented due to unused warning
+        fz = (Nz-sz) / 2, //TODO this is off
         fy = Ny / 2,
         fx = Nx / 2;
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
 
-    #pragma omp parallel for collapse(3) schedule(dynamic)
+    #pragma omp parallel for collapse(3)
     for (uint64_t z = sz; z < Nz; z++) {
         for (uint64_t y = sy; y < Ny; y++) {
             for (uint64_t x = sx; x < Nx; x++) {
@@ -98,24 +99,29 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
                 uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
                 // Get the voxel value and the indices
                 voxel_type voxel = voxels[flat_index];
+                if (voxel < v_min || voxel > v_max)
+                    continue;
                 int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
                 uint64_t r = floor(sqrt((x-Nx/2.0)*(x-Nx/2.0) + (y-Ny/2.0)*(y-Ny/2.0)));
-
-                uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
-                field_type field_v = field[flat_field_index];
-                int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
 
                 prob_type p = 0;
                 uint64_t axes_idxs[] = {x, y, z, r};
                 for (uint64_t i = 0; i < n_axes; i++) {
                     p += axes_probs[i][axes_idxs[axes_access_idx[i]]*Nvoxel_bins + voxel_index];
                 }
+
                 for (uint64_t i = 0; i < n_fields; i++) {
-                    p += field_probs[i][field_index*Nvoxel_bins + voxel_index];
+                    uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
+                    field_type field_v = field[i*fz*fy*fx + flat_field_index];
+                    if (field_v < f_min || field_v > f_max)
+                        continue;
+                    int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
+                    p += field_probs[i][field_index*Nfield_bins + voxel_index];
                 }
 
                 // Compute the dummy joint probability
-                result[flat_index] = ((uint8_t) floor((p / (n_axes + n_fields)) * 255));
+                //result[flat_index] = ((uint8_t) floor((p / (n_axes + n_fields)) * 255));
+                result[flat_index] = round((p / (n_axes + n_fields)) * 65536);
             }
         }
     }
