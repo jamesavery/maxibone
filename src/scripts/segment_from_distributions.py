@@ -34,7 +34,7 @@ def apply_otsu(bins, c, name=None):
     P = np.zeros(bins.shape, dtype=np.float32)
     threshes = np.empty(bins.shape[0], dtype=np.uint64)
     histograms.otsu(bins, threshes, 1)
-    ##
+    ## Replace leading 0s with the first "valid" value
     start = 0
     for i in range(bins.shape[0]):
         if np.isnan(threshes[i]) or threshes[i] == 0 or np.isinf(threshes[i]):
@@ -43,7 +43,7 @@ def apply_otsu(bins, c, name=None):
             break
     if start < bins.shape[0]:
         threshes[:start] = threshes[start]
-        ##
+        ## Replace tailing 0s with the last "valid" value
         li = list(range(bins.shape[0]))
         li.reverse()
         for i in li:
@@ -95,37 +95,35 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__':
+    # TODO Don't hardcode
     sample = '770c_pag'
+    block_size = 64
+    z_offset = 2000
+    blocks = 1 #nblocks(sz, block_size)
 
     # Load the histograms
     labeled = np.load(f'{hdf5_root}/processed/histograms/{sample}/bins-bone_region2.npz')
 
-    # TODO is not implemented in all
-    #y_cutoff = 1300 # 770c_pag
-    implant_threshold_u16 = 32000
-    block_size = 64
     (vmin, vmax), (fmin, fmax) = labeled['value_ranges']
-    #vmin, vmax = 0, implant_threshold_u16 #histograms.masked_minmax(voxels)
-    #fmin, fmax = 0, 65535.000000 # TODO don't hardcode.
     vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
 
     dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
     sz, sy, sx = dm['voxels'].shape
     fz, fy, fx = np.array((sz, sy, sx)) // 2
     dm.close()
-    blocks = 1#nblocks(sz, block_size)
 
     axes_names = ["x", "y", "z", "r"]
     field_names = ["gauss", "edt", "gauss+edt"]
 
     for c in {True}:
         P_axes, P_fields = load_probabilities(labeled, axes_names, field_names, c)
-        print ([P.min() for P in P_axes], [P.max() for P in P_axes], [P.min() for P in P_fields], [P.max() for P in P_fields])
+        if debug:
+            print ([P.min() for P in P_axes], [P.max() for P in P_axes], [P.min() for P in P_fields], [P.max() for P in P_fields])
 
         for i in tqdm(range(blocks), desc='Computing the probability distributions'):
             voxels = np.zeros((block_size, sy, sx), np.uint16)
             field = np.zeros((block_size//2, fy, fx), np.uint16)
-            zstart, zstop = i*block_size + 2000, min((i+1)*block_size + 2000, sz)
+            zstart, zstop = i*block_size + z_offset, min((i+1)*block_size + z_offset, sz)
             voxels, fields = load_block(sample, (zstart, 0, 0), block_size, field_names)
             fzstart, fzstop = i*(block_size//2), min((i+1)*(block_size//2), fz)
             ranges = np.array([0, block_size, 0, sy, 0, sx], np.uint64)
@@ -140,6 +138,7 @@ if __name__ == '__main__':
                 (zstart, 0, 0), (zstop, sy, sx)
             )
 
-            print (f'Segmentation has min {result.min()} and max {result.max()}')
+            if debug:
+                print (f'Segmentation has min {result.min()} and max {result.max()}')
 
             np.save(f'partials/c{c}_{i}', result)
