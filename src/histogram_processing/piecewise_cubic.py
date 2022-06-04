@@ -97,13 +97,28 @@ def piecewisecubic_matrix(xs,ys, Xs):
 # produced by fit_piecewisecubic() and evaluates it on an arbitrary
 # set of coordinates xs (not necessarily the same as the data points
 # it was fitted to):
-def piecewisecubic(pc,all_xs):
+def piecewisecubic(pc,all_xs,extrapolation="cubic"):
     coefs, Xs = pc          # Polynomial coefficients A1,B1,C1,D1,C2,D2,C3,D3,... and borders
     N = len(Xs)-1           # N segments have N+1 borders: |seg1|seg2|...|segN|
 
     ys = []                 # List of function values for segments
-    A,B = coefs[:2]         # A and B coefficients are only defined for 0-segment
+    A,B = coefs[:2]         # A and B coefficients are only stored for 0-segment
 
+    # Process points outside the domain, left side
+    Xmin = Xs[0]
+    C,D = coefs[2:4]
+    xs_left_of_domain = all_xs[all_xs < Xmin]
+    xs = xs_left_of_domain - Xmin
+
+    if extrapolation=="cubic":
+        ys += [A + B*xs + C*(xs**2) + D*(xs**3)]
+    if extrapolation=="linear":
+        # evaluate dy/dx at domain edge Xs.min()
+        ys   += [A + B*xs]      # A is value at Xmin, B is slope at Xmin
+    if extrapolation=="constant":
+        ys += [np.ones(xs_left_of_domain.shape)*A] # A is value at Xmin
+
+    # Process points inside domain
     for n in range(N):
         C, D          = coefs[(2+2*n):(2+2*n+2)] # 
         
@@ -119,6 +134,19 @@ def piecewisecubic(pc,all_xs):
         X = Xright-Xleft
         A = A + B*X + C*(X**2) + D*(X**3)   # A_{n+1} = f_n (X_{n+1})
         B =     B   + C*2*X    + D*3*(X**2) # B_{n+1} = f'_n(X_{n+1})
+
+
+    # Process points outside the domain, right side
+    Xmax = Xs[-1]
+    xs_right_of_domain = all_xs[all_xs > Xmax]
+    xs = xs_right_of_domain - Xmax
+    
+    if extrapolation=="cubic":
+        ys += [A + B*xs + C*(xs**2) + D*(xs**3)]  
+    if extrapolation=="linear":
+        ys   += [A + B*xs]
+    if extrapolation=="constant":
+        ys += [np.ones(xs_right_of_domain.shape)*A]
         
     return concatenate(ys)
 
@@ -166,7 +194,7 @@ if __name__ == "__main__":
     # plt.show()
 
 
-    f = np.load("output_curve_values.npy")
+    f = np.load("test_data/output_curve_values.npy")
 
     vals = f[7,:,1].T
     mask = vals>0
@@ -179,9 +207,16 @@ if __name__ == "__main__":
     coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
     
     pc = coefs, borders
-    
-    Ys = piecewisecubic(pc,xs)
 
-    plt.plot(xs,ys)
-    plt.plot(xs,Ys)
+    xs_len = xs.max()-xs.min()
+    new_xs = np.linspace(xs.min()-xs_len/2,xs.max()+xs_len/2,100)
+    
+    Ys1 = piecewisecubic(pc,new_xs) # Cubic extrapolation is default
+    Ys2 = piecewisecubic(pc,new_xs,extrapolation="linear") 
+    Ys3 = piecewisecubic(pc,new_xs,extrapolation="constant") 
+
+    plt.plot(xs,ys,c='black',linewidth=2.5)
+    plt.plot(new_xs,Ys1,c='r')
+    plt.plot(new_xs,Ys2,c='g')
+    plt.plot(new_xs,Ys3,c='b')    
     plt.show()
