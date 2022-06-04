@@ -574,7 +574,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
         z_info = np_z_bins.request(),
         r_info = np_r_bins.request();
 
-    const uint32_t
+    const uint64_t
         image_length = voxels_info.size,
         voxel_bins   = x_info.shape[1],
         Nx = x_info.shape[0],
