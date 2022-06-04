@@ -340,6 +340,7 @@ update_hdf5(f"{output_dir}/{sample}.h5",
             attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
 
+# TODO: Store resin mask as well
 
 
 
