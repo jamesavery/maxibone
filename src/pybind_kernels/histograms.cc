@@ -118,8 +118,8 @@ template <typename Op, bool neutral> void morphology_3d_sphere_cpu(
 template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
         const py::array_t<mask_type> &np_voxels,
         const int64_t radius,
-        const py::array_t<mask_type> np_result
-) {
+        const py::array_t<mask_type> np_result) {
+#ifdef _OPENACC
     auto
         voxels_info = np_voxels.request(),
         result_info = np_result.request();
@@ -168,6 +168,9 @@ template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
             }
         }
     }
+#else
+    throw runtime_error("Library wasn't compiled with OpenACC.");
+#endif
 }
 
 void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
