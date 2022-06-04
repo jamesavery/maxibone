@@ -28,6 +28,7 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
                    const uint64_t axes_probs_mask,
                    const py::list li_field_probs,
                    const uint64_t field_probs_mask,
+                   const py::array_t<prob_type> &np_weights,
                    py::array_t<result_type> &np_result,
                    const std::tuple<float, float> &vrange,
                    const std::tuple<float, float> &frange,
@@ -71,6 +72,7 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
+        weights_info = np_weights.request(),
         result_info = np_result.request();
 
     // TODO this might fail if the first of each is not enabled by the mask.
@@ -80,6 +82,7 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
 
     const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
     const field_type *field = static_cast<const field_type*>(field_info.ptr);
+    const prob_type *weights = static_cast<prob_type*>(weights_info.ptr);
     result_type *result = static_cast<result_type*>(result_info.ptr);
 
     auto [sz, sy, sx] = offset;
@@ -107,7 +110,7 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
                 prob_type p = 0;
                 uint64_t axes_idxs[] = {x, y, z, r};
                 for (uint64_t i = 0; i < n_axes; i++) {
-                    p += axes_probs[i][axes_idxs[axes_access_idx[i]]*Nvoxel_bins + voxel_index];
+                    p += axes_probs[i][axes_idxs[axes_access_idx[i]]*Nvoxel_bins + voxel_index] * weights[i];
                 }
 
                 for (uint64_t i = 0; i < n_fields; i++) {
@@ -116,12 +119,11 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
                     if (field_v < f_min || field_v > f_max)
                         continue;
                     int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
-                    p += field_probs[i][field_index*Nfield_bins + voxel_index];
+                    p += field_probs[i][field_index*Nfield_bins + voxel_index] * weights[i + n_axes];
                 }
 
-                // Compute the dummy joint probability
-                //result[flat_index] = ((uint8_t) floor((p / (n_axes + n_fields)) * 255));
-                result[flat_index] = round((p / (n_axes + n_fields)) * 65536);
+                // Compute the joint probability and cast between [0:result_type_max_value]
+                result[flat_index] = round(p * std::numeric_limits<result_type>::max());
             }
         }
     }

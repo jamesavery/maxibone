@@ -68,6 +68,7 @@ if __name__ == '__main__':
 
     for c in {0}:
         P_axes, P_fields = load_probabilities(probs_file, group, axes_names, field_names, c)
+        n_probs = len(P_axes) + len(P_fields)
         if debug:
             print ([P.min() for P in P_axes], [P.max() for P in P_axes], [P.min() for P in P_fields], [P.max() for P in P_fields])
 
@@ -84,6 +85,7 @@ if __name__ == '__main__':
                 voxels, fields,
                 P_axes, 0b1111,
                 P_fields, 0b111,
+                np.array([1. / n_probs] * n_probs), # Average of all of the probabilities
                 result,
                 (vmin, vmax), (fmin, fmax),
                 (zstart, 0, 0), (zstop, sy, sx)
