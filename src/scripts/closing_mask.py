@@ -4,7 +4,7 @@ import h5py
 import pybind_kernels.histograms as histograms
 import pybind_kernels.label as label
 import numpy as np
-from config.paths import binary_root, hdf5_root_fast as hdf5_root
+from config.paths import binary_root, hdf5_root_fast as hdf5_root, commandline_args
 from tqdm import tqdm
 from scipy import ndimage as ndi
 import timeit
@@ -15,12 +15,10 @@ def sphere(n):
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
 if __name__ == '__main__':
-    # TODO commandline arguments
-    scale = 4
-    sample = '770c_pag'
+    sample, scale = commandline_args({"sample":"<required>","scale":4})
 
-    with np.load(f"{binary_root}/masks/implant/{scale}x/{sample}.npz") as f:
-        implant_mask = f['implant_mask'][:,:,:]
+    with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5") as f:
+        implant_mask = f['implant/mask'][:,:,:]
     
     voxels = implant_mask.astype(np.bool)
     result_cpu = np.empty_like(voxels)
