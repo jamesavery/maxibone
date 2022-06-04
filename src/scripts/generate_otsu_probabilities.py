@@ -20,7 +20,7 @@ def apply_otsu(bins, name=None):
     histograms.otsu(bins, threshes, 1)
 
     # Ignore insignificant rows
-    threshes[bins.max(axis=1) < 100] = 0
+    threshes[bins.sum(axis=1) < 100] = 0
 
     ## Leading and trailing 0s and/or invalid floats should not be included in cubic fit
     is_valid = lambda x: not (np.isnan(x) or np.isinf(x) or x == 0)
@@ -29,7 +29,7 @@ def apply_otsu(bins, name=None):
 
     # Fit and apply piecewise cubic to smooth the thresholds
     xs = np.arange(start, end, dtype=float)
-    pc = smooth_fun(xs, threshes[start:end], 6)
+    pc = smooth_fun(xs, threshes[start:end], 12)
     new_threshes_linear = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='linear')
     if debug:
         new_threshes_cubic = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='cubic')
@@ -44,16 +44,16 @@ def apply_otsu(bins, name=None):
     # Save control images
     if debug:
         # Plot the two extracted probabilities
-        plt.imshow(P0)
-        plt.savefig(f'{debug_output}/P_otsu_c0_{name}.png')
+        plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
+        plt.savefig(f'{debug_output}/{name}_P_otsu_c0.png')
         plt.clf()
-        plt.imshow(P1)
-        plt.savefig(f'{debug_output}/P_otsu_c1_{name}.png')
+        plt.imshow(P1/(P1.max(axis=1)[:,NA]+1))
+        plt.savefig(f'{debug_output}/{name}_P_otsu_c1.png')
         plt.clf()
 
         # Plot the thresholds on top of the original image
-        display_cubic = ((bins / bins.max()) * 255).astype(np.uint8)
-        display_cubic = np.broadcast_to(display_cubic[:,:,NA],display_cubic.shape+(3,))
+        display_cubic = np.empty(bins.shape+(3,),dtype=np.uint8)
+        display_cubic[:,:] = ((bins / (bins.max(axis=1)[:,NA]+1)) * 255)[:,:,NA]
         for i, thresh in enumerate(threshes):
             display_cubic[i,int(thresh)-2:int(thresh)+2] = (255,128,0) # otsu is orange
             display_cubic[i,int(new_threshes_cubic[i])-2:int(new_threshes_cubic[i])+2] = (255,0,0) # cubic is red
@@ -100,7 +100,7 @@ def save_probabilities(Ps, sample, subbins,value_ranges):
 if __name__ == '__main__':
     sample, subbins, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'debug_output': None})
     output_folder = f'{hdf5_root}/processed/probabilities/'
-    debug = False
+    debug = True
     debug_output = output_folder if not debug_output else debug_output
 
 
