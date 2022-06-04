@@ -1,4 +1,5 @@
 from numpy import array, linspace, sin, empty, zeros, linalg, random, pad, concatenate
+import numpy as np
 import numpy.linalg as la
 # Scheme:
 #  Fit an N-segment piecewise cubic polynomial to a set of points with linear least squares with
