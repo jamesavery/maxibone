@@ -262,7 +262,7 @@ update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="implant-FoR",
             datasets={"UVW":E.T,
                       "UVWp": Ep,                      
-                      "center_of_mass_xyz":cm,
+                      "center_of_mass":cm,
                       "center_of_cylinder_UVW": cp,
                       "center_of_cylinder_xyz": Cp,
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
@@ -275,7 +275,14 @@ update_hdf5(f"{output_dir}/{sample}.h5",
             attributes={"backplane_W_shift":w0*voxel_size,
                         "implant_radius": implant_radius                        
             },
-            dimensions={"center_of_mass":"xyz in micrometers"},
+            dimensions={
+                "center_of_mass":"xyz in {scale}x voxels",
+                "center_of_cylinder_UVW":"UVW in micrometers",
+                "center_of_cylinder_xyz":"xyz in {scale}x voxels"
+                "bounding_box_UVWp":"U'V'W' in micrometers",
+                "U_values":"micrometer"
+                "theta_range":"angle around phantom implant center"
+            },
             chunk_shape=None
 )
 
