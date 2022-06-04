@@ -1046,6 +1046,7 @@ void otsu(
     py::buffer_info
         bins_info = np_bins.request(),
         result_info = np_result.request();
+    // https://vincmazet.github.io/bip/segmentation/histogram.html
 
     uint64_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
     uint64_t N_threshes = N_cols / step_size;
