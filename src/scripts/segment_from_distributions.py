@@ -28,10 +28,11 @@ def load_probabilities(path, group, axes_names, field_names, c):
     with h5py.File(path, 'r') as f:
         grp = f[group]
         P_axes = [grp[f'{name}_bins_c{c}'][:,:] for name in axes_names]
-        P_fields = [grp[f'field_bins_{name}_c{c}'][:,:] for name in field_names]
+        P_fields = [grp[f'field_bins_{name}/c{c}'][:,:] for name in field_names]
     return P_axes, P_fields
 
 def load_value_ranges(path, group):
+    print(f"Reading value_ranges from {group} in {path}\n")    
     with h5py.File(path, 'r') as f:
 #        f.require_group(group) # require_group betyder "opret gruppe hvis den ikke findes, overskriv hvis den allerede findes". Det er ikke et tjek.
         a = f[group]['value_ranges']
@@ -40,19 +41,19 @@ def load_value_ranges(path, group):
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
-if __name__ == '__main__':
+if __name__ == '__main__': # TODO: separation isf. seperation
     sample, subbins, group, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'group': 'otsu_seperation', 'debug_output': None})
 
     # Iterate over all subvolumes
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=0, n_blocks=0, z_offset=0)
     sz, sy, sx = bi['dimensions'][:3]
     fz, fy, fx = np.array((sz, sy, sx)) // 2
-    axes_names = ["x", "y", "z", "r"]
-    field_names = ["gauss", "edt", "gauss+edt"]
+    axes_names =  []     # ["x", "y", "z", "r"] # For later
+    field_names = ["edt"]# ["gauss", "edt", "gauss+edt"] 
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(bi['n_blocks']), desc='segmenting subvolumes'):
-        group_name = "{group}/{subbins}{b}"
+        group_name = f"{group}/{subbins}{b}/"
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
         zend = zstart + block_size
@@ -64,7 +65,7 @@ if __name__ == '__main__':
 
         for c in [0,1]:
             output_file = f'{hdf5_root}/processed/segmented/{sample}_{c}.bin'
-            P_axes, P_fields = load_probabilities(probs_file, group, axes_names, field_names, c)
+            P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
             n_probs = len(P_axes) + len(P_fields)
             result = np.zeros((bi['subvolume_nzs'][b],sy,sx), dtype=np.uint16)
 
