@@ -29,7 +29,7 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
     f.close()
 
 
-def block_info(h5meta_filename,block_size, n_blocks):
+def block_info(h5meta_filename,block_size, n_blocks,z_offset):
     print(f"Opening {h5meta_filename}")
     with h5py.File(h5meta_filename, 'r') as dm:
         vm_shifts  = dm["volume_matching_shifts"][:]
