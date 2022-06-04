@@ -1,5 +1,4 @@
 import sys
-from attr import attrib
 sys.path.append(sys.path[0]+"/../")
 import cv2
 import h5py
@@ -12,9 +11,6 @@ from histogram_processing.piecewise_cubic import piecewisecubic, piecewisecubic_
 from PIL import Image
 import os
 import helper_functions
-
-debug = True
-debug_output = 'partials'
 
 def apply_otsu(bins, name=None):
     # Set up buffers
@@ -105,7 +101,10 @@ def save_probabilities(Ps, output_path, value_ranges):
         )
 
 if __name__ == '__main__':
-    sample, subbins = commandline_args({'sample':'<required>', 'subbins': '<required>'})
+    sample, subbins, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'debug_output': None})
+    output_folder = f'{hdf5_root}/processed/probabilities/'
+    debug = True
+    debug_output = output_folder if not debug_output else debug_output
     if not os.path.exists(debug_output):
         os.mkdir(debug_output)
     bins = np.load(f'{hdf5_root}/processed/histograms/{sample}/bins-{subbins}.npz')
