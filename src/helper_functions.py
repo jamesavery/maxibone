@@ -2,7 +2,7 @@
 import h5py, numpy as np
 
 def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
-                compression="lzf",chunk_shape=(64,64,64)):
+                compression="lzf",chunk_shape=None):
 
     f = h5py.File(filename,'a')
 

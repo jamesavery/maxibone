@@ -293,25 +293,30 @@ print(f"Saving implant_solid mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="implant_solid",
             datasets={"mask":solid_implant},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
+            chunk_shape=(64,64,64)
+)
 
 print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="implant_shell",
             datasets={"mask":implant_shell_mask},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
+            chunk_shape=(64,64,64))
 
 print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_air",
             datasets={"mask":back_mask},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
+            chunk_shape=(64,64,64))
 
 print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_bone",
             datasets={"mask":front_mask},
-            attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
+            attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size},
+            chunk_shape=(64,64,64))
 
 
 print(f"Computing bone region")
