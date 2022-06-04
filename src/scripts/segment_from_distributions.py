@@ -33,7 +33,7 @@ def load_probabilities(path, group, axes_names, field_names, c):
 
 def load_value_ranges(path, group):
     with h5py.File(path, 'r') as f:
-        f.require_group(group)
+#        f.require_group(group) # require_group betyder "opret gruppe hvis den ikke findes, overskriv hvis den allerede findes". Det er ikke et tjek.
         a = f[group]['value_ranges']
         return list(a)
 
@@ -50,15 +50,16 @@ if __name__ == '__main__':
     axes_names = ["x", "y", "z", "r"]
     field_names = ["gauss", "edt", "gauss+edt"]
 
+    probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(bi['n_blocks']), desc='segmenting subvolumes'):
-        probs_file = f'{hdf5_root}/processed/probabilities/{sample}-{subbins}{b}.h5'
+        group_name = "{group}/{subbins}{b}"
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
         voxels, fields = load_block(sample, sy, sx, zstart, block_size, field_names)
         # These ranges shouldn't differ, but still let's be safe
-        (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group)
+        (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
         vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
 
         for c in [0,1]:
