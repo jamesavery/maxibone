@@ -46,13 +46,19 @@ if __name__ == '__main__':
         group_name = f"{group}/{region}{b}/"
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
+
+        zstart     = 400        # DEBUGGING
+        block_size = 200        # DEBBUGGING
+        
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
         mask_scale = 8
+        
         voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
+        plt.imshow(voxels[:,1728,:])
+        
         # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
-        vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
 
         for c in [0,1]:
             output_dir  = f'{binary_root}/segmented/c{c}/1x/'
@@ -61,7 +67,16 @@ if __name__ == '__main__':
 
             P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
             n_probs = len(P_axes) + len(P_fields)
-            result = np.zeros((bi['subvolume_nzs'][b],Ny,Nx), dtype=np.uint16)
+            result = np.zeros((bi['subvolume_nzs'][b],Ny,Nx), dtype=np.uint8)
+
+            plt.imshow(P_fields[0])
+            plt.show()
+            plt.imshow(voxels[100,:,:])
+            plt.show()
+            plt.imshow(voxels[:,1728,:])            
+            plt.show()
+            plt.imshow(fields[0][50,:,:])
+            plt.show()
 
             label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
