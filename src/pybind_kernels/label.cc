@@ -240,9 +240,10 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 
 		assert(flat_index < voxels_info.size);
 		voxel_type voxel = voxels[flat_index];
-		
-                if (voxel < v_min || voxel > v_max)
-                    continue;
+
+		if(voxel == 0) continue;
+		voxel = std::max(v_min,voxel);
+		voxel = std::min(v_max,voxel);		
 
 		assert(voxel >= v_min && voxel <= v_max);
 		
@@ -258,7 +259,6 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                 // TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)                                                                                                                     
                 uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
 		assert(flat_field_index < field_info.size);
-
 
 		field_type  field_value = 0;
 		{
@@ -276,9 +276,10 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 		       field_value = field[i];
 		     }
 		}
-		
-                if (field_value < f_min || field_value > f_max)
-                        continue;
+
+
+		field_value = std::max(f_min, field_value);
+		field_value = std::min(f_max, field_value); 
 		
                 int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_value - f_min)/double(f_max - f_min)) );
 
