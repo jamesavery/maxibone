@@ -140,8 +140,8 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 				   const py::array_t<field_type> &np_field,
 				   const py::array_t<prob_type>  &np_prob,			      
 				   py::array_t<result_type> &np_result,
-				   const std::tuple<float, float> &vrange,
-				   const std::tuple<float, float> &frange,
+				   const std::pair<voxel_type, voxel_type> &vrange,
+				   const std::pair<field_type, field_type> &frange,
 				   const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
 				   const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
 
@@ -167,32 +167,8 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
 
-    // fprintf(stderr,"(Nz,Ny,Nx) = (%d,%d,%d)\n",Nz,Ny,Nx);
-    // fprintf(stderr,"(sz,sy,sx) = (%d,%d,%d)\n",sz,sy,sx);
-    // fprintf(stderr,"(nz,ny,nx) = (%d,%d,%d)\n",nz,ny,nx);
-    // fprintf(stderr,"(fz,fy,fx) = (%d,%d,%d)\n",fz,fy,fx);
-    // fprintf(stderr,"(v_min,v_max) = (%g,%g)\n",v_min,v_max);
-    // fprintf(stderr,"(f_min,f_max) = (%g,%g)\n",f_min,f_max);
-
-    // {
-    //   prob_type p_min = 0, p_max = 0;
-    //   for(size_t i=0;i<prob_info.size;i++){ p_min = std::min(p_min,prob[i]); p_max = std::max(p_max,prob[i]); }
-    //   fprintf(stderr,"prob min,max = %g,%g\n",p_min,p_max);
-      
-      
-    //   field_type field_min = 0, field_max = 0;
-    //   for(size_t i=0;i<field_info.size;i++){
-    // 	field_min = std::min(field_min,field[i]); field_max = std::max(field_max,field[i]);
-    //   }
-    //   fprintf(stderr,"field min,max = %d,%d\n",field_min,field_max);
-
-    //   voxel_type vox_min = 0, vox_max = 0;
-    //   for(size_t i=0;i<voxels_info.size;i++){
-    // 	vox_min = std::min(vox_min,voxels[i]); vox_max = std::max(vox_max,voxels[i]);
-    //   }
-    //   fprintf(stderr,"voxels min,max = %d,%d\n",vox_min,vox_max);
-    // }
-
+    printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n",v_min,v_max, f_min,f_max);
+    
     for(size_t i=0;i<result_info.size;i++) result[i] = 0;
 
 #pragma omp parallel for collapse(3)          
@@ -200,26 +176,72 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
         for (uint64_t y = sy; y < Ny; y++) {
             for (uint64_t x = sx; x < Nx; x++) {
                 uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
-                // get the voxel value and the indices
-                voxel_type voxel = voxels[flat_index];
+
+		assert(flat_index < voxels_info.size);
+		voxel_type voxel = voxels[flat_index];
+		
                 if (voxel < v_min || voxel > v_max)
                     continue;
-		
+
                 int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 
+		assert(voxel_index > 0 && voxel_index < Nvoxel_bins);
                 prob_type p = 0;
 
-		// TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)
-		uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
-		field_type field_v        = field[flat_field_index];
+                // TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)                                                                                                                     
+                uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
+		assert(flat_field_index < field_info.size);
+		
+                field_type field_v        = field[flat_field_index];
 
-		if (field_v < f_min || field_v > f_max)
+                if (field_v < f_min || field_v > f_max)
                         continue;
-		int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
-		p += prob[field_index*Nfield_bins + voxel_index]; //* weights[i + n_axes];
+                int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
 
-                // Compute the joint probability and cast between [0:result_type_max_value]
+		assert(field_index > 0 && field_index < Nfield_bins);
+		
+                p += prob[field_index*Nfield_bins + voxel_index]; //* weights[i + n_axes];                                                                                                                         
+		if(p<0 || p>1){
+		  fprintf(stderr,"p = %g; field_v = %d; voxel_voxel = %d\n",p, field_v,voxel);
+		  abort();
+		}
                 result[flat_index] = round(p * std::numeric_limits<result_type>::max());
+
+		
+                // // get the voxel value and the indices
+		// assert(flat_index < voxels_info.size);
+		
+                // voxel_type voxel = voxels[flat_index];
+
+                // if (voxel == 0)	// Maskeret voxel
+                //     continue;
+
+		// voxel = std::max(v_min,voxel);
+		// voxel = std::min(v_max,voxel);
+		
+                // int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+		// assert(voxel_index >= 0 && voxel_index < Nvoxel_bins);
+		
+                // prob_type p = 0;
+
+		// // TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)
+		// uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
+
+		// assert(flat_field_index < field_info.size);
+		  
+		// field_type field_v        = field[flat_field_index];
+
+		// // if (field_v < f_min || field_v > f_max)
+                // //         continue;
+		
+		// int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_v - f_min)/(f_max - f_min)) );
+		// assert(field_index >= 0 && field_index < Nfield_bins);
+		// p += prob[field_index*Nfield_bins + voxel_index]; //* weights[i + n_axes];
+
+		// assert(p>=0);
+		// assert(p<1);
+                // // cast between [0:result_type_max_value]
+                // result[flat_index] = round(p * std::numeric_limits<result_type>::max());
 
             }
         }
