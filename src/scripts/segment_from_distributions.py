@@ -77,13 +77,17 @@ if __name__ == '__main__':
 
             P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
             n_probs = len(P_axes) + len(P_fields)
-            result = np.zeros((bi['subvolume_nzs'][b],Ny,Nx), dtype=np.uint8)
+            result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint8)
 
             plt.imshow(P_fields[0])
 
             label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
                                                 (zstart,0,0), (zend,Ny,Nx));
+
+            plt.imshow(result[:,1728,:]);  plt.show()
+            plt.imshow(result[100,:,:]);   plt.show()
+            
             # label.material_prob(
             #     voxels, fields,
             #     P_axes, 0,#0b1111,
@@ -97,4 +101,5 @@ if __name__ == '__main__':
             if debug:
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            histograms.write_slice(result, zstart, output_file)
+            #histograms.write_slice(result, zstart, output_file)
+#            histograms.write_slice(result, 0, output_file)
