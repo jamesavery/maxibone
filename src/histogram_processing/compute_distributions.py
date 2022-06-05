@@ -5,7 +5,8 @@ from piecewise_cubic import piecewisecubic_matrix, piecewisecubic
 from config.paths import commandline_args, hdf5_root as hdf5_root
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, material_id, axis, n_segments = commandline_args({"sample":"<required>",
+sample, suffix, material_id, axis, n_segments = commandline_args({"sample":"<required>",
+                                                          "suffix":"<required>",
                                         "material_id": 1,
                                         "axis":"x",
                                         "n_segments": 8})
@@ -18,14 +19,6 @@ def material_points(labs,material_id):
     xs, ys = np.argwhere(mask).astype(float).T    
     return xs,ys
 
-def smooth_fun(xs,ys,n_segments):
-    borders = np.linspace(xs.min(), xs.max()+1,n_segments)    
-
-    A, b = piecewisecubic_matrix(xs,ys,borders)
-    coefs, residuals, rank, sing = la.lstsq(A,b,rcond=None)    
-    pc = coefs, borders
-
-    return pc
 
 # Extract voxel values (as ys) for each coordinate value (as xs)
 xs,ys = material_points(f_labels[f'{axis}_bins'],material_id)
@@ -36,10 +29,10 @@ plt.show()
 plt.scatter(xs,ys)
 plt.show()
 # Compute smooth piecewise cubic least-squares approximation
-pc = smooth_fun(xs,ys,n_segments)
+pc = smooth_fun(xs,ys,n_segments) # Computes smooth piecewise cubic function (represented in pc)
 
 # We can now evaluate the smooth function for any x-values.
-Ys = piecewisecubic(pc,xs)
+Ys = piecewisecubic(pc,xs)  # Evaluates piecewise-cubic pc in (arbitrary) xs
 
 plt.scatter(xs,ys)
 plt.plot(xs,Ys,'C1')
