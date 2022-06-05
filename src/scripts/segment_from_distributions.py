@@ -47,8 +47,8 @@ if __name__ == '__main__':
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
 
-        zstart     = 400        # DEBUGGING
-        block_size = 200        # DEBBUGGING
+        # zstart     = 400        # DEBUGGING
+        # block_size = 200        # DEBBUGGING
         
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
@@ -57,27 +57,27 @@ if __name__ == '__main__':
         voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
 
         # Does all the input data look all right?
-        plt.imshow(voxels[:,1728,:])
-        plt.show()
-        plt.imshow(voxels[100,:,:])
-        plt.show()
-        plt.imshow(voxels[:,1728,:])            
-        plt.show()
-        plt.imshow(fields[0][50,:,:])
-        plt.show()
+        # plt.imshow(voxels[:,1728,:])
+        # plt.show()
+        # plt.imshow(voxels[100,:,:])
+        # plt.show()
+        # plt.imshow(voxels[:,1728,:])            
+        # plt.show()
+        # plt.imshow(fields[0][50,:,:])
+        # plt.show()
         
         
         # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
-        for c in [0,1]:
+        for c in [0]: #,1]:
             output_dir  = f'{binary_root}/segmented/c{c}/1x/'
             output_file = f"{output_dir}/{sample}.uint16";
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
             P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
             n_probs = len(P_axes) + len(P_fields)
-            result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint8)
+            result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint16)
 
             plt.imshow(P_fields[0])
 
@@ -85,8 +85,8 @@ if __name__ == '__main__':
                                                 (vmin,vmax),(fmin,fmax),
                                                 (zstart,0,0), (zend,Ny,Nx));
 
-            plt.imshow(result[:,1728,:]);  plt.show()
-            plt.imshow(result[100,:,:]);   plt.show()
+            # plt.imshow(result[:,1728,:]);  plt.show()
+            # plt.imshow(result[100,:,:]);   plt.show()
             
             # label.material_prob(
             #     voxels, fields,
@@ -101,5 +101,5 @@ if __name__ == '__main__':
             if debug:
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            #histograms.write_slice(result, zstart, output_file)
-#            histograms.write_slice(result, 0, output_file)
+            histograms.write_slice(result, zstart, output_file)
+
