@@ -55,19 +55,6 @@ if __name__ == '__main__':
         fzstart, fzend = zstart // 2, zend // 2
         
         voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
-
-        # Does all the input data look all right?
-        # plt.imshow(voxels[:,1728,:])
-        # plt.show()
-        # plt.imshow(voxels[100,:,:])
-        # plt.show()
-        # plt.imshow(voxels[:,1728,:])            
-        # plt.show()
-        # plt.imshow(fields[0][50,:,:])
-        # plt.show()
-        
-        
-        # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         for c in [0,1]:
@@ -85,9 +72,6 @@ if __name__ == '__main__':
                                                 (vmin,vmax),(fmin,fmax),
                                                 (zstart,0,0), (zend,Ny,Nx));
 
-            # plt.imshow(result[:,1728,:]);  plt.show()
-            # plt.imshow(result[100,:,:]);   plt.show()
-            
             # label.material_prob(
             #     voxels, fields,
             #     P_axes, 0,#0b1111,
