@@ -41,8 +41,8 @@ def load_value_ranges(path, group):
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
-if __name__ == '__main__': # TODO: separation isf. seperation
-    sample, subbins, group, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'group': 'otsu_seperation', 'debug_output': None})
+if __name__ == '__main__': 
+    sample, subbins, group, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'group': 'otsu_separation', 'debug_output': None})
 
     # Iterate over all subvolumes
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=0, n_blocks=0, z_offset=0)

@@ -22,7 +22,7 @@ def save_probabilities(Ps, sample, region,value_ranges,prob_method):
     for name, P0, P1, pc, valid_range, threshes, new_threshes in Ps:
         helper_functions.update_hdf5(
             output_path,
-            group_name = f'otsu_seperation/{region}/{name}',
+            group_name = f'otsu_separation/{region}/{name}',
             datasets = {
                 f'c0': P0,
                 f'c1': P1,
@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
          Ps.append( (field_name,P0,P1,pc,(0,n_rows-1),thresholds,smooth_thresholds) )
 
-       save_probabilities(Ps, sample, region+str(b),bin_file['value_ranges'],"gimp_seperation")
+       save_probabilities(Ps, sample, region+str(b),bin_file['value_ranges'],"gimp_separation")
 
 
             

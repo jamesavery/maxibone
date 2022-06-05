@@ -75,14 +75,14 @@ def save_probabilities(Ps, sample, subbins,value_ranges):
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
     helper_functions.update_hdf5(
         output_path,
-        group_name = f'otsu_seperation/{subbins}',
+        group_name = f'otsu_separation/{subbins}',
         datasets = { 'value_ranges' : value_ranges },
         attributes = {}
     )
     for name, P0, P1, pc, valid_range, threshes, new_threshes in Ps:
         helper_functions.update_hdf5(
             output_path,
-            group_name = f'otsu_seperation/{subbins}/{name}',
+            group_name = f'otsu_separation/{subbins}/{name}',
             datasets = {
                 f'c0': P0,
                 f'c1': P1,
