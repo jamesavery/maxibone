@@ -37,8 +37,8 @@ if __name__ == '__main__':
 
     # Iterate over all subvolumes
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=0, n_blocks=n_blocks, z_offset=block_start)
-    sz, sy, sx = bi['dimensions'][:3]
-    fz, fy, fx = np.array((sz, sy, sx)) // 2
+    Nz, Ny, Nx = bi['dimensions'][:3]
+    fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
     field_names = ["edt"]# ["gauss", "edt", "gauss+edt"] 
 
@@ -49,7 +49,8 @@ if __name__ == '__main__':
         zstart = bi['subvolume_starts'][b]
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
-        voxels, fields = load_block(sample, sy, sx, zstart, block_size, field_names)
+        mask_scale = 8
+        voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
         # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
         vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
@@ -60,11 +61,11 @@ if __name__ == '__main__':
 
             P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
             n_probs = len(P_axes) + len(P_fields)
-            result = np.zeros((bi['subvolume_nzs'][b],sy,sx), dtype=np.uint16)
+            result = np.zeros((bi['subvolume_nzs'][b],Ny,Nx), dtype=np.uint16)
 
             label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
-                                                (zstart,0,0), (zend,0,0));
+                                                (zstart,0,0), (zend,Ny,Nx));
             # label.material_prob(
             #     voxels, fields,
             #     P_axes, 0,#0b1111,
