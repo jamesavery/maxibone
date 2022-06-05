@@ -168,38 +168,39 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
 
-    fprintf(stderr,"(Nz,Ny,Nx) = (%d,%d,%d)\n",Nz,Ny,Nx);
-    fprintf(stderr,"(sz,sy,sx) = (%d,%d,%d)\n",sz,sy,sx);
-    fprintf(stderr,"(nz,ny,nx) = (%d,%d,%d)\n",nz,ny,nx);
-    fprintf(stderr,"(fz,fy,fx) = (%d,%d,%d)\n",fz,fy,fx);
-    fprintf(stderr,"(v_min,v_max) = (%g,%g)\n",v_min,v_max);
-    fprintf(stderr,"(f_min,f_max) = (%g,%g)\n",f_min,f_max);
+    // fprintf(stderr,"(Nz,Ny,Nx) = (%d,%d,%d)\n",Nz,Ny,Nx);
+    // fprintf(stderr,"(sz,sy,sx) = (%d,%d,%d)\n",sz,sy,sx);
+    // fprintf(stderr,"(nz,ny,nx) = (%d,%d,%d)\n",nz,ny,nx);
+    // fprintf(stderr,"(fz,fy,fx) = (%d,%d,%d)\n",fz,fy,fx);
+    // fprintf(stderr,"(v_min,v_max) = (%g,%g)\n",v_min,v_max);
+    // fprintf(stderr,"(f_min,f_max) = (%g,%g)\n",f_min,f_max);
 
-    {
-      prob_type p_min = 0, p_max = 0;
-      for(size_t i=0;i<prob_info.size;i++){ p_min = std::min(p_min,prob[i]); p_max = std::max(p_max,prob[i]); }
-      fprintf(stderr,"prob min,max = %g,%g\n",p_min,p_max);
+    // {
+    //   prob_type p_min = 0, p_max = 0;
+    //   for(size_t i=0;i<prob_info.size;i++){ p_min = std::min(p_min,prob[i]); p_max = std::max(p_max,prob[i]); }
+    //   fprintf(stderr,"prob min,max = %g,%g\n",p_min,p_max);
       
       
-      field_type field_min = 0, field_max = 0;
-      for(size_t i=0;i<field_info.size;i++){
-	field_min = std::min(field_min,field[i]); field_max = std::max(field_max,field[i]);
-      }
-      fprintf(stderr,"field min,max = %d,%d\n",field_min,field_max);
+    //   field_type field_min = 0, field_max = 0;
+    //   for(size_t i=0;i<field_info.size;i++){
+    // 	field_min = std::min(field_min,field[i]); field_max = std::max(field_max,field[i]);
+    //   }
+    //   fprintf(stderr,"field min,max = %d,%d\n",field_min,field_max);
 
-      voxel_type vox_min = 0, vox_max = 0;
-      for(size_t i=0;i<voxels_info.size;i++){
-	vox_min = std::min(vox_min,voxels[i]); vox_max = std::max(vox_max,voxels[i]);
-      }
-      fprintf(stderr,"voxels min,max = %d,%d\n",vox_min,vox_max);
-    }
-    
+    //   voxel_type vox_min = 0, vox_max = 0;
+    //   for(size_t i=0;i<voxels_info.size;i++){
+    // 	vox_min = std::min(vox_min,voxels[i]); vox_max = std::max(vox_max,voxels[i]);
+    //   }
+    //   fprintf(stderr,"voxels min,max = %d,%d\n",vox_min,vox_max);
+    // }
+
+    for(size_t i=0;i<result_info.size;i++) result[i] = 0;
+
 #pragma omp parallel for collapse(3)          
     for (uint64_t z = sz; z < Nz; z++) {
         for (uint64_t y = sy; y < Ny; y++) {
             for (uint64_t x = sx; x < Nx; x++) {
                 uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
-
                 // get the voxel value and the indices
                 voxel_type voxel = voxels[flat_index];
                 if (voxel < v_min || voxel > v_max)
@@ -220,12 +221,14 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 
                 // Compute the joint probability and cast between [0:result_type_max_value]
                 result[flat_index] = round(p * std::numeric_limits<result_type>::max());
+
             }
         }
     }
-    result_type r_min = 0, r_max = 0;
-    for(size_t i=0;i<result_info.size;i++){ r_min = std::min(r_min,result[i]); r_max = std::max(r_max,result[i]); }
-    fprintf(stderr,"result min,max = %g,%g\n",r_min,r_max);
+    // fprintf(stderr,"maxint = %d\n",std::numeric_limits<result_type>::max());
+    // result_type r_min = 0, r_max = 0;
+    // for(size_t i=0;i<result_info.size;i++){ r_min = std::min(r_min,result[i]); r_max = std::max(r_max,result[i]); }
+    // fprintf(stderr,"result min,max = %d,%d\n",r_min,r_max);
 }
 
 PYBIND11_MODULE(label, m) {
