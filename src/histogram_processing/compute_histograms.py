@@ -149,8 +149,15 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     f_bins[:, 0,:] = 0 # TODO EDT mask hack            
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
-    for hist2d in [x_bins,y_bins,z_bins,r_bins] + f_bins:
-        hist2d = ndi.gaussian_filter(hist2d,3,mode='constant',cval=0)
+
+    sigma = 5
+    x_bins = ndi.gaussian_filter(x_bins,sigma,mode='constant',cval=0)
+    y_bins = ndi.gaussian_filter(y_bins,sigma,mode='constant',cval=0)
+    z_bins = ndi.gaussian_filter(z_bins,sigma,mode='constant',cval=0)
+    r_bins = ndi.gaussian_filter(r_bins,sigma,mode='constant',cval=0)
+
+    for i, bins in enumerate(f_bins):
+        f_bins[i] = ndi.gaussian_filter(bins,sigma,mode='constant',cval=0)
     
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
@@ -165,7 +172,7 @@ if __name__ == '__main__':
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
     (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
-    field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
+    field_names=["edt"]#,"gauss","gauss+edt"] # Should this be commandline defined?
     
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)    
