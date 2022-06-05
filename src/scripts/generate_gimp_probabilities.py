@@ -22,7 +22,7 @@ def save_probabilities(Ps, sample, region,value_ranges,prob_method):
     for name, P0, P1, pc, valid_range, threshes, new_threshes in Ps:
         helper_functions.update_hdf5(
             output_path,
-            group_name = f'otsu_separation/{region}/{name}',
+            group_name = f'{prob_method}/{region}/{name}',
             datasets = {
                 f'c0': P0,
                 f'c1': P1,
