@@ -20,17 +20,16 @@ def load_probabilities(path, group, axes_names, field_names, c):
 def load_value_ranges(path, group):
     print(f"Reading value_ranges from {group} in {path}\n")    
     with h5py.File(path, 'r') as f:
-#        f.require_group(group) # require_group betyder "opret gruppe hvis den ikke findes, overskriv hvis den allerede findes". Det er ikke et tjek.
         return f[group]['value_ranges'][:].astype(int)
 
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__': 
-    sample, block_start, n_blocks, region, group, mask_scale, debug_output = commandline_args({'sample':'<required>',
+    sample, block_start, n_blocks, region_mask, group, mask_scale, debug_output = commandline_args({'sample':'<required>',
                                                                                    "block_start":0,
                                                                                    "n_blocks":0,
-                                                                                   'region': 'bone_region',
+                                                                                   'region_mask': 'bone_region',
                                                                                    'group': 'otsu_separation',
                                                                                    'mask_scale': 8,  
                                                                                    'debug_output': None})
@@ -40,11 +39,11 @@ if __name__ == '__main__':
     Nz, Ny, Nx = bi['dimensions'][:3]
     fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
-    field_names = ["edt","gauss"] 
+    field_names = ["edt"]#,"gauss"] # TODO: Vi bruger kun eet field p.t.
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
-        group_name = f"{group}/{region}{b}/"
+        group_name = f"{group}/{region_mask}{b}/"
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
 
@@ -54,7 +53,7 @@ if __name__ == '__main__':
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
         
-        voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
+        voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         for c in [0,1]:
