@@ -47,8 +47,9 @@ if __name__ == "__main__":
 
    try:
       f = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r");
-   except:
+   except Exception as e:
       print(f"Couldn't open{hdf5_root}/hdf5-byte/msb/{sample}.h5")
+      print(f"Reason: {e}")
       sys.exit(-1)
 
    
@@ -66,16 +67,18 @@ if __name__ == "__main__":
 
          try:
             image = np.asarray(Image.open(image_path)).copy()
-         except:
+         except Exception as e:
             print(f"Couldn't open {image_path}")
+            print(f"Reason: {e}")
             sys.exit(-1)
             
          try:
             bin_file = np.load(bin_path)
             i = list(bin_file["field_names"]).index(field_name)
             hist2d = bin_file["field_bins"][i]
-         except:
+         except Exception as e:
             print(f"Couldn't open {bin_path}")
+            print(f"Reason: {e}")
             sys.exit(-1)
             
          n_rows, n_cols, _ = image.shape
