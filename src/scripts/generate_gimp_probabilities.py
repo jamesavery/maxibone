@@ -90,22 +90,27 @@ if __name__ == "__main__":
          all_xs = np.arange(n_rows+1)
          smooth_thresholds = piecewisequadratic(pc,all_xs,extrapolation="linear")
 
-         if debug:
-            for i in range(n_rows):
-               image[i,(int(smooth_thresholds[i])-1):(int(smooth_thresholds[i])+1),1] = 0xff;
-
-            Image.fromarray(image).save(f'{image_dir}/fb-{field_name}-{region}{b}-gimp-t.png')
-
-
          ts = np.round(smooth_thresholds).astype(int)
 
          P0 = np.zeros(hist2d.shape, dtype=np.float32)
          P1 = np.zeros(hist2d.shape, dtype=np.float32)
          
          for i, row in enumerate(hist2d):
-            mx = max(1,np.float32(row.max()))
-            P0[i,:ts[i]] = row[:ts[i]].astype(np.float32) / mx
-            P1[i,ts[i]:] = row[ts[i]:].astype(np.float32) / mx
+            P0[i,:ts[i]] = row[:ts[i]].astype(np.float32)
+            P1[i,ts[i]:] = row[ts[i]:].astype(np.float32)
+            m0, m1 = P0[i].max(), P1[i].max()
+
+            P0[i] /= (m0 + (m0==0)) # Normalize within each material
+            P1[i] /= (m1 + (m1==0))
+
+         if debug:
+            for i in range(n_rows):
+               image[i,(int(smooth_thresholds[i])-1):(int(smooth_thresholds[i])+1),1] = 0xff;
+
+            Image.fromarray(image).save(f'{image_dir}/fb-{field_name}-{region}{b}-gimp-t.png')
+            Image.fromarray((P0*255).astype(np.uint8)).save(f'{image_dir}/fb-{field_name}-{region}{b}-gimp-P0.png')
+            Image.fromarray((P1*255).astype(np.uint8)).save(f'{image_dir}/fb-{field_name}-{region}{b}-gimp-P1.png')
+
 
          Ps.append( (field_name,P0,P1,pc,(0,n_rows-1),thresholds,smooth_thresholds) )
 
