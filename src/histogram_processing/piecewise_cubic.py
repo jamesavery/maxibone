@@ -155,22 +155,28 @@ def piecewisecubic(pc,all_xs,extrapolation="cubic"):
 
 # ...and a function to construct the overdetermined linear system of 
 # equations and find the least squares optimal approximate solution:
-def fit_piecewisecubic(xs,ys, Xs):
+def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
     A, b = piecewisecubic_matrix(xs,ys,Xs)
 
-    coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
-
+    if regularization_beta>0:
+        m,n = A.shape
+        I   = np.eye(n,n)[3:]
+        I[:,5:]   -= np.eye(n-3,n-3)[:,:-2]
+        I[:-2,7:] -= np.eye(n-5,n-5)[:,:-2]        
+        print(I)
+        Ap  = np.vstack([A,regularization_beta*I])
+        bp  = np.concatenate([b,np.zeros((n-3,1))])
+        print(f"{regularization_beta} {m,n} {A.shape}, {I.shape}, {Ap.shape}, b:{b.shape}, bp:{bp.shape}")        
+        coefs, residuals, rank, sing = linalg.lstsq(Ap,bp,rcond=None)
+    else:
+        coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
+        
     return (coefs,Xs)
 
-
-def smooth_fun(xs,ys,n_segments):
+def smooth_fun(xs,ys,n_segments,regularization_beta=0):
     borders = linspace(xs.min(), xs.max()+1,n_segments)    
 
-    A, b = piecewisecubic_matrix(xs,ys,borders)
-    coefs, residuals, rank, sing = la.lstsq(A,b,rcond=None)    
-    pc = coefs, borders
-
-    return pc
+    return fit_piecewisecubic(xs,ys,borders,regularization_beta)
 
 if __name__ == "__main__":
     # A test:
