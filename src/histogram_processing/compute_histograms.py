@@ -172,7 +172,7 @@ if __name__ == '__main__':
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
     (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
-    field_names=["edt"]#,"gauss","gauss+edt"] # Should this be commandline defined?
+    field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
     
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)    
