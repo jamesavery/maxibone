@@ -56,7 +56,8 @@ if __name__ == '__main__':
         vranges = np.array([vmin, vmax, fmin, fmax], np.float32)
 
         for c in [0,1]:
-            output_dir = f'{binary_root}/segmented/1x/'
+            output_dir  = f'{binary_root}/segmented/1x/'
+            output_file = f"{output_dir}/{sample}_c{c}.uint16";
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
             P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
@@ -79,5 +80,4 @@ if __name__ == '__main__':
             if debug:
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            
-#            histograms.write_slice(result, zstart, output_file)
+            histograms.write_slice(result, zstart, output_file)
