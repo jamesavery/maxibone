@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import h5py, numpy as np
-from config.paths import hdf5_root
+import h5py, numpy as np, pybind_kernels.histograms as histograms
+from config.paths import hdf5_root, binary_root
+from tqdm import tqdm
 
 def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
                 compression="lzf",chunk_shape=None):
@@ -76,7 +77,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     Nz, Ny, Nx = dm['voxels'].shape
     Nz -= np.sum(dm["volume_matching_shifts"][:])
     dm.close()
-   
+    print(block_size,Nz,offset)   
     block_size       = min(block_size, Nz-offset)
 
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
