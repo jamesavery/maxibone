@@ -14,6 +14,8 @@ typedef uint16_t voxel_type;
 typedef float_t  prob_type;
 typedef uint16_t field_type;
 
+#define INLINE __attribute__((always_inline)) inline
+
 uint64_t number_of_set_bits(uint64_t number) {
     uint64_t count = 0;
     while (number) {
@@ -138,7 +140,7 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
 }
 
 
-float resample2x2x2(const field_type *voxels,
+INLINE float resample2x2x2(const field_type *voxels,
 		    const std::tuple<uint64_t,uint64_t,uint64_t> &shape,
 		    const std::array<float,3>    &X)
 {
