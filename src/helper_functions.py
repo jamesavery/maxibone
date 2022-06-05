@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import h5py, numpy as np
+from config.paths import hdf5_root
 
 def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
                 compression="lzf",chunk_shape=None):
