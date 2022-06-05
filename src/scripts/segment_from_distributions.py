@@ -39,7 +39,7 @@ if __name__ == '__main__':
     Nz, Ny, Nx = bi['dimensions'][:3]
     fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
-    field_names = ["edt"]# ["gauss", "edt", "gauss+edt"] 
+    field_names = ["edt","gauss"] 
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
