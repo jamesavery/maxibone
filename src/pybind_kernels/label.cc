@@ -95,14 +95,13 @@ void material_prob(const py::array_t<voxel_type> &np_voxels,
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
 
-    fprintf(stderr,"(Nz,Ny,Nx) = (%d,%d,%d)\n",Nz,Ny,Nx);
-    fprintf(stderr,"(sz,sy,sx) = (%d,%d,%d)\n",sz,sy,sx);
-    fprintf(stderr,"n_axes = %ld, n_fields = %ld\n",n_axes,n_fields);
+    // fprintf(stderr,"(Nz,Ny,Nx) = (%d,%d,%d)\n",Nz,Ny,Nx);
+    // fprintf(stderr,"(sz,sy,sx) = (%d,%d,%d)\n",sz,sy,sx);
+    // fprintf(stderr,"n_axes = %ld, n_fields = %ld\n",n_axes,n_fields);
     
 
+#pragma omp parallel for collapse(3)          
     for (uint64_t z = sz; z < Nz; z++) {
-      fprintf(stderr,"z = %ld\n",z);
-#pragma omp parallel for collapse(2)      
         for (uint64_t y = sy; y < Ny; y++) {
             for (uint64_t x = sx; x < Nx; x++) {
                 // TODO Only compute the indices and such if they're actually used.
