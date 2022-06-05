@@ -78,7 +78,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     Nz, Ny, Nx = dm['voxels'].shape
     Nz -= np.sum(dm["volume_matching_shifts"][:])
     dm.close()
-    print(block_size,Nz,offset)   
+#    print(block_size,Nz,offset)   
     block_size       = min(block_size, Nz-offset)
 
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
@@ -101,7 +101,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
         nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
         mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale, ny,mask_scale, nx,mask_scale))
         mask_1x = mask_1x.reshape(nz*mask_scale,ny*mask_scale,nx*mask_scale)
-        print(f"{voxels.shape}, {mask_1x.shape}")
+#        print(f"{voxels.shape}, {mask_1x.shape}")
         voxels[:nz*mask_scale] *= mask_1x               # block_size may not be divisible by mask_scale
         voxels[nz*mask_scale:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
         

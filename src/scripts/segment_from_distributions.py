@@ -21,8 +21,7 @@ def load_value_ranges(path, group):
     print(f"Reading value_ranges from {group} in {path}\n")    
     with h5py.File(path, 'r') as f:
 #        f.require_group(group) # require_group betyder "opret gruppe hvis den ikke findes, overskriv hvis den allerede findes". Det er ikke et tjek.
-        a = f[group]['value_ranges']
-        return list(a)
+        return f[group]['value_ranges'][:].astype(int)
 
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
