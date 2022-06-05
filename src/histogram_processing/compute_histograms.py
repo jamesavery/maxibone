@@ -8,7 +8,7 @@ from PIL import Image
 from tqdm import tqdm
 from config.paths import *
 from config.constants import implant_threshold
-from helper_functions import *
+from helper_functions import block_info, load_block
 
 NA = np.newaxis
 
@@ -102,47 +102,6 @@ def tobyt(arr):
 def row_normalize(A):
     return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
-#TODO: Get load_slice to work with ranges so we can look at sub-regions 
-def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
-    '''
-    Loads a block of data from disk into memory.
-    '''
-    Nfields = len(field_names)
-
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    Nz, Ny, Nx = dm['voxels'].shape
-    Nz -= np.sum(dm["volume_matching_shifts"][:])
-    dm.close()
-   
-    block_size       = min(block_size, Nz-offset)
-
-    print(f"block_size = {block_size}")
-    
-    voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
-    fields = np.zeros((Nfields,block_size//2,Ny//2,Nx//2), dtype=np.uint16)    
-
-    if mask_name is not None:
-        for i in tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5", leave=True):
-            with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
-                mask = h5mask[mask_name]["mask"][offset//mask_scale:offset//mask_scale + block_size//mask_scale]
-            
-    #TODO: Make voxel & field scale command line parameters
-    for i in tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/1x/{sample}.uint16", leave=True):    
-        histograms.load_slice(voxels, f'{binary_root}/voxels/1x/{sample}.uint16', (offset, 0, 0), (Nz, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
-
-    for i in tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/2x/{sample}.npy",leave=True):
-        fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/2x/{sample}.npy", mmap_mode='r')
-        fields[i,:] = fi[offset//2:offset//2 + block_size//2]
-
-    if mask_name is not None:
-        nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
-        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale, ny,mask_scale, nx,mask_scale))
-        mask_1x = mask_1x.reshape(nz*mask_scale,ny*mask_scale,nx*mask_scale)
-        print(f"{voxels.shape}, {mask_1x.shape}")
-        voxels[:nz*mask_scale] *= mask_1x               # block_size may not be divisible by mask_scale
-        voxels[nz*mask_scale:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
-        
-    return voxels, fields
 
 # Edition where the histogram is loaded and processed in chunks
 # If block_size is less than 0, then the whole thing is loaded and processed.
