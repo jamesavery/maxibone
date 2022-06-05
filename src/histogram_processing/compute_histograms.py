@@ -153,7 +153,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 ):
 
 
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size, n_blocks)
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size, n_blocks, z_offset)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
     block_size    = bi['block_size']
     n_blocks      = bi['n_blocks']    
