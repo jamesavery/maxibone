@@ -2,6 +2,7 @@
 import h5py, numpy as np, pybind_kernels.histograms as histograms
 from config.paths import hdf5_root, binary_root
 from tqdm import tqdm
+from numpy import newaxis as NA
 
 def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
                 compression="lzf",chunk_shape=None):
