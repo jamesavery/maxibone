@@ -55,7 +55,17 @@ if __name__ == '__main__':
         mask_scale = 8
         
         voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
+
+        # Does all the input data look all right?
         plt.imshow(voxels[:,1728,:])
+        plt.show()
+        plt.imshow(voxels[100,:,:])
+        plt.show()
+        plt.imshow(voxels[:,1728,:])            
+        plt.show()
+        plt.imshow(fields[0][50,:,:])
+        plt.show()
+        
         
         # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
@@ -70,13 +80,6 @@ if __name__ == '__main__':
             result = np.zeros((bi['subvolume_nzs'][b],Ny,Nx), dtype=np.uint8)
 
             plt.imshow(P_fields[0])
-            plt.show()
-            plt.imshow(voxels[100,:,:])
-            plt.show()
-            plt.imshow(voxels[:,1728,:])            
-            plt.show()
-            plt.imshow(fields[0][50,:,:])
-            plt.show()
 
             label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
