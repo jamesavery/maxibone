@@ -8,6 +8,7 @@
 #include <iostream>
 namespace py = pybind11;
 
+//typedef uint8_t result_type;
 typedef uint16_t result_type;
 typedef uint16_t voxel_type;
 typedef float_t  prob_type;
@@ -142,8 +143,8 @@ float resample2x2x2(const field_type *voxels,
 		    const std::array<float,3>    &X)
 {
       auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
-      assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
-      assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));
+      // assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
+      // assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));
 
       float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
       int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
@@ -238,63 +239,62 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
             for (uint64_t x = sx; x < Nx; x++) {
                 uint64_t flat_index = (z-sz)*Ny*Nx + y*Nx + x;
 
-		assert(flat_index < voxels_info.size);
+		// assert(flat_index < voxels_info.size);
 		voxel_type voxel = voxels[flat_index];
 
 		if(voxel == 0) continue;
 		voxel = std::max(v_min,voxel);
 		voxel = std::min(v_max,voxel);		
 
-		assert(voxel >= v_min && voxel <= v_max);
+		// assert(voxel >= v_min && voxel <= v_max);
 		
-                int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/double(v_max - v_min)) );
+		int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/double(v_max - v_min)) );
 
-		if(!(voxel_index >= 0 && voxel_index < Nvoxel_bins)){
-		  fprintf(stderr,"voxel = %d, voxel_index = %ld, Nvoxel_bins = %ld\n",
-			  voxel,voxel_index, Nvoxel_bins);
-		  abort();
-		}
-                prob_type p = 0;
+		// if(!(voxel_index >= 0 && voxel_index < Nvoxel_bins)){
+		//   fprintf(stderr,"voxel = %d, voxel_index = %ld, Nvoxel_bins = %ld\n",
+		// 	  voxel,voxel_index, Nvoxel_bins);
+		//   abort();
+		// }
 
-                // TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)                                                                                                                     
-                uint64_t flat_field_index = ((z-sz)/2)*fy*fx + (y/2)*fx + (x/2);
-		assert(flat_field_index < field_info.size);
+                // // TODO: Allow variable voxels scale and field scale (dx = Nx/float(fx), etc.)      
 
 		field_type  field_value = 0;
 		{
 		  auto nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2];
-		  auto nz = field_info.shape[0], ny = field_info.shape[1], nx = field_info.shape[2];
+		  auto nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
 		  
 		  float dz = nz/((float)nZ), dy = ny/((float)nY), dx = nx/((float)nX);		  
 
-		  std::array<float,3> XYZ = {x*dx, y*dy, z*dz};
+		  std::array<float,3> XYZ = {x*dx, y*dy, (z-sz)*dz};
 		  auto [X,Y,Z] = XYZ;
-		     if(X>=0.5 && Y>=0.5 && Z>=0.5 && (X+0.5)<nx && (Y+0.5)<ny && (Z+0.5)<nz)
-		       field_value = round(resample2x2x2(field, {field_info.shape[0],field_info.shape[1],field_info.shape[2]},XYZ));
-		     else {
-		       uint64_t i = floor(Z)*ny*nx + floor(Y)*nx + floor(X);
-		       field_value = field[i];
-		     }
+		  if(X>=0.5 && Y>=0.5 && Z>=0.5 && (X+0.5)<nx && (Y+0.5)<ny && (Z+0.5)<nz)
+		    field_value = round(resample2x2x2(field, {field_info.shape[0],field_info.shape[1],field_info.shape[2]},XYZ));
+		  else {
+		    uint64_t i = floor(Z)*ny*nx + floor(Y)*nx + floor(X);
+		    field_value = field[i];
+		  }
 		}
 
 
 		field_value = std::max(f_min, field_value);
 		field_value = std::min(f_max, field_value); 
 		
-                int64_t field_index = floor(static_cast<double>(Nfield_bins-1) * ((field_value - f_min)/double(f_max - f_min)) );
+                 int32_t field_index = floor(static_cast<double>(Nfield_bins-1) * (double(field_value - f_min)/double(f_max - f_min)) );
 
-		if(!(field_index >= 0 && field_index < Nfield_bins)){
-		  fprintf(stderr,"field_value = %d, field_index = %ld, Nfield_bins = %ld\n",
-			  field_value,field_index, Nfield_bins);
-		  abort();
-		}
-		
-                p += prob[field_index*Nfield_bins + voxel_index]; //* weights[i + n_axes];                                                                                                                         
-		if(p<0 || p>1){
-		  fprintf(stderr,"p = %g; field_v = %d; voxel_voxel = %d\n",p, field_value,voxel);
-		  abort();
-		}
-                result[flat_index] = round(p * std::numeric_limits<result_type>::max());
+		// if(!(field_index >= 0 && field_index < Nfield_bins)){
+		//   fprintf(stderr,"field_value = %d, field_index = %ld, Nfield_bins = %ld\n",
+		// 	  field_value,field_index, Nfield_bins);
+		//   abort();
+		// }
+
+		result[flat_index] = voxel_index;
+                prob_type p = prob[field_index*Nvoxel_bins + voxel_index]; //* weights[i + n_axes];                                                                                                                         
+		// if(p<0 || p>1){
+		//   fprintf(stderr,"p = %g; field_v = %d; voxel_voxel = %d\n",p, field_value,voxel);
+		//   abort();
+		// }
+		result[flat_index] = round(p * std::numeric_limits<result_type>::max());
+		//                result[flat_index] = p;
             }
         }
     }
