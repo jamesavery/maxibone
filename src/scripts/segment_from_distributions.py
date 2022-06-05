@@ -70,7 +70,7 @@ if __name__ == '__main__':
         # These ranges shouldn't differ, but still let's be safe
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
-        for c in [0]: #,1]:
+        for c in [0,1]:
             output_dir  = f'{binary_root}/segmented/c{c}/1x/'
             output_file = f"{output_dir}/{sample}.uint16";
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
