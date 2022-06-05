@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, pathlib, copy
+import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 import pybind_kernels.histograms as histograms
 import numpy as np, h5py, timeit
@@ -149,6 +149,9 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     f_bins[:, 0,:] = 0 # TODO EDT mask hack            
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
+    for hist2d in [x_bins,y_bins,z_bins,r_bins] + f_bins:
+        hist2d = ndi.gaussian_filter(hist2d,3,mode='constant',cval=0)
+    
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
 if __name__ == '__main__':
