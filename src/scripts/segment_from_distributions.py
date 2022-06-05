@@ -27,11 +27,12 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__': 
-    sample, block_start, n_blocks, region, group, debug_output = commandline_args({'sample':'<required>',
+    sample, block_start, n_blocks, region, group, mask_scale, debug_output = commandline_args({'sample':'<required>',
                                                                                    "block_start":0,
                                                                                    "n_blocks":0,
                                                                                    'region': 'bone_region',
                                                                                    'group': 'otsu_separation',
+                                                                                   'mask_scale': 8,  
                                                                                    'debug_output': None})
 
     # Iterate over all subvolumes
@@ -52,7 +53,6 @@ if __name__ == '__main__':
         
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
-        mask_scale = 8
         
         voxels, fields = load_block(sample, zstart, block_size, region, mask_scale, field_names)
 
@@ -101,5 +101,5 @@ if __name__ == '__main__':
             if debug:
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            histograms.write_slice(result, zstart, output_file)
+            histograms.write_slice(result, zstart*Ny*Nx, output_file)
 
