@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, h5py, numpy as np, pybind_kernels.histograms as histograms, matplotlib.pyplot as plt, tqdm
+import os, h5py, pathlib, numpy as np, pybind_kernels.histograms as histograms, matplotlib.pyplot as plt, tqdm
 from config.paths import hdf5_root, binary_root
 from numpy import newaxis as NA
 
@@ -39,7 +39,7 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
 #TODO: Use this for masks, no compression and no chunking default for small metadata datasets
 def update_hdf5_mask(filename,group_name,datasets,attributes,dimensions=None,
                      compression="lzf",chunk_shape=(64,64,64)):
-    update_hdf5(filename,group,name,datasets,attributes,dimensions,compression,chunk_shape)
+    update_hdf5(filename,group_name,datasets,attributes,dimensions,compression,chunk_shape)
 
 
 def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
