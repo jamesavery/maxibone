@@ -85,8 +85,9 @@ print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint
 voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
 
-Nz,Ny,Nx = implant.shape
+nz,ny,nx = implant.shape
 cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
+print(f"Center of mass is: {cm}")
 IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
 ls,E  = la.eigh(IM)
 
@@ -187,6 +188,8 @@ def UVW2xyz(p):
 
 C1, C2, Cp = UVW2xyz(c1), UVW2xyz(c2), UVW2xyz(cp)
 
+print(f"cm = {cm}, w0 = {w0}, cp = {cp}, Cp = {Cp}")
+
 implant_length = (implant_Us.max()-implant_Us.min())
 implant_radius = Rs.max()
 
@@ -237,7 +240,7 @@ Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical 
 thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
 
 #TODO: rmaxs som funktion af Up
-rmaxs = (rs*(implant==True)).reshape(Nz,-1).max(axis=1)[:,NA,NA]
+rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
 
 implant_shell_mask = implant&(rs >= 0.7*rmaxs)
 solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
@@ -256,19 +259,21 @@ front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thet
 # back_part = voxels*back_mask
 front_part = voxels*front_mask
 
+print(f"Physical Cp = {Cp[::-1]*voxel_size}")
+
 output_dir = f"{hdf5_root}/hdf5-byte/msb/"
 print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="implant-FoR",
             datasets={"UVW":E.T,
-                      "UVWp": Ep,                      
-                      "center_of_mass":cm,
+                      "UVWp": Ep.T,                      
+                      "center_of_mass":cm*voxel_size, 
                       "center_of_cylinder_UVW": cp,
-                      "center_of_cylinder_xyz": Cp,
+                      "center_of_cylinder_zyx": Cp[::-1]*voxel_size, # Cp is in scaled voxel xyz
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
                                                      [implant_Vps.min(),implant_Vps.max()],
                                                      [implant_Wps.min(),implant_Wps.max()]]),
-                      "U_values": U_values,
+                      "U_values": (Up_bins[1:]+Up_bins[:-1])/2,
                       "Up_integrals": Up_integrals,
                       "theta_range": np.array([theta_from, theta_to])
             },
@@ -276,11 +281,11 @@ update_hdf5(f"{output_dir}/{sample}.h5",
                         "implant_radius": implant_radius                        
             },
             dimensions={
-                "center_of_mass":"xyz in {scale}x voxels",
+                "center_of_mass":"zyx micrometers",
                 "center_of_cylinder_UVW":"UVW in micrometers",
-                "center_of_cylinder_xyz":"xyz in {scale}x voxels"
+                "center_of_cylinder_zyx":"zyx in micrometers",
                 "bounding_box_UVWp":"U'V'W' in micrometers",
-                "U_values":"micrometer"
+                "U_values":"micrometers",
                 "theta_range":"angle around phantom implant center"
             },
             chunk_shape=None
