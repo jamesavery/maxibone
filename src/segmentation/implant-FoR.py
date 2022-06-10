@@ -188,6 +188,17 @@ def UVW2xyz(p):
 
 
 
+def hom_translate(x):
+    T = np.eye(4,dtype=float)
+    T[0:3,3] = x
+    return T
+
+def hom_linear(A):
+    M = np.eye(4,dtype=float)
+    M[:3,:3] = A
+    return M
+
+
 def zyx_to_UVWp_transform():
     Tcm   = hom_translate(-cm*voxel_size)
     Muvw  = hom_linear(UVW)
