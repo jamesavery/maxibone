@@ -281,7 +281,6 @@ update_hdf5(f"{output_dir}/{sample}.h5",
                       "UVWp": Ep.T,                      
                       "center_of_mass":cm*voxel_size, 
                       "center_of_cylinder_UVW": cp,
-                      "UVW_transform": zyx_to_UVW_transform(),
                       "UVWp_transform": zyx_to_UVWp_transform(),                      
                       "center_of_cylinder_zyx": Cp[::-1]*voxel_size, # Cp is in scaled voxel xyz
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
