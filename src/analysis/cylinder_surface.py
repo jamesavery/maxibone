@@ -22,9 +22,32 @@ def zyx_to_UVWp(zyxs):
     UVWs = (zyxs-cm) @ UVW.T    # uvw in scaled voxel coords
     UVWs*=voxel_size            # UVW in micrometers
     UVWs[:,2] -= W0             # centered on implant backplane
+#    UVWps = UVWs @ UVWp.T  # shifted to cylinder center and transformed to U'V'W'
     UVWps = (UVWs-cp) #@ UVWp.T  # shifted to cylinder center and transformed to U'V'W'
 
     return UVWps
+
+def hom_translate(x):
+    T = np.eye(4,dtype=float)
+    T[0:3,3] = x
+    return T
+
+def hom_linear(A):
+    M = np.eye(4,dtype=float)
+    M[:3,:3] = A
+    return M
+
+
+def zyx_to_UVWp_transform():
+    Tcm   = hom_translate(-cm*voxel_size)
+    Muvw  = hom_linear(UVW)
+    TW0   = hom_translate((0,0,-W0))
+    Tcp   = hom_translate(-cp)
+    Muvwp = hom_linear(UVWp)    
+
+#    return Tcp @ Muvwp @ TW0 @ Muvw @ Tcm
+    return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
+
 
 def np_save(path,data):
     output_dir = os.path.dirname(path)

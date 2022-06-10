@@ -186,6 +186,18 @@ cp = (c1+c2)/2
 def UVW2xyz(p):
     return ((np.array(p)/voxel_size + w0v) @ E.T + cm)[::-1]
 
+
+
+def zyx_to_UVWp_transform():
+    Tcm   = hom_translate(-cm*voxel_size)
+    Muvw  = hom_linear(UVW)
+    TW0   = hom_translate((0,0,-W0))
+    Tcp   = hom_translate(-cp)
+    Muvwp = hom_linear(UVWp)    
+
+    return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
+
+
 C1, C2, Cp = UVW2xyz(c1), UVW2xyz(c2), UVW2xyz(cp)
 
 print(f"cm = {cm}, w0 = {w0}, cp = {cp}, Cp = {Cp}")
@@ -269,6 +281,8 @@ update_hdf5(f"{output_dir}/{sample}.h5",
                       "UVWp": Ep.T,                      
                       "center_of_mass":cm*voxel_size, 
                       "center_of_cylinder_UVW": cp,
+                      "UVW_transform": zyx_to_UVW_transform(),
+                      "UVWp_transform": zyx_to_UVWp_transform(),                      
                       "center_of_cylinder_zyx": Cp[::-1]*voxel_size, # Cp is in scaled voxel xyz
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
                                                      [implant_Vps.min(),implant_Vps.max()],
