@@ -103,7 +103,8 @@ if sample == "770_pag":
     
 ix = np.argsort(np.abs(ls));
 ls, E = ls[ix], E[:,ix]
-u_vec,v_vec,w_vec = E.T
+UVW = E.T
+u_vec,v_vec,w_vec = UVW
 
 
 # Per-nonzero-point stuff
@@ -174,8 +175,8 @@ C0 = np.mean(Cs,axis=0)
 u_prime, _,_,_ = la.lstsq(Ub, Cs-C0)
 u_prime = u_prime[0]
 
-Ep = gramschmidt(u_prime,np.array([0,1,0]),np.array([0,0,1]))
-u_prime, v_prime, w_prime = Ep # U',V',W' in U,V,W coordinates
+UVWp = gramschmidt(u_prime,np.array([0,1,0]),np.array([0,0,1]))
+u_prime, v_prime, w_prime = UVWp # U',V',W' in U,V,W coordinates
 
 c1 = C0 + implant_Us.min()*u_prime
 c2 = C0 + implant_Us.max()*u_prime
@@ -202,7 +203,7 @@ def hom_linear(A):
 def zyx_to_UVWp_transform():
     Tcm   = hom_translate(-cm*voxel_size)
     Muvw  = hom_linear(UVW)
-    TW0   = hom_translate((0,0,-W0))
+    TW0   = hom_translate((0,0,-w0*voxel_size))
     Tcp   = hom_translate(-cp)
     Muvwp = hom_linear(UVWp)    
 
@@ -210,8 +211,6 @@ def zyx_to_UVWp_transform():
 
 
 C1, C2, Cp = UVW2xyz(c1), UVW2xyz(c2), UVW2xyz(cp)
-
-print(f"cm = {cm}, w0 = {w0}, cp = {cp}, Cp = {Cp}")
 
 implant_length = (implant_Us.max()-implant_Us.min())
 implant_radius = Rs.max()
@@ -229,7 +228,7 @@ implant_radius_voxels = implant_radius/voxel_size
 
 # vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow])
 
-implant_UVWps = (implant_UVWs - cp) @ Ep # We now transform to fully screw aligned coordinates with screw center origin
+implant_UVWps = (implant_UVWs - cp) @ UVWp # We now transform to fully screw aligned coordinates with screw center origin
 
 implant_Ups, implant_Vps, implant_Wps = implant_UVWps.T
 
@@ -258,7 +257,7 @@ uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of 
 UVWs = (uvws - w0v) * voxel_size        # Micrometer scale relative to backplane-center
 Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # UVW physical image coordinates 
 
-UVWps = (UVWs - cp) @ Ep                # relative to center-of-implant-before-sawing-in-half
+UVWps = (UVWs - cp) @ UVWp                # relative to center-of-implant-before-sawing-in-half
 Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical image coordinates
 thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
 
@@ -269,7 +268,7 @@ implant_shell_mask = implant&(rs >= 0.7*rmaxs)
 solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
 
 solid_quarter = solid_implant & (thetas>=theta_from) & (thetas<=theta_center)
-solid_implant_UVWps   = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ Ep
+solid_implant_UVWps   = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
 Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0],200)
 
 # Show solid implant
@@ -282,18 +281,31 @@ front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thet
 # back_part = voxels*back_mask
 front_part = voxels*front_mask
 
+Cp_zyx = Cp[::-1]*voxel_size
+
+Muvwp = zyx_to_UVWp_transform()
+print(f"MUvpw = {np.round(Muvwp,2)}")
+print(f"UVW  = {np.round(UVW,2)}")
+print(f"UVWp = {np.round(UVWp,2)}")
+print(f"Cp = {np.round(Cp_zyx,2)}")
+print(f"cp = {np.round(cp,2)}")
+print(f"cm = {np.round(cm,2)}")
+
+
 print(f"Physical Cp = {Cp[::-1]*voxel_size}")
+
+
 
 output_dir = f"{hdf5_root}/hdf5-byte/msb/"
 print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
 update_hdf5(f"{output_dir}/{sample}.h5",
             group_name="implant-FoR",
-            datasets={"UVW":E.T,
-                      "UVWp": Ep.T,                      
+            datasets={"UVW":UVW,
+                      "UVWp": UVWp,                      
                       "center_of_mass":cm*voxel_size, 
                       "center_of_cylinder_UVW": cp,
-                      "UVWp_transform": zyx_to_UVWp_transform(),                      
-                      "center_of_cylinder_zyx": Cp[::-1]*voxel_size, # Cp is in scaled voxel xyz
+                      "UVWp_transform": Muvwp,                      
+                      "center_of_cylinder_zyx": Cp_zyx, # Cp is in scaled voxel xyz
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
                                                      [implant_Vps.min(),implant_Vps.max()],
                                                      [implant_Wps.min(),implant_Wps.max()]]),

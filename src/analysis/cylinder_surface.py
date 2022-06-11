@@ -23,9 +23,14 @@ def zyx_to_UVWp(zyxs):
     UVWs*=voxel_size            # UVW in micrometers
     UVWs[:,2] -= W0             # centered on implant backplane
 #    UVWps = UVWs @ UVWp.T  # shifted to cylinder center and transformed to U'V'W'
-    UVWps = (UVWs-cp) #@ UVWp.T  # shifted to cylinder center and transformed to U'V'W'
+    UVWps = (UVWs-cp) @ UVWp.T  # shifted to cylinder center and transformed to U'V'W'
 
     return UVWps
+
+def hom_vec(x):
+    xh = np.ones((4,),dtype=x.dtype)
+    xh[:3] = x
+    return xh
 
 def hom_translate(x):
     T = np.eye(4,dtype=float)
@@ -45,8 +50,20 @@ def zyx_to_UVWp_transform():
     Tcp   = hom_translate(-cp)
     Muvwp = hom_linear(UVWp)    
 
-#    return Tcp @ Muvwp @ TW0 @ Muvw @ Tcm
     return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
+
+
+
+def homogeneous_transform(xs, M):
+    shape = np.array(xs.shape)
+    assert(shape[-1] == 3)
+    shape[-1] = 4
+    hxs = np.empty(shape,dtype=xs.dtype)
+    hxs[...,:3] = xs;
+    hxs[..., 3]  = 1
+
+    print(hxs.shape, M.shape)
+    return hxs @ M.T
 
 
 def np_save(path,data):
@@ -96,9 +113,10 @@ except Exception as e:
     
 UVW  = h5g["UVW"][:]
 UVWp = h5g["UVWp"][:]
+Muvwp = h5g["UVWp_transform"][:]
 cm   = h5g["center_of_mass"][:]/voxel_size
 cp   = h5g["center_of_cylinder_UVW"][:]
-Cp   = h5g["center_of_cylinder_zyx"][:]/voxel_size
+Cp   = h5g["center_of_cylinder_zyx"][:]
 W0             = h5g.attrs["backplane_W_shift"]
 implant_radius = h5g.attrs["implant_radius"]
 theta_range    = h5g["theta_range"][:]
@@ -108,6 +126,20 @@ voxel_binfile         = f"{binary_root}/voxels/{scale}x/{sample}.uint16"
 c0_binfile            = f"{binary_root}/segmented/c0/{scale}x/{sample}.uint16"
 c1_binfile            = f"{binary_root}/segmented/c1/{scale}x/{sample}.uint16"
 edt_binfile           = f"{binary_root}/fields/implant-edt/{scale}x/{sample}.uint16"
+
+
+
+M1 = zyx_to_UVWp_transform()
+M2 = h5meta["implant-FoR/UVWp_transform"][:]
+
+# print(f"MUvpw1 = {np.round(M1,2)}")
+# print(f"MUvpw2 = {np.round(M2,2)}")
+# print(f"UVW  = {np.round(UVW,2)}")
+# print(f"UVWp = {np.round(UVWp,2)}")
+# print(f"Cp = {np.round(Cp,2)}")
+# print(f"cp = {np.round(cp,2)}")
+# print(f"cm = {np.round(cm,2)}")
+
 
 print(f"Loading {scale}x voxels from {voxel_binfile}")
 voxels = np.memmap(voxel_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
@@ -119,7 +151,8 @@ c1 = np.memmap(c1_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
 edt_field = edt.edt(~solid_implant,parallel=16)*voxel_size
 
 zyxs  = coordinate_image((nz,ny,nx))
-UVWps = zyx_to_UVWp(zyxs)
+UVWps  = zyx_to_UVWp(zyxs)
+UVWps2 = homogeneous_transform(zyxs,Muvwp)
 Ups, Vps, Wps = UVWps[...,0],UVWps[...,1],UVWps[...,2]
 thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
 
