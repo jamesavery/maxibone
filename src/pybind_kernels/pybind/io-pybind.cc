@@ -32,7 +32,7 @@ void write_slice(const py::array_t<T> &np_data,
     write_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
 }
 
-PYBIND11_MODULE(histograms, m) {
+PYBIND11_MODULE(io, m) {
     m.doc() = "I/O functions for handling flat binary format files."; // optional module docstring
     m.def("load_slice", &load_slice<mask_type>);
     m.def("load_slice", &load_slice<voxel_type>);
