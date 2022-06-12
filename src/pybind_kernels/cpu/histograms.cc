@@ -5,17 +5,11 @@
 #include <stdio.h>
 #include <omp.h>
 #include <chrono>
-#include <iostream>
-#include <fstream>
 #include <tqdm.h>
 using namespace std;
 namespace py = pybind11;
 
-typedef uint16_t voxel_type;
-//typedef float    field_type;
-typedef uint16_t field_type;
-typedef uint8_t mask_type;
-typedef float gauss_type;
+#include "datatypes.hh"
 
 #define INLINE __attribute__((always_inline)) inline
 
@@ -300,48 +294,6 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     }
 
     return make_pair(voxel_min,voxel_max);
-}
-
-void load_slice(py::array_t<voxel_type> &np_data, string filename,
-                const tuple<uint64_t, uint64_t, uint64_t> offset,
-                const tuple<uint64_t, uint64_t, uint64_t> shape) {
-    auto data_info = np_data.request();
-    voxel_type *data = static_cast<voxel_type*>(data_info.ptr);
-    ifstream file;
-    file.open(filename.c_str(), ios::binary);
-    if(!file.is_open()){
-      fprintf(stderr,"load_slice: Error opening %s for reading.\n",filename.c_str());
-      exit(-1);
-    }
-    auto [Nz, Ny, Nx] = shape;
-    auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(voxel_type);
-    file.seekg(flat_offset, ios::beg);
-    file.read((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
-}
-
-void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filename) {
-    auto data_info = np_data.request();
-    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
-    ofstream file;
-    file.open(filename.c_str(), ios::binary | ios::in);
-    if (!file.is_open()) {
-        file.clear();
-        file.open(filename.c_str(), ios::binary);
-    }
-    file.seekp(offset * sizeof(voxel_type), ios::beg);
-    file.write((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
-}
-
-void append_slice(py::array_t<voxel_type> &np_data, string filename) {
-    auto data_info = np_data.request();
-    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
-    ofstream file;
-    file.open(filename.c_str(), ios::binary | ios::app);
-    file.write((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
 }
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
@@ -1133,9 +1085,6 @@ void otsu(
 
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
-    m.def("load_slice", &load_slice);
-    m.def("append_slice", &append_slice);
-    m.def("write_slice", &write_slice);
     m.def("axis_histogram_seq_cpu",  &axis_histogram_seq_cpu);
     m.def("axis_histogram_par_cpu",  &axis_histogram_par_cpu);
     m.def("axis_histogram_par_gpu",  &axis_histogram_par_gpu);

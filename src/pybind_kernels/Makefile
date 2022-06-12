@@ -5,16 +5,20 @@ OPENCV_INCLUDE=$(shell pkg-config opencv4 --cflags)
 OPENCV_LIB=$(shell pkg-config opencv4 --libs)
 
 # Detect if OpenACC can be used
-#ifneq (, $(shell which nvc++))
-#CXX = nvc++
-#CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
-#else
-#$(info OpenACC compiler nvc++ not found. Compiling without)
-#endif
+ifneq (, $(shell which nvc++))
+CXX = nvc++
+CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
+else
+$(info OpenACC compiler nvc++ not found. Compiling without)
+endif
 
-CXXFLAGS += -I../contrib/cpptqdm/
+CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
 
-all: histograms$(PYBIND_SUFFIX) geometry$(PYBIND_SUFFIX) label$(PYBIND_SUFFIX)
+PLATFORMS=cpu_seq cpu gpu
+LIBS=io
+TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
+
+all: $(TARGETS)
 
 histograms$(PYBIND_SUFFIX): histograms.cc
 	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) $< -o histograms$(PYBIND_SUFFIX)
@@ -31,8 +35,19 @@ opencv_pybind$(PYBIND_SUFFIX): opencv_pybind.cc
 opencv_tester: opencv_tester.cc
 	$(CXX) $(CXXFLAGS) $(OPENCV_INCLUDE) $(OPENCV_LIB) $< -o opencv_tester
 
+define GEN_RULE
+$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(PLATFORM)/$(LIB).cc
+	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) -I$(PLATFORM) $$< -o $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)
+endef
+
+$(foreach PLATFORM, $(PLATFORMS), \
+	$(foreach LIB, $(LIBS), \
+		$(eval $(GEN_RULE)) \
+	) \
+)
+
 clean:
-	rm -f histograms.o histograms$(PYBIND_SUFFIX) opencv_pybind$(PYBIND_SUFFIX) opencv_tester
+	rm -f $(TARGETS)
 
 
 

@@ -2,6 +2,10 @@
 #include <vector>
 
 typedef uint8_t mask_type;	// TODO: Template + explicit instantiation
+typedef uint16_t voxel_type;
+//typedef float    field_type;
+typedef uint16_t field_type;
+typedef float gauss_type;
 typedef double real_t;
 
 constexpr ssize_t acc_block_size =  1024 * 1024 * 1024/sizeof(mask_type); // 1 GB
