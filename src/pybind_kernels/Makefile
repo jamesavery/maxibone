@@ -46,5 +46,8 @@ $(foreach PLATFORM, $(PLATFORMS), \
 	) \
 )
 
+test: all
+	python3 -m pytest test
+
 clean:
 	rm -f $(TARGETS)

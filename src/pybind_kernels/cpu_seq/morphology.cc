@@ -25,14 +25,13 @@ void morphology_3d_sphere(
 
                 // Apply the spherical kernel
                 bool value = neutral;
-                //#pragma omp simd collapse(3) reduction(op:value)
                 for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
                     for (int64_t py = limits[2]; py <= limits[3]; py++) {
                         for (int64_t px = limits[4]; px <= limits[5]; px++) {
                             // TODO exact match with ndimage
                             bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
                             int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
-                            value = within? op(value, voxels[flat_index+offset]) : value;
+                            value = within ? op(value, voxels[flat_index+offset]) : value;
                         }
                     }
                 }

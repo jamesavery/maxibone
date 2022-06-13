@@ -34,15 +34,17 @@ void write_slice(const py::array_t<T> &np_data,
 
 PYBIND11_MODULE(io, m) {
     m.doc() = "I/O functions for handling flat binary format files."; // optional module docstring
-    m.def("load_slice", &load_slice<mask_type>);
-    m.def("load_slice", &load_slice<voxel_type>);
-    m.def("load_slice", &load_slice<field_type>);
-    m.def("load_slice", &load_slice<gauss_type>);
-    m.def("load_slice", &load_slice<real_t>);
+    m.def("load_slice", &load_slice<uint8_t>);
+    m.def("load_slice", &load_slice<uint16_t>);
+    m.def("load_slice", &load_slice<uint32_t>);
+    m.def("load_slice", &load_slice<uint64_t>);
+    m.def("load_slice", &load_slice<float>);
+    m.def("load_slice", &load_slice<double>);
 
-    m.def("write_slice", &write_slice<mask_type>);
-    m.def("write_slice", &write_slice<voxel_type>);
-    m.def("write_slice", &write_slice<field_type>);
-    m.def("write_slice", &write_slice<gauss_type>);
-    m.def("write_slice", &write_slice<real_t>);
+    m.def("write_slice", &write_slice<uint8_t>);
+    m.def("write_slice", &write_slice<uint16_t>);
+    m.def("write_slice", &write_slice<uint32_t>);
+    m.def("write_slice", &write_slice<uint64_t>);
+    m.def("write_slice", &write_slice<float>);
+    m.def("write_slice", &write_slice<double>);
 }

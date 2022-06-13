@@ -33,7 +33,7 @@ void morphology_3d_sphere(
                             // TODO exact match with ndimage
                             bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
                             int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
-                            value = within? op(value, voxels[flat_index+offset]) : value;
+                            value = within ? op(value, voxels[flat_index+offset]) : value;
                         }
                     }
                 }

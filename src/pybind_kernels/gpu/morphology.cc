@@ -12,7 +12,7 @@ void morphology_3d_sphere(
     Op op;
     int64_t sqradius = radius * radius;
 
-    #pragma acc data copyin(voxels[:Nz*Ny*Nx], N[:3], strides[:3], sqradius) copyout(result[:Nz*Ny*Nx])
+    #pragma acc data copyin(voxels[:N[0]*N[1]*N[2]], N[:3], strides[:3], sqradius) copyout(result[:N[0]*N[1]*N[2]])
     {
         #pragma acc parallel loop collapse(3)
         for (int64_t z = 0; z < N[0]; z++) {
@@ -35,7 +35,7 @@ void morphology_3d_sphere(
                             for (int64_t px = limits[4]; px <= limits[5]; px++) {
                                 bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
                                 int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
-                                value = within? op(value, voxels[flat_index+offset]) : value;
+                                value = within ? op(value, voxels[flat_index+offset]) : value;
                             }
                         }
                     }
