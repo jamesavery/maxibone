@@ -1,0 +1,1 @@
+../templates/MEDIMA-template/elsarticle.cls
