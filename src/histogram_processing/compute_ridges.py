@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from numpy.lib.function_base import disp
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 from moviepy.video.io.bindings import mplfig_to_npimage
@@ -10,8 +9,10 @@ import json
 import argparse
 import os
 import time
+NA = np.newaxis
 
-from torch import dtype
+def row_normalize(A):
+        return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
 def batch():
     global args, config
@@ -75,7 +76,7 @@ def load_hists(filename):
     for name, hist in hists.items():
         hist_sum = np.sum(hist, axis=1)
         hist_sum[hist_sum==0] = 1
-        results[name] = hist / hist_sum[:,np.newaxis]
+        results[name] = hist / hist_sum[:,NA]
     return hists
 
 class _range:
@@ -202,7 +203,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
         scatter_plot = np.zeros((3,3,3), dtype=np.uint8)
     else:
         fig, ax = plt.subplots()
-        ax.imshow(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], cmap='jet')
+        ax.imshow(row_normalize(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop]), cmap='jet')
         if peaks:
             ax.scatter(px, py, color='red', alpha=.008)
         scatter_plot = mplfig_to_npimage(fig)
@@ -212,7 +213,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
     return scatter_plot, px, py
 
 def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial_size):
-    display = ((hist.astype(np.float32) / hist.max()) * 255.0).astype(np.uint8)
+    display = (row_normalize(hist) * 255).astype(np.uint8)
     box_x_start = int(rng.x.start * scale_x)
     box_y_start = int(rng.y.start * scale_y)
     box_x_stop = int(rng.x.stop * scale_x)
@@ -242,7 +243,7 @@ def scatter_peaks(hist, config):
 def gui():
     global last, args
     def update_image(_):
-        hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+        hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
         cv2.setTrackbarMax('range start x', 'Histogram lines', hist_shape[1]-1)
         cv2.setTrackbarPos('range start x', 'Histogram lines', min(cv2.getTrackbarPos('range start x', 'Histogram lines'), hist_shape[1]-1))
         cv2.setTrackbarMax('range stop x', 'Histogram lines', hist_shape[1]-1)
@@ -292,7 +293,7 @@ def gui():
                     update(force=True)
             elif (event == cv2.EVENT_MBUTTONDOWN):
                 print ('reset bounding box')
-                hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+                hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
                 cv2.setTrackbarPos('range start x', 'Histogram lines', 0)
                 cv2.setTrackbarPos('range stop x', 'Histogram lines', hist_shape[1]-1)
                 cv2.setTrackbarPos('range start y', 'Histogram lines', 0)
@@ -311,7 +312,7 @@ def gui():
         # Check if trackbar ranges should be updated
         modified = force or False
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
-        hist = f[keys[bin]]
+        hist = hists[bin]
         if bin != last['bin']:
             modified = True
             last['bin'] = bin
@@ -465,9 +466,11 @@ def gui():
         return changed
 
     f = np.load(args.histogram[0])
-    keys = [key for key in f.keys()]
-    print ('keys', keys)
-    first_hist = f[keys[0]]
+    keys = [key for key in f.keys() if key.endswith('_bins') and not key == 'field_bins']
+    hists = [f[key] for key in keys]
+    hists += list(f['field_bins'])
+    
+    first_hist = hists[0]
     last = {
         # Trackbars
         'bin': None,
@@ -501,7 +504,7 @@ def gui():
     cv2.createTrackbar('range stop y', 'Histogram lines', first_hist.shape[0]-1, first_hist.shape[0]-1, update)
     cv2.createTrackbar('size x', 'Histogram lines', 1920, 1920, update)
     cv2.createTrackbar('size y', 'Histogram lines', 1080, 1080, update)
-    cv2.createTrackbar('bins', 'Histogram lines', 0, len(keys)-1, update_image)
+    cv2.createTrackbar('bins', 'Histogram lines', 0, len(hists)-1, update_image)
     cv2.createTrackbar('line', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('line smooth', 'Histogram lines', config['line smooth'], 50, update)
     cv2.createTrackbar('min peak height', 'Histogram lines', config['min peak height'], 100, update)
