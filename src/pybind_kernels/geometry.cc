@@ -169,8 +169,11 @@ template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
 					   const real_t &x, const real_t &y, const real_t &z)
 {
   ssize_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-  assert(x>=0.5 && y>=0.5 && z>= 0.5);
-  assert(x<=Nx-0.5 && y<=Ny-0.5 && z<= Nz-0.5);  
+
+  if(!(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<Nx && (y+0.5)<Ny && (z+0.5)<Nz)){
+    uint64_t flat_index = floor(x)*Ny*Nz + floor(y)*Nz + floor(z);
+    return voxels[flat_index];
+  }
 				    
   real_t   X[3] = {x,y,z};
   real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
@@ -274,4 +277,91 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
     }
   }
 }
+
+typedef std::array<real_t,16> matrix4x4;
+typedef std::array<real_t,4> vector4;
+
+inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M)
+{
+  vector4 c{{0,0,0,0}};
+
+  for(int i=0;i<4;i++){
+    real_t sum = 0;
+#pragma simd parallel for reduction(+:sum)    
+    for(int j=0;j<4;j++)
+      sum += M[i*4+j]*x[j];
+    c[i] = sum;
+  }
+  return c;
+}
+   
+
+template <typename voxel_type>
+void cylinder_projection(const input_ndarray<voxel_type> voxels,
+			 const input_ndarray<float> edt,
+			 const input_ndarray<uint8_t> Ps,			 
+			 float voxel_size,
+			 float d_min, float d_max,
+			 float theta_min, float theta_max,
+			 const matrix4x4 &Muvw,
+			 output_ndarray<real_t> images,
+			 output_ndarray<real_t> counts
+			 )
+{
+  ssize_t n_images = images.shape[0], n_theta = images.shape[1], n_U = images.shape[2];
+  assert(n_Ps == n_images);
+
+  real_t dtheta = (theta_max-theta_min)/real_t(n_theta); // Skal dette regnes ud?
+  real_t dU     = (U_max-U_min)/real_t(n_U);
+    
+  // Boilerplate from here
+  size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
+  size_t  ex = edt.shape[0],    ey = edt.shape[1],    ez = voxels.shape[2];
+  size_t  nP = Ps.shape[0], Px = Ps.shape[1], Py = Ps.shape[2], Pz = Ps.shape[3];
+
+  real_t edx = Nx/real_t(ex), edy = Ny/real_t(ey), edz = Nx/real_t(ex);
+  real_t Pdx = Nx/real_t(Px), Pdy = Ny/real_t(Py), Pdz = Nx/real_t(Px);
+  
+  uint64_t image_length = Nx*Ny*Nz;
+
+  for(uint64_t block_start=0;block_start<image_length;block_start+=acc_block_size){
+    voxel_type *buffer = voxels.data + block_start;
+    ssize_t     this_block_length = min(acc_block_size,image_length-block_start);
+
+    // TODO: copyin edt and Ps
+    // TODO: Private output (images, counts), synchronize after?
+    parallel_loop(buffer[:this_block_length]); 
+    for(int64_t k = 0; k<this_block_length;k++){
+      int64_t flat_idx = block_start + k;
+      int64_t X = (flat_idx  / (Ny*Nz)), Y = (flat_idx / Nz) % Ny, Z = flat_idx  % Nz; // Integer indices: voxels[X,Y,Z]      
+      float   ex = X*edx, ey = Y*edy, ez = Z*edz; // Fractional indices into edt image
+      float   px = X*Pdx, py = Y*Pdy, pz = Z*Pdz; // Fractional indices into P  images
+      // Boilerplate until here. TODO: macroize or lambda out!
+
+      real_t distance = resample2x2x2(edt,ex,ey,ez);
+
+      if(distance > d_min && distance <= d_max){ // TODO: and W>w_min
+	real_t Xs[4]   = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};
+	auto [U,V,W,c] = hom_transform(Xs,Muvw);
+
+	real_t r_sqr    = V*V + W*W;
+	real_t theta    = atan2(V,W);
+
+	size_t theta_i = floor(theta*dtheta);
+	size_t U_i     = floor(U*dU);
+
+	for(int i=0;i<n_Ps;i++){
+	  const auto *P     = &Ps[i*Px*Py*Pz];
+	  const auto *image = &images[i*Px*Py*Pz];
+	  const auto *count = &counts[i*Px*Py*Pz];
+	  
+	  real_t p = resample2x2x2(P, px,py,pz);
+	  image[floor(px)*Py*Pz + floor(py)*Pz + floor(pz)] += p;
+	  count[floor(px)*Py*Pz + floor(py)*Pz + floor(pz)]++;	  
+	}
+      }
+    }
+  }
+}
+
 
