@@ -9,6 +9,10 @@ import json
 import argparse
 import os
 import time
+NA = np.newaxis
+
+def row_normalize(A):
+        return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
 def batch():
     global args, config
@@ -72,7 +76,7 @@ def load_hists(filename):
     for name, hist in hists.items():
         hist_sum = np.sum(hist, axis=1)
         hist_sum[hist_sum==0] = 1
-        results[name] = hist / hist_sum[:,np.newaxis]
+        results[name] = hist / hist_sum[:,NA]
     return hists
 
 class _range:
@@ -199,7 +203,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
         scatter_plot = np.zeros((3,3,3), dtype=np.uint8)
     else:
         fig, ax = plt.subplots()
-        ax.imshow(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], cmap='jet')
+        ax.imshow(row_normalize(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop]), cmap='jet')
         if peaks:
             ax.scatter(px, py, color='red', alpha=.008)
         scatter_plot = mplfig_to_npimage(fig)
@@ -209,7 +213,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
     return scatter_plot, px, py
 
 def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial_size):
-    display = ((hist.astype(np.float32) / hist.max()) * 255.0).astype(np.uint8)
+    display = (row_normalize(hist) * 255).astype(np.uint8)
     box_x_start = int(rng.x.start * scale_x)
     box_y_start = int(rng.y.start * scale_y)
     box_x_stop = int(rng.x.stop * scale_x)
