@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from numpy.lib.function_base import disp
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 from moviepy.video.io.bindings import mplfig_to_npimage
@@ -10,8 +9,6 @@ import json
 import argparse
 import os
 import time
-
-from torch import dtype
 
 def batch():
     global args, config
@@ -242,7 +239,7 @@ def scatter_peaks(hist, config):
 def gui():
     global last, args
     def update_image(_):
-        hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+        hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
         cv2.setTrackbarMax('range start x', 'Histogram lines', hist_shape[1]-1)
         cv2.setTrackbarPos('range start x', 'Histogram lines', min(cv2.getTrackbarPos('range start x', 'Histogram lines'), hist_shape[1]-1))
         cv2.setTrackbarMax('range stop x', 'Histogram lines', hist_shape[1]-1)
@@ -292,7 +289,7 @@ def gui():
                     update(force=True)
             elif (event == cv2.EVENT_MBUTTONDOWN):
                 print ('reset bounding box')
-                hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+                hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
                 cv2.setTrackbarPos('range start x', 'Histogram lines', 0)
                 cv2.setTrackbarPos('range stop x', 'Histogram lines', hist_shape[1]-1)
                 cv2.setTrackbarPos('range start y', 'Histogram lines', 0)
@@ -311,7 +308,7 @@ def gui():
         # Check if trackbar ranges should be updated
         modified = force or False
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
-        hist = f[keys[bin]]
+        hist = hists[bin]
         if bin != last['bin']:
             modified = True
             last['bin'] = bin
@@ -465,9 +462,11 @@ def gui():
         return changed
 
     f = np.load(args.histogram[0])
-    keys = [key for key in f.keys()]
-    print ('keys', keys)
-    first_hist = f[keys[0]]
+    keys = [key for key in f.keys() if key.endswith('_bins') and not key == 'field_bins']
+    hists = [f[key] for key in keys]
+    hists += list(f['field_bins'])
+    
+    first_hist = hists[0]
     last = {
         # Trackbars
         'bin': None,
@@ -501,7 +500,7 @@ def gui():
     cv2.createTrackbar('range stop y', 'Histogram lines', first_hist.shape[0]-1, first_hist.shape[0]-1, update)
     cv2.createTrackbar('size x', 'Histogram lines', 1920, 1920, update)
     cv2.createTrackbar('size y', 'Histogram lines', 1080, 1080, update)
-    cv2.createTrackbar('bins', 'Histogram lines', 0, len(keys)-1, update_image)
+    cv2.createTrackbar('bins', 'Histogram lines', 0, len(hists)-1, update_image)
     cv2.createTrackbar('line', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('line smooth', 'Histogram lines', config['line smooth'], 50, update)
     cv2.createTrackbar('min peak height', 'Histogram lines', config['min peak height'], 100, update)
