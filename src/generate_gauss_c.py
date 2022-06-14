@@ -31,9 +31,9 @@ if __name__ == '__main__':
     output_dir = f"{binary_root}/fields/implant-gauss/{scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading implant mask from {binary_root}/masks/implant/{scale}x/{sample}.npz")
-    with np.load(f"{binary_root}/masks/implant/{scale}x/{sample}.npz") as f:
-        implant_mask = f['implant_mask'][:]
+    print(f"Loading implant mask from {binary_root}/masks/implant/{scale}x/{sample}.h5")
+    with h5py.File(f"{binary_root}/masks/implant/{scale}x/{sample}.h5") as f:
+        implant_mask = f['implant_solid/mask'][:]
 
     nz,ny,nx = implant_mask.shape
 
