@@ -172,7 +172,7 @@ template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
 
   if(!(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<Nx && (y+0.5)<Ny && (z+0.5)<Nz)){
     uint64_t flat_index = floor(x)*Ny*Nz + floor(y)*Nz + floor(z);
-    return voxels[flat_index];
+    return voxels.data[flat_index];
   }
 				    
   real_t   X[3] = {x,y,z};
@@ -278,9 +278,6 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
   }
 }
 
-typedef std::array<real_t,16> matrix4x4;
-typedef std::array<real_t,4> vector4;
-
 inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M)
 {
   vector4 c{{0,0,0,0}};
@@ -293,75 +290,176 @@ inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M)
     c[i] = sum;
   }
   return c;
-}
-   
 
-template <typename voxel_type>
-void cylinder_projection(const input_ndarray<voxel_type> voxels,
-			 const input_ndarray<float> edt,
-			 const input_ndarray<uint8_t> Ps,			 
-			 float voxel_size,
-			 float d_min, float d_max,
-			 float theta_min, float theta_max,
-			 const matrix4x4 &Muvw,
-			 output_ndarray<real_t> images,
-			 output_ndarray<real_t> counts
+  
+}
+
+
+
+#define loop_mask_start(mask_in,mask_out,COPY) {		               \
+  ssize_t Mx = mask_in.shape[0], My = mask_in.shape[1], Mz = mask_in.shape[2]; \
+  ssize_t mask_length = Mx*My*Mz;                                              \
+                                                                               \
+for(ssize_t block_start=0;block_start<mask_length;block_start+=acc_block_size){\
+  const mask_type *maskin_buffer  = mask_in.data + block_start;                \
+        mask_type *maskout_buffer = mask_out.data + block_start;               \
+  ssize_t  this_block_length = min(acc_block_size,mask_length-block_start);    \
+  									\
+  _Pragma(STR(acc parallel loop copy(maskin_buffer[:this_block_length], maskout_buffer[:this_block_length]) copy COPY)) \
+  for(int64_t k = 0; k<this_block_length;k++){                                 \
+    int64_t flat_idx = block_start + k;                                        \
+    int64_t X = (flat_idx  / (My*Mz)), Y = (flat_idx / Mz) % My, Z = flat_idx  % Mz; \
+    std::array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1}; \
+    bool mask_value = maskin_buffer[k];
+
+#define loop_mask_end(mask) }}} 
+
+void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
+		       float voxel_size,
+		       float U_min, float U_max,
+		       float r_fraction,
+		       const matrix4x4 &Muvw,
+		       output_ndarray<mask_type> solid_implant_mask,
+		       output_ndarray<float> rsqr_maxs,
+		       output_ndarray<float> profile
+		       )
+{
+  real_t theta_min = M_PI, theta_max = -M_PI, W_min = MAXFLOAT;  
+  ssize_t n_segments = rsqr_maxs.shape[0];
+  
+  printf("implant_mask.shape = %ld,%ld,%ld\n",implant_mask.shape[0],implant_mask.shape[1],implant_mask.shape[2]);
+  printf("solid_implant_mask.shape = %ld,%ld,%ld\n",solid_implant_mask.shape[0],solid_implant_mask.shape[1],solid_implant_mask.shape[2]);
+  
+  fprintf(stderr,"voxel_size = %g, U_min = %g, U_max = %g, r_frac = %g, n_segments = %ld\n",
+	 voxel_size, U_min, U_max, r_fraction, n_segments);
+
+  float     *rsqr_maxs_d     = rsqr_maxs.data;
+  float     *profile_d       = profile.data;
+  
+  // First pass computes some bounds -- possibly separate out to avoid repeating
+  loop_mask_start(implant_mask, solid_implant_mask,
+		  (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16]) );
+  if(mask_value){
+    auto [U,V,W,c] = hom_transform(Xs,Muvw);
+    
+    real_t r_sqr = V*V+W*W;
+    real_t theta = atan2(V,W);
+
+    int U_i = floor((U-U_min)*(n_segments-1)/(U_max-U_min));
+
+    if(U_i >= 0 && U_i < n_segments){
+      rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
+      theta_min = min(theta_min, theta);
+      theta_max = max(theta_max, theta);
+      W_min     = min(W_min,     W);
+    } else {
+      // Otherwise we've calculated it wrong!
+      //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
+    }
+  }
+  loop_mask_end(implant_mask);
+
+  double theta_center = (theta_max+theta_min)/2;
+
+  fprintf(stderr,"theta_min, theta_center, theta_max = %g,%g,%g\n", theta_min, theta_center, theta_max);
+
+  // Second pass does the actual work
+  loop_mask_start(implant_mask, solid_implant_mask,
+		  (rsqr_maxs_d[:n_segments], profile_d[:n_segments]) );
+  auto [U,V,W,c] = hom_transform(Xs,Muvw);
+  float r_sqr = V*V+W*W;
+  float theta = atan2(V,W);
+  int U_i = floor((U-U_min)*(n_segments-1)/(U_max-U_min));
+
+  bool solid_mask_value = false;
+  if(U_i >= 0 && U_i < n_segments && W>=W_min){ // TODO: Full bounding box check?
+    solid_mask_value = mask_value | (r_sqr <= r_fraction*rsqr_maxs_d[U_i]);
+
+    if(theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]){
+      atomic_statement()
+	profile_d[U_i] += solid_mask_value;
+    }
+  }
+  maskout_buffer[k] = solid_mask_value;
+  
+  loop_mask_end(implant_mask);
+}
+		       
+		       
+
+void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
+			 const input_ndarray<uint8_t> Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
+			 float voxel_size,		   // Voxel size for Cs
+			 float d_min, float d_max,	   // Distance shell to map to cylinder
+			 float theta_min, float theta_max, // Angle range (wrt cylinder center)
+			 float U_min, float U_max,         // Height range (wrt cylinder center)
+			 const matrix4x4 &Muvw,		   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
+			 output_ndarray<float>    images,  // Probability-weighted volume of (class,theta,U)-voxels
+			 output_ndarray<int64_t>  counts   // Number of (class,theta,U)-voxels
 			 )
 {
   ssize_t n_images = images.shape[0], n_theta = images.shape[1], n_U = images.shape[2];
-  assert(n_Ps == n_images);
 
-  real_t dtheta = (theta_max-theta_min)/real_t(n_theta); // Skal dette regnes ud?
+  real_t dtheta = (theta_max-theta_min)/real_t(n_theta); 
   real_t dU     = (U_max-U_min)/real_t(n_U);
     
-  // Boilerplate from here
-  size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-  size_t  ex = edt.shape[0],    ey = edt.shape[1],    ez = voxels.shape[2];
-  size_t  nP = Ps.shape[0], Px = Ps.shape[1], Py = Ps.shape[2], Pz = Ps.shape[3];
+  size_t                     ex = edt.shape[0], ey = edt.shape[1], ez = edt.shape[2];
+  size_t  nC = Cs.shape[0],  Cx = Cs.shape[1],  Cy = Cs.shape[2],  Cz = Cs.shape[3];
 
-  real_t edx = Nx/real_t(ex), edy = Ny/real_t(ey), edz = Nx/real_t(ex);
-  real_t Pdx = Nx/real_t(Px), Pdy = Ny/real_t(Py), Pdz = Nx/real_t(Px);
+  real_t edx = Cx/real_t(ex), edy = Cy/real_t(ey), edz = Cz/real_t(ex);
   
-  uint64_t image_length = Nx*Ny*Nz;
+  assert(nC == n_images);  
 
-  for(uint64_t block_start=0;block_start<image_length;block_start+=acc_block_size){
-    voxel_type *buffer = voxels.data + block_start;
-    ssize_t     this_block_length = min(acc_block_size,image_length-block_start);
+  ssize_t C_length         = Cx*Cy*Cz;  
+  ssize_t C_strides[4]     = {Cx*Cy*Cz,Cy*Cz,Cz,1};
+  ssize_t image_strides[3] = {n_theta*n_U,n_U,1};  
 
-    // TODO: copyin edt and Ps
-    // TODO: Private output (images, counts), synchronize after?
-    parallel_loop(buffer[:this_block_length]); 
-    for(int64_t k = 0; k<this_block_length;k++){
-      int64_t flat_idx = block_start + k;
-      int64_t X = (flat_idx  / (Ny*Nz)), Y = (flat_idx / Nz) % Ny, Z = flat_idx  % Nz; // Integer indices: voxels[X,Y,Z]      
-      float   ex = X*edx, ey = Y*edy, ez = Z*edz; // Fractional indices into edt image
-      float   px = X*Pdx, py = Y*Pdy, pz = Z*Pdz; // Fractional indices into P  images
-      // Boilerplate until here. TODO: macroize or lambda out!
 
-      real_t distance = resample2x2x2(edt,ex,ey,ez);
+  //TODO: new acc/openmp macro in parallel.hh
+#pragma acc data copyin(edt[:ex*ey*ez])
+  {
+    for(int c=0;c<nC;c++){   // TODO: Skal denne være udenfor?
+      const uint8_t *C = &Cs.data[c*C_strides[0]];
+      auto *image = &images.data[c*image_strides[0]];
+      auto *count = &counts.data[c*image_strides[0]];
+    
+      for(ssize_t block_start=0;block_start<C_length;block_start+=acc_block_size){
+	const uint8_t *C_buffer = C + block_start;
+	ssize_t  this_block_length = min(acc_block_size,C_length-block_start);
 
-      if(distance > d_min && distance <= d_max){ // TODO: and W>w_min
-	real_t Xs[4]   = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};
-	auto [U,V,W,c] = hom_transform(Xs,Muvw);
+	// TODO: copyin edt and Cs. Let them be small enough that everyone can have a copy
+	// TODO: Private output (images, counts), synchronize after?
 
-	real_t r_sqr    = V*V + W*W;
-	real_t theta    = atan2(V,W);
+	//parallel_loop((C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U]));
+#pragma acc parallel loop copy(C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U])
+	for(int64_t k = 0; k<this_block_length;k++){
+	  int64_t flat_idx = block_start + k;
+	  int64_t X = (flat_idx  / (Cy*Cz)), Y = (flat_idx / Cz) % Cy, Z = flat_idx  % Cz; // Integer indices: Cs[c,X,Y,Z]
+	  float   ex = X*edx, ey = Y*edy, ez = Z*edz; // Fractional indices into edt image
+	  // Boilerplate until here. TODO: macroize or lambda out!
 
-	size_t theta_i = floor(theta*dtheta);
-	size_t U_i     = floor(U*dU);
+	  real_t distance = resample2x2x2(edt,ex,ey,ez);
 
-	for(int i=0;i<n_Ps;i++){
-	  const auto *P     = &Ps[i*Px*Py*Pz];
-	  const auto *image = &images[i*Px*Py*Pz];
-	  const auto *count = &counts[i*Px*Py*Pz];
-	  
-	  real_t p = resample2x2x2(P, px,py,pz);
-	  image[floor(px)*Py*Pz + floor(py)*Pz + floor(pz)] += p;
-	  count[floor(px)*Py*Pz + floor(py)*Pz + floor(pz)]++;	  
+	  if(distance > d_min && distance <= d_max){ // TODO: and W>w_min
+	    array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};
+	    auto [U,V,W,c] = hom_transform(Xs,Muvw);
+
+	    real_t r_sqr    = V*V + W*W;
+	    real_t theta    = atan2(V,W);
+
+	    size_t theta_i = floor(theta*dtheta);
+	    size_t U_i     = floor(U*dU);
+
+	
+	    real_t p = C_buffer[k];
+	    atomic_statement()
+	      image[theta_i*n_U + U_i] += p;
+	    atomic_statement()	  
+	      count[theta_i*n_U + U_i] += 1;	  
+	  }
 	}
       }
     }
   }
 }
-
 
