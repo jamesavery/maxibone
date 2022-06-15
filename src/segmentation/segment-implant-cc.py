@@ -4,7 +4,7 @@ from config.constants import *
 from config.paths import hdf5_root, binary_root, commandline_args
 from pybind_kernels.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
 from pybind_kernels.histograms import load_slice
-from io_modules.io import update_hdf5
+from helper_functions import update_hdf5, update_hdf5_mask
 
 NA = np.newaxis
 
@@ -56,11 +56,11 @@ output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 print(f"Writing largest connected component to {output_dir}/{sample}.h5")
 
-update_hdf5(f"{output_dir}/{sample}.h5",
-            group_name="implant",
-            datasets={'mask':implant_mask},
-            attributes={'scale':scale,'voxel_size':voxel_size,
-                        'sample':sample, 'name':"implant_mask"})
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                 group_name="implant",
+                 datasets={'mask':implant_mask},
+                 attributes={'scale':scale,'voxel_size':voxel_size,
+                             'sample':sample, 'name':"implant_mask"})
 
 
 # np.savez_compressed(f"{output_dir}/{sample}",mask=mask, scale=scale,voxel_size=voxel_size,
