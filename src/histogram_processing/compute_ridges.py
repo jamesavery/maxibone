@@ -11,8 +11,6 @@ import argparse
 import os
 import time
 
-from torch import dtype
-
 def batch():
     global args, config
 
