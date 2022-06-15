@@ -7,10 +7,13 @@
 namespace python_api { 
   namespace py = pybind11;
 
-  typedef py::array_t<mask_type, py::array::c_style | py::array::forcecast> np_voxelarray;
-  typedef py::array_t<real_t, py::array::c_style | py::array::forcecast> np_realarray;  
+  typedef py::array_t<mask_type, py::array::c_style | py::array::forcecast> np_maskarray;
+  typedef py::array_t<real_t, py::array::c_style | py::array::forcecast>    np_realarray;
+  typedef py::array_t<float, py::array::c_style | py::array::forcecast>     np_float32array;
+  typedef py::array_t<uint8_t, py::array::c_style | py::array::forcecast>   np_bytearray;
+  typedef py::array_t<uint64_t, py::array::c_style | py::array::forcecast>  np_int64array;
 
-  array<real_t,3> center_of_mass(const np_voxelarray &np_voxels){
+  array<real_t,3> center_of_mass(const np_maskarray &np_voxels){
     auto voxels_info    = np_voxels.request();
 
     return ::center_of_mass({voxels_info.ptr,voxels_info.shape});
@@ -18,24 +21,24 @@ namespace python_api {
 
 
 
-  array<real_t,9> inertia_matrix(const np_voxelarray &np_voxels, array<real_t,3>& cm){
+  array<real_t,9> inertia_matrix(const np_maskarray &np_voxels, array<real_t,3>& cm){
     auto voxels_info    = np_voxels.request();
     
     return ::inertia_matrix({voxels_info.ptr,voxels_info.shape}, cm);
   }
 
-  array<real_t,9> inertia_matrix_serial(const np_voxelarray &np_voxels, array<real_t,3>& cm){
+  array<real_t,9> inertia_matrix_serial(const np_maskarray &np_voxels, array<real_t,3>& cm){
     auto voxels_info    = np_voxels.request();
     
     return ::inertia_matrix_serial({voxels_info.ptr,voxels_info.shape}, cm);
   }  
 
 
-  void sample_plane(const np_voxelarray &np_voxels,
+  void sample_plane(const np_maskarray &np_voxels,
 		    const array<real_t,3> &cm,
 		    const array<real_t,3> &u_axis,
 		    const array<real_t,3> &v_axis,		    
-		    np_voxelarray &np_plane_samples,
+		    np_maskarray &np_plane_samples,
 		    const array<real_t,3> &L)
   {
     auto voxels_info = np_voxels.request();
@@ -48,7 +51,7 @@ namespace python_api {
   }
 
 
-  void integrate_axes(const np_voxelarray &np_voxels,
+  void integrate_axes(const np_maskarray &np_voxels,
 		    const array<real_t,3> &x0,		    
 		    const array<real_t,3> &v_axis,
 		    const array<real_t,3> &w_axis,
@@ -67,7 +70,7 @@ namespace python_api {
   void zero_outside_bbox(const array<real_t,9> &principal_axes,
 			 const array<real_t,6> &parameter_ranges,
 			 const array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
-			 np_voxelarray &np_voxels)
+			 np_maskarray &np_voxels)
   {
     auto voxels_info = np_voxels.request();
     
@@ -76,8 +79,55 @@ namespace python_api {
 		      cm, 
 		      {voxels_info.ptr, voxels_info.shape});
   }
-}
 
+void fill_implant_mask(const np_maskarray implant_mask,
+		       float voxel_size,
+		       float U_min, float U_max,
+		       float r_fraction,
+		       const matrix4x4 &Muvw,
+		       np_maskarray solid_implant_mask,
+		       np_float32array rsqr_maxs,
+		       np_float32array profile
+		       )
+{
+  auto implant_info    = implant_mask.request(),
+    solid_implant_info = solid_implant_mask.request(),
+    rsqr_info          = rsqr_maxs.request(),
+    profile_info       =  profile.request();
+
+  return ::fill_implant_mask({implant_info.ptr,       implant_info.shape},
+			     voxel_size, U_min, U_max, r_fraction, Muvw,
+			     {solid_implant_info.ptr, solid_implant_info.shape},
+			     {rsqr_info.ptr,          rsqr_info.shape},
+			     {profile_info.ptr,       profile_info.shape}
+			     );
+}
+  
+  
+  void cylinder_projection(const np_float32array  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
+			   const np_bytearray     &np_Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
+			   float Cs_voxel_size,		   // Voxel size for Cs
+			   float d_min, float d_max,	   // Distance shell to map to cylinder
+			   float theta_min, float theta_max, // Angle range (wrt cylinder center)
+			   float U_min, float U_max,         // Height range (wrt cylinder center)
+			   const matrix4x4 &Muvw,		   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
+			   np_float32array &np_images,	   // Probability-weighted volume of (class,theta,U)-voxels
+			   np_int64array &np_counts	   // Number of (class,theta,U)-voxels
+			   )
+  {
+    auto edt_info    = np_edt.request();
+    auto Cs_info     = np_Cs.request();
+    auto images_info = np_images.request();
+    auto counts_info = np_counts.request();
+
+    ::cylinder_projection({edt_info.ptr,edt_info.shape},
+			  {Cs_info.ptr, Cs_info.shape},
+			  Cs_voxel_size,d_min,d_max,theta_min,theta_max,U_min,U_max,Muvw,
+			  {images_info.ptr, images_info.shape},
+			  {counts_info.ptr, counts_info.shape});
+  }
+  
+}
 
 
 
@@ -90,5 +140,6 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
     m.def("integrate_axes",       &python_api::integrate_axes);        
     m.def("sample_plane",         &python_api::sample_plane);
-    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);    
+    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
+    m.def("fill_implant_mask",    &python_api::fill_implant_mask);  
 }
