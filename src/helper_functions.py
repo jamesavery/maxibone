@@ -3,7 +3,7 @@ import os, h5py, pathlib, numpy as np, pybind_kernels.histograms as histograms, 
 from config.paths import hdf5_root, binary_root
 from numpy import newaxis as NA
 
-def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
+def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
                 compression=None,chunk_shape=None):
 
     output_dir = os.path.dirname(filename)
@@ -17,8 +17,9 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
     
     for k in datasets:
         v = datasets[k]
-        g.require_dataset(k,shape=v.shape,dtype=v.dtype,
-                          compression=compression, chunks=chunk_shape)
+        if(k in g): del g[k]
+        g.create_dataset(k,shape=v.shape,dtype=v.dtype,
+                          compression=compression, chunks=chunk_shape,maxshape=None)
         g[k][:] = v[:]
 
         if dimensions is not None:
@@ -37,7 +38,7 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
 
 
 #TODO: Use this for masks, no compression and no chunking default for small metadata datasets
-def update_hdf5_mask(filename,group_name,datasets,attributes,dimensions=None,
+def update_hdf5_mask(filename,group_name,datasets={},attributes={},dimensions=None,
                      compression="lzf",chunk_shape=(64,64,64)):
     update_hdf5(filename,group_name,datasets,attributes,dimensions,compression,chunk_shape)
 
