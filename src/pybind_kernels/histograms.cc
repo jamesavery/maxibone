@@ -39,7 +39,7 @@ template <typename T> void convolve1d(const py::array_t<T> np_kernel,
   T       *to     = static_cast<T*>       (to_info.ptr);
 
 
-  int32_t
+  int64_t
     kernel_size = kernel_info.size,
     padding = kernel_size / 2, // kx should always be odd
     // Partial shape
@@ -70,7 +70,7 @@ template <typename Op, bool neutral> void morphology_3d_sphere_cpu(
         voxels_info = np_voxels.request(),
         result_info = np_result.request();
 
-    int32_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
     int64_t N[3] = {Nz, Ny, Nx};
     int64_t strides[3] = {Ny*Nx, Nx, 1};
 
@@ -124,7 +124,7 @@ template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
         voxels_info = np_voxels.request(),
         result_info = np_result.request();
 
-    int32_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
     int64_t N[3] = {Nz, Ny, Nx};
     int64_t strides[3] = {Ny*Nx, Nx, 1};
 
@@ -190,7 +190,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 
     //auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
 
-    int32_t
+    int64_t			// OMG! WTF!
         kernel_size = kernel_info.size,
         padding = kernel_size / 2, // kx should always be odd
         // Partial shape
@@ -204,9 +204,13 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 
     assert(kernel_size % 2 == 1);
 
+    ssize_t image_size = Rz*Ry*Rx;
     gauss_type
-        *tmp0 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type)),
-        *tmp1 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type));
+        *tmp0 = (gauss_type *) calloc(image_size, sizeof(gauss_type)),
+        *tmp1 = (gauss_type *) calloc(image_size, sizeof(gauss_type));
+
+    assert(tmp0 != 0);
+    assert(tmp1 != 0);
 
     #pragma omp parallel for
     for (int64_t i = 0; i < mask_info.size; i++) {
@@ -237,6 +241,14 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
 		  int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
+		  if(!(output_index >= 0 && output_index < image_size)){
+		    fprintf(stderr,"output_index out of bounds:\n");
+		    fprintf(stderr,"output_index, image_size = %ld,%ld\n",output_index,image_size);
+		    fprintf(stderr,"x,y,z    = %ld,%ld,%ld\n",x,y,z);
+		    fprintf(stderr,"Px,Py,Pz = %ld,%ld,%ld\n",Px,Py,Pz);
+		    fprintf(stderr,"Rx,Ry,Rz = %ld,%ld,%ld\n",Rx,Ry,Rz);
+		    abort();
+		  }
 		  auto mask_value = mask[output_index];
 		  if (mask_value) {
 		    tout[output_index] = 1;
@@ -253,7 +265,6 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 		      int64_t voxel_index = output_index + stride*i;
 		      sum += tin[voxel_index] * kernel[i+padding];
 		    }
-
 		    tout[output_index] = sum;
 		  }
                 }
@@ -261,6 +272,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
         }
     }
 
+    fprintf(stderr,"Done.\n");
     memcpy(result, n_iterations % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
     free(tmp0);
     free(tmp1);
@@ -369,7 +381,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
         z_info = np_z_bins.request(),
         r_info = np_r_bins.request();
 
-    const uint32_t
+    const uint64_t
         voxel_bins = x_info.shape[1],
         Nx = x_info.shape[0],
         Ny = y_info.shape[0],
@@ -702,7 +714,7 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
         z_info = np_z_bins.request(),
         r_info = np_r_bins.request();
 
-    const uint32_t
+    const uint64_t
         voxel_bins = x_info.shape[1],
         Nx = x_info.shape[0],
         Ny = y_info.shape[0],
@@ -784,7 +796,7 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
 
@@ -847,7 +859,7 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         bins_length  = bins_info.size,
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
@@ -977,7 +989,7 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         bins_length  = bins_info.size,
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
@@ -1051,7 +1063,7 @@ void otsu(
         result_info = np_result.request();
     // https://vincmazet.github.io/bip/segmentation/histogram.html
 
-    uint32_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
+    uint64_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
     uint64_t N_threshes = N_cols / step_size;
 
     const uint64_t *bins = static_cast<const uint64_t*>(bins_info.ptr);
