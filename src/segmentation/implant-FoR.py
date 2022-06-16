@@ -7,7 +7,7 @@ from pybind_kernels.histograms import load_slice, erode_3d_sphere_gpu as erode_3
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
-from io_modules.io import update_hdf5
+from helper_functions import update_hdf5, update_hdf5_mask
 from numpy import array, newaxis as NA
 
 # Hvor skal disse hen?
@@ -18,11 +18,6 @@ def circle_center(p0,p1,p2):
 
     
     A       = np.array([n1,-n2]).T   # Solve m1 + t1*n1 == m2 + t2*n2   <=> t1*n1 - t2*n2 = m2-m1
-
-    # print(f"p0,p1,p2 = {p0,p1,p2}")
-    # print(f"m1,m2    = {m1,m2}")
-    # print(f"n1,n2    = {n1,n2}")
-    # print(f"A        =\n {A}")                
     
     (t1,t2) = la.solve(A, m2-m1)
 
@@ -72,8 +67,12 @@ def coordinate_image(shape):
 
 
 
-
 sample, scale = commandline_args({"sample":"<required>","scale":8})
+
+
+if(scale<8):
+    print(f"Selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
+    sys.exit(-1)
 
 print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
 implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
@@ -309,7 +308,7 @@ update_hdf5(f"{output_dir}/{sample}.h5",
                       "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
                                                      [implant_Vps.min(),implant_Vps.max()],
                                                      [implant_Wps.min(),implant_Wps.max()]]),
-                      "U_values": (Up_bins[1:]+Up_bins[:-1])/2,
+                      "Up_values": (Up_bins[1:]+Up_bins[:-1])/2,
                       "Up_integrals": Up_integrals,
                       "theta_range": np.array([theta_from, theta_to])
             },
@@ -331,33 +330,28 @@ update_hdf5(f"{output_dir}/{sample}.h5",
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 print(f"Saving implant_solid mask to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
-            group_name="implant_solid",
-            datasets={"mask":solid_implant},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
-            chunk_shape=(64,64,64)
-)
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                 group_name="implant_solid",
+                 datasets={"mask":solid_implant},
+                 attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
 print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
-            group_name="implant_shell",
-            datasets={"mask":implant_shell_mask},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
-            chunk_shape=(64,64,64))
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                 group_name="implant_shell",
+                 datasets={"mask":implant_shell_mask},
+                 attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
 print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
             group_name="cut_cylinder_air",
             datasets={"mask":back_mask},
-            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size},
-            chunk_shape=(64,64,64))
+            attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
 print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
-            group_name="cut_cylinder_bone",
-            datasets={"mask":front_mask},
-            attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size},
-            chunk_shape=(64,64,64))
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                 group_name="cut_cylinder_bone",
+                 datasets={"mask":front_mask},
+                 attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
 
 print(f"Computing bone region")
@@ -387,25 +381,16 @@ try:
 
 except:
     print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
-    bone_region_mask = np.ones_like(implant)
+    bone_region_mask = front_mask
     
 print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
-update_hdf5(f"{output_dir}/{sample}.h5",
+update_hdf5_mask(f"{output_dir}/{sample}.h5",
             group_name="bone_region",
             datasets={"mask":bone_region_mask},
             attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
 
-# TODO: Store resin mask as well
-
-
-
-    
-    
-
-
-
-
+# TODO: Store resin mask as well: cut_cylinder_bone & ~bone_region
 
 
 
