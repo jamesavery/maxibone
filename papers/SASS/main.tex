@@ -24,7 +24,7 @@
 %% Use the option review to obtain double line spacing
 %\documentclass[times,review,preprint,authoryear]{elsarticle}
 
-%% Use the options `twocolumn,final' to obtain the final layout
+%% Use the options 'twocolumn,final' to obtain the final layout
 %% Use longtitle option to break abstract to multiple pages if overfull.
 %% For Review pdf (With double line spacing)
 %\documentclass[times,twocolumn,review]{elsarticle}
@@ -52,12 +52,27 @@
 % not required.
 \usepackage{url}
 \usepackage{xcolor}
+\usepackage{graphicx}
 
 \usepackage{hyperref}
 
 \definecolor{newcolor}{rgb}{.8,.349,.1}
 
 \journal{Medical Image Analysis}
+
+
+
+
+
+% \usepackage{showframe} % for debugging
+\newcommand{\carl}[1]{\textcolor{orange}{[Carl: #1]}}
+\newcommand{\aleksandar}[1]{\textcolor{cyan}{[Aleksandar: #1]}}
+\newcommand{\james}[1]{\textcolor{red}{[James: #1]}}
+\definecolor{ForestGreen}{RGB}{34,139,34}
+\newcommand{\suggestion}[3]{\textcolor{ForestGreen}{[\textbf{Suggestion (#1):} '\sout{#2}' $\rightarrow$ '#3']}}
+
+
+
 
 \begin{document}
 
@@ -122,6 +137,176 @@ Type your abstract here.
 \end{frontmatter}
 
 %\linenumbers
+
+\newpage
+
+\section*{Motivation}
+
+ - Hvad er det vi undersøger?
+    - Overordnet: Imlantanter i knogler
+       - Vil gerne kunne analysere og evaluere kvaliteten af "growth" omkring implantatet
+         for at kunne vurdere den underlæggende sundhed og success af operationen
+       - Vil gerne kunne afkorte tiden fra operation til analyse til evaluering, samtidigt
+         med at kvaliteten af data er stabil til at der er højt evidensgrundlag
+       - kunne sige noget om knoglekvaliteten og kompositionen (tæthed, radius, ...)
+       - kontakt til implantat: dækket af knogle, blod (forbundet til blodnetværk)
+         
+ - Hvilke problemer indebærer det som skal løses?
+    - Segmentation is hard and time-consuming to do on this type of data.
+      - contains noise that is hard to avoid from data acquisition
+      - often segmentation is done manually, so being able to automate this data is of great value for the field.
+      - Want to avoid using deep learning methods, but keep full transparency 
+      - Simpler mathematical methods can be implemented efficiently and consistently
+
+ - Hvordan vil vi bære os ad med at løse problemerne?
+    - Det er en forudsætning at vi tydeligt kan observere hvad der sker i bone-to-implant interfacet
+    - Den utrolig høje opløsning og kvaliteten af billeder fra SR-micro-CT vil give adgang til
+      analyse og segmentering med høj nøjagtighed.
+    - Using the geometrical distributions and domain specific knowledge means that we know
+      what to expect from the segmentation around all regions.
+
+\subsection*{Data}
+
+\subsubsection*{The physical samples}
+
+The physical samples are prepared for SR$\mu$CT scanning by cutting out a portion of a larger
+12mm cylindrical sample. \aleksandar{Better to give a brief chronological tour of how the sample has been handled? Time scale also matters to mention in regards to growth.} The cut samples are 6.5mm cubes \aleksandar{more accurate measures?}. This contains the titanium dental implant (Astra Tech OsseoSpeed, ST Molndal, Sweden), which is 3.5mm in diameter and 8mm long. Along its length the lower 5.5mm has larger threads and is attached to recipient bone. The upper 2.5mm has smaller threads and is where newly formed bone is to be assessed. Sorrounding the bone and implant contact-region are cavities containing resin, air, blood vessels and other fibrous tissue. This is shown in figure \ref{fig:3viewsample}.
+
+
+\begin{figure}%[!t]
+\centering
+\includegraphics[scale=0.50]{figures/3_view_sample.png}
+\caption{\aleksandar{Temporary example figure of sample in x,y,z dimension. It could perhaps even be manually annotated (meaning we can indicate roughly what regions correspond to: resin, air, implant, bone), and related to the physical scale mentioned above? Maybe as simple as overlaying a ruler with the given scale?}}
+\label{fig:3viewsample}
+\end{figure}
+
+Each material has a different density and thus absorption. The titanium implant has higher absorption than bone.
+Bone material then has higher absorption than its sorrounding tissue, vessels, air and resin.
+
+\subsubsection*{Data acquisition}
+
+It can be difficult to study and evaluate the bone structure and blood network without destroying or
+manipulating the sample. X-ray computed tomography is a widely used tool for non-intrusive medical
+imaging. By exposing a subject to X-rays, we can map the linear attentuation coffecient of the passing
+rays. Each ray is attenuated relatively to the density and composition of the material it passes. By
+rotating either the scanner or the sample we can get a full 3D image representation of the inner
+structure of the sample. Each volumetric pixel (voxel) then represents the X-ray attenuation at its spatial position. We can therefore reliably use X-rays to internally characterise samples in a non-intrusive and non-destructive manner. Regular CT-scans can provide spatial resolutions on the order of millimetre scale.\aleksandar{ref} The more modern micro computed tomography ($\mu$CT) can provide much higher spatial resolution on the micrometre scale.\aleksandar{ref} Both setups utilize poly-energetic beams, which can cause artifacts around high density regions. This effect is called beam-hardening\aleksandar{ref}, and occurs when rays with lower energy are attenuated more frequently. This offsets the local contrast, by overestimating the attenuation, leaving lighter spots on the image. Many other types of artifacts will also occur in these common scanners, but most is taken into account by calibration using phantoms and pre-hardening the beam before it reaches the sample. Due to its common usage, much software also exists to correct for noise and smaller imperfections during reconstruction\aleksandar{ref}.
+
+This work focuses on data acquired by Synchrotron Radiation micro-CT (SR$\mu$CT). For this imaging
+technique, electrons are accelerated to ultra-relativistic speeds in trajectories directed by strong
+magnetic fields. Contrary to both CT and $\mu$CT, this approach requires a large particle accelerator, and is not standard medical or laboratory equipment\aleksandar{ref}. The added complexity means that SR$\mu$CT can offer an even better spatial resolution of up to 0.1 $\mu$m. The resulting beams are high in brilliance and collimation which gives a very clear signal. Its mono-energetic nature also means that images are not subject to artifacts from beam-hardening.
+
+\aleksandar{Can we confirm whether data was acquired at the ESRF and at which beamline? Also which energies were used? All this could be important for reproducibility.}
+
+\aleksandar{Was filtered backprojection used to do reconstruction, and who has done that? Was it done at ESRF?}
+
+\subsubsection*{Image data}
+
+A single image sample contains voxels with of spatial resolution 1.875$\mu$m. The physical size of
+a sample is about 6.5mm, which makes the raw dimensions of a single image $(3480,3480,3384)$ pixels.
+For computational purposes, this has been cropped to be divisible by $2^5=32$. A full image sample
+is further split into 4-6 sub-volumes through the height of the implant. This gives a size of $(3456,3456,810)$ pixels per sub-volume, where the last axis gets stacked for a full volume.
+
+\aleksandar{OBS: 846 i rå størelse, 810 er efter volume-matching.}
+
+\aleksandar{Important to explain a bit about how the samples were cut during acquisition. How were the samples secured in order not to be shifted too much etc.}
+
+\section*{Physical effects, noise and artifacts}
+
+Noise in tomography is unavoidable, and it makes segmentation harder. Matarials may be well separated from certain angles in the 3d-reconstructed image, but overlap from others. Some noise like that corrected by flat-field correction is very uniformly distributed across images. Some noise is however very spatially dependent on its sorrounding regions. Since we know the compositions of the materials being imaged, we can counter some of these effects during segmentation. The noise effects manifest themselves as numerical shifts in voxel-values as a function of their position. This is a direct result of a misrepresented attenuation along the axis the X-rays are passing. 
+
+\aleksandar{perhaps we should mention at what energies the data is taken. This helps to narrow which types of effects play into the data.}
+
+Low energy rays contribute mostly with noise from scattering effects. A ray will propagate through a material, get scattered and diffract from its initial trajectory. This gives a misrepresentation of the attenuation along its initial trajectory.
+
+Streaking artifacts from dense implant region, but also in the transition from bone to softer tissue.
+
+...
+
+For SR$\mu$CT a high photon flux allows for very short exposure times \citep{srexptime}.
+This can help counter noise from suboptimal counting statistics\citep{srnoise}.
+
+
+* Gå fra brede effekter som viser sig i hele billedet (og er mere generelle) -> Til de mere specifikke effekter som er mere specifikke for vores case
+
+* genskær fra voxels
+mørke effekter modsat lysere effekter fra beam-hardening (x-rays er inverteret)
+
+Forklare hvorfor vi ser mørke områder, særligt at det mørke lægger sig omkring implantatet,
+men at det så aftager mod knoglen, for så at blive kraftigere og bredere helt ved knoglen..
+nok refraktion osv. \aleksandar{OBS: before talking about specific noise in our data, we should probably include one or more examples of noise that shows how the segmentation is made harder due to this noise.}
+
+
+\section*{Solutions}
+
+\aleksandar{Work-in-progress}
+
+Individual materials are segmented from the full image, which is represented by their respective histograms.
+
+\begin{equation}
+H(x,v) = \sum_{m=1}^{n} g_{m}(x,v) + r(x,v)
+\end{equation}
+
+Where $g_m$ represents a histogram for materials $m\in\{1,n\}$, and $r(x,v)$ is incorrectly identified remainding region.
+
+We find the probability for a certain material as:
+
+\begin{equation}
+p(m|x,v) = \frac{g_{m}(x,v)}{H(x,v)}
+\end{equation}
+
+We then have a single distribution is given by a piecewise polynomial:
+
+\begin{equation}
+g_{m}(x,v) = a_{m}(x) e^{ -b_{m}(x) |v-c_{m}(x)|^{d_{m}(x)} }
+\end{equation}
+
+Where a is the height, b is the width, c is the centre and d is the exponent.
+
+If we were to look at the distributions for individual slices, we would get too much variance.
+Instead we would like to fit the individual coefficients to get a smooth function.
+
+\subsection*{Miscellaneous}
+
+We shall go through these subjects and explain what was done and how + why. We briefly explain how the method works.
+
+\begin{itemize}
+ \item Volume matching
+ \item Find implant mask
+ \item EDT (Euclidean distance transform)
+ \item Gauss
+ \item Gauss + EDT
+ \item Hist(x,y,z,r)
+ \item Find lines / ridges
+ \item Get distributions
+ \item Beskrive processen under GUI trinvist
+ \item Segment materials from distributions
+ \item Bayesian combination of materials from their distributions
+\end{itemize}
+
+\subsection*{Probabilities}
+
+\aleksandar{Work-in-progress}
+
+Ud fra et 3d-billede (volumen), kan vi tælle os til de enkelte fordelinger
+
+p(I), p(I|x), p(I|y), p(I|z), p(I|r), hvor $r=\sqrt{(x-x_0)^2+(y-y_0)^2}$
+
+ved at finde peaks og fitte distributioner kan vi da finde approksimationer til
+
+p(c|I), p(c|I,x), p(c|I,y), p(c|I,z), p(c|I,r)
+
+hvor c er klasserne, fx knogle, blodåre, væv, ... 
+
+Vi vil gerne finde kombinationsfordelinger som kan klassificere voxels ved brug af mere information end kun intensiteten - blandt andet hvor voxelen befinder sig.
+
+Ud fra fx p(c|I,x) og p(c|I,y) og ... vil vi gerne approksimere p(c|I,x,y,z,r) uden at skulle repræsentere den eksplicit som et kæmpe volumen.
+
+Dette vil vi gøre ved at bruge betinget uafhængiged. \aleksandar{Evt inkludere bevis for at det er validt. Ellers så blot forklare hvordan sandsynlighederne sammensættes og bruges.}
+
+% ------------------------------------------ %
+% Underneath this is Elseviers template text %
+% ------------------------------------------ %
 
 %% main text
 \section{Note}
@@ -215,7 +400,7 @@ trademarks respectively. All measurements and data should be given in
 SI units where possible, or other internationally accepted units.
 Abbreviations should be used consistently throughout the text, and all
 nonstandard abbreviations should be defined on first usage
-\citep{Vehlowetal2013}.
+[removed].
 
 \begin{table*}[!t]
 \caption{\label{tab1}Summary of different works pertaining to face and
@@ -331,7 +516,7 @@ pica wide) or across the page (42 pica wide). Scale your artwork in
 your graphics program before incorporating it in your text. If the
 artwork turns out to be too large or too small, resize it again in your
 graphics program and re-import it. The text should not run along the
-sides of any figure. This is an example for citation \citet{NewmanGirvan2004}.
+sides of any figure. This is an example for citation [removed].
 
 \begin{figure}[!t]
 \centering
@@ -344,7 +529,7 @@ You might find positioning your artwork within the text difficult
 anyway. In that case you may choose to place all artwork at the end of
 the text and insert a marker in the text at the desired place. In any
 case, please keep in mind that the placement of artwork may vary
-somewhat in relation to the page lay-out \citep{HullermeierRifqi2009}.
+somewhat in relation to the page lay-out [removed].
 
 This can easily be achieved using \verb+endfloat.sty+ package. Please
 refer the following documentation to use this package.
