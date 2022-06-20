@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
     print(f"Extracting region from {(nz*voxel_size,ny*voxel_size,nx*voxel_size)} μm^3 image")
 
-    show_section("770c_pag",scale=scale,axesnames=(abscissa,ordinate),bbox=(cut,(ab_from,ab_to),(or_from,or_to)),figsize=None)
+    show_section(sample,scale=scale,axesnames=(abscissa,ordinate),bbox=(cut,(ab_from,ab_to),(or_from,or_to)),figsize=None)
 
 
     
