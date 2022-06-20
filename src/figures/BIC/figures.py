@@ -6,7 +6,8 @@ from helper_functions import h5meta_info_volume_matched
 
 def imshow(image,filename=None,xlabel=None,xticks=None,ylabel=None,yticks=None,plotlabel=None,cmap='RdYlBu',figsize=(20,10)):
 
-    fig = plt.figure(figsize=(20,10))
+    fig = plt.figure(figsize=figsize)
+        
     ax = fig.subplots()
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -22,16 +23,20 @@ def imshow(image,filename=None,xlabel=None,xticks=None,ylabel=None,yticks=None,p
     ax.imshow(image,cmap=cmap)
 
     if filename is not None:
+        print(f"Writing image to {filename}")        
         fig.savefig(filename)
     else:
-        fig.show()
+        plt.show()
 
 
-def show_section(sample,axes=(0,1), bbox=(0, None, None), scale=1, nticks=6):
+def show_section(sample,filename=None,axesnames=('y','z'), bbox=(0, None, None), scale=1, nticks=6, figsize=None):
+    axesid={'z':0,'y':1,'x':2}
+    axes = (axesid[axesnames[0]],axesid[axesnames[1]])
+    
     (Nz,Ny,Nx), subvolume_nzs, voxel_size_1x = h5meta_info_volume_matched(sample)
     (nz,ny,nx) = (Nz//scale,Ny//scale,Nx//scale)
     voxel_size = voxel_size_1x * scale        
-    voxels = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(nz,ny,nx)
+    voxels = np.memmap(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16,mode='r').reshape(nz,ny,nx)
 
     zs = np.round(np.linspace(0,nz*voxel_size,nz),2)
     ys = np.round(np.linspace(0,ny*voxel_size,ny),2) 
@@ -67,6 +72,7 @@ def show_section(sample,axes=(0,1), bbox=(0, None, None), scale=1, nticks=6):
     if axes==(2,1):
         image = voxels[cut,or_range,ab_range]        
 
+    del voxels
 
     abscissa, ordinate = axesspaces[axes[0]][ab_range], axesspaces[axes[1]][or_range]
     
@@ -76,12 +82,28 @@ def show_section(sample,axes=(0,1), bbox=(0, None, None), scale=1, nticks=6):
     xticks = (xtix, abscissa[xtix])
     yticks = (ytix, ordinate[ytix])    
 
-    imshow(image,xlabel=axeslabels[axes[0]],ylabel=axeslabels[axes[1]],xticks=xticks,yticks=yticks)
+    imshow(image,filename=filename,xlabel=axeslabels[axes[0]],ylabel=axeslabels[axes[1]],xticks=xticks,yticks=yticks,figsize=figsize)
 
 
 
+
+if __name__ == "__main__":
+    sample, scale, abscissa, ordinate, cut, ab_from, ab_to, or_from, or_to = \
+        commandline_args({"sample":"<required>", "scale":4,
+                          "abscissa":"x", "ordinate":"y",
+                          "cut":3000,
+                          "ab_from":0, "ab_to":-1,
+                          "or_from":0, "or_to":-1
+        })
+                                                                               
     
-show_section("770c_pag",scale=4,axes=(2,1),bbox=(1000,None,(1350*1.875,-1)))
-plt.show()
+    (Nz,Ny,Nx), subvolume_nzs, voxel_size_1x = h5meta_info_volume_matched(sample)
+    (nz,ny,nx) = (Nz//scale,Ny//scale,Nx//scale)
+    voxel_size = voxel_size_1x * scale
+
+    print(f"Extracting region from {(nz*voxel_size,ny*voxel_size,nx*voxel_size)} μm^3 image")
+
+    show_section("770c_pag",scale=scale,axesnames=(abscissa,ordinate),bbox=(cut,(ab_from,ab_to),(or_from,or_to)),figsize=None)
+
 
     
