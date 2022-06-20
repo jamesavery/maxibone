@@ -24,7 +24,7 @@ def imshow(image,filename=None,xlabel=None,xticks=None,ylabel=None,yticks=None,p
 
     if filename is not None:
         print(f"Writing image to {filename}")        
-        fig.savefig(filename)
+        fig.savefig(filename,dpi=600)
     else:
         plt.show()
 
