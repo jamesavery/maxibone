@@ -23,8 +23,10 @@ def imshow(image,filename=None,xlabel=None,xticks=None,ylabel=None,yticks=None,p
     ax.imshow(image,cmap=cmap)
 
     if filename is not None:
-        print(f"Writing image to {filename}")        
-        fig.savefig(filename,dpi=600)
+        print(f"Writing image to {filename}")
+        fig.tight_layout()
+#        fig.savefig(filename,dpi=600,bbox_inches='tight', pad_inches=0)
+        fig.savefig(filename,dpi=300,bbox_inches='tight', pad_inches=0)
     else:
         plt.show()
 
