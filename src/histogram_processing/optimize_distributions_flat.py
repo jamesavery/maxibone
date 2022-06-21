@@ -108,19 +108,18 @@ def opt_all(abcd,*args):
     return E1 + 1e2*Ecloseness #+ 10*E2
 
 
-good_xs = []
-good_is = []
-ABCD = []
-#TODO: Need to separate, as not all x have the same number of materials
-# -> each material has a good_xs/good_is and ABCD array. (Potentially different shapes)
-ABCD0   = []
-ABCD1   = []
+good_xs = [[]] * nmat
+good_is = [[]] * nmat
+ABCDm   = [[]] * nmat
+ABCD    = [] 
+ABCD_ms = [] 
+ABCD_xs = [] 
+ABCD_is = [] 
 
 # FLAT OPTIMIZATION
 for i,x in enumerate(xs):       
     ms = np.array([m for m in range(nmat) if labm[m][i].max() > 0])
     n  = len(ms)
-#    print(f"n = {n}")
     if(n>0):
         abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
@@ -153,25 +152,33 @@ for i,x in enumerate(xs):
         abcd, success = opt_result['x'], opt_result['success']
 
         if success:
-            print(opt_result)            
-            good_xs += [x]
-            good_is += [i]            
-            ABCD    += [abcd]
+            print(f"Histogram at x={x} converged successfully for materials {ms}.")
+            ABCD      += [abcd]
+            ABCD_ms   += [ms]
+            ABCD_xs   += [x]
+            ABCD_is   += [i]
+            
+            for im,m in enumerate(ms):            
+                good_xs[m] += [x]
+                good_is[m] += [i]
+                ABCDm[m]    += [abcd[im]]
             
         
         if(debug==4):
+            colors = ['b','r']
+            lines  = [line3,line4]
             model = powers(vs,abcd)
             n = len(abcd)//4    
             A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]    
         
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
-            line3.set_ydata(model[0])
-            if(n>1): line4.set_ydata(model[1])
             ax.collections.clear()
-            ax.fill_between(vs,np.sum(model,axis=0),color='green',alpha=0.5)        
-            ax.fill_between(vs,model[0],color='b',alpha=0.7)
-            ax.fill_between(vs,model[1],color='r',alpha=0.7)        
+            ax.fill_between(vs,np.sum(model,axis=0),color='green',alpha=0.5)
+            for i,m in enumerate(ms):
+                lines[m].set_ydata(model[i])                
+                ax.fill_between(vs,model[i],color=colors[m],alpha=0.7)
+                
             ax.set_title(f"x={x}: a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {1.3+np.round(D*D,1)}")
             ax.relim()
             ax.autoscale_view()    
@@ -180,16 +187,14 @@ for i,x in enumerate(xs):
             fig.savefig(f"opt_debug-{i:03}.png")
 
 hist_modeled = np.zeros_like(hist)
-hist_m0 = np.zeros_like(hist)
-hist_m1 = np.zeros_like(hist)
+hist_m = np.zeros((2,)+hist.shape,dtype=float)
             
-for i,x in enumerate(good_xs):
-    gi = good_is[i]
+for i,gi in enumerate(ABCD_is):
     abcd = ABCD[i]
+    ms   = ABCD_ms[i]
     model = powers(vs,abcd)
     hist_modeled[gi] = np.sum(model,axis=0)
-    hist_m0[gi] = model[0]
-    hist_m1[gi] = model[1]    
+    hist_m[ms,gi] = model
 
 if (debug&8):
     fig = plt.figure(figsize=(10,10))
@@ -199,9 +204,9 @@ if (debug&8):
     axarr[0,0].set_title(f"{field}-field 2D Histogram")
     axarr[0,1].imshow(row_normalize(hist_modeled,hist.max(axis=1)))
     axarr[0,1].set_title("Remodeled 2D Histogram")
-    axarr[1,0].imshow(row_normalize(hist_m0,hist.max(axis=1)))
+    axarr[1,0].imshow(row_normalize(hist_m[0],hist.max(axis=1)))
     axarr[1,0].set_title("Material 1")
-    axarr[1,1].imshow(row_normalize(hist_m1,hist.max(axis=1)))
+    axarr[1,1].imshow(row_normalize(hist_m[1],hist.max(axis=1)))
     axarr[1,1].set_title("Material 2")
     fig.tight_layout()
     fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png")
@@ -210,6 +215,9 @@ if (debug&8):
 update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
             group_name=f"{region_mask}/{field}",
             datasets={"xs":xs, "vs":vs,
-                      "good_xs":np.array(good_xs),
-                      "ABCD":   np.array(ABCD)})        
+                      "good_xs0":np.array(good_xs[0]),
+                      "good_xs1":np.array(good_xs[1]),                      
+                      "ABCD0":   np.array(ABCD[0]),
+                      "ABCD1":   np.array(ABCD[1])
+            })        
 
