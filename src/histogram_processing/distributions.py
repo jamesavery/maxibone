@@ -68,7 +68,7 @@ def powers(xs, abcd):
     A, B, C, D = abcd[:n,na], abcd[n:2*n,na], abcd[2*n:3*n,na], abcd[3*n:,na];
 
     X          = xs[na,:]
-    P          = (A*A)*np.exp(-(B*B)*np.abs(X-C)**(1.3+D*D))
+    P          = (A*A)*np.exp(-(B*B)*np.abs(X-C)**(D*D))
     return P
 
 

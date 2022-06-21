@@ -142,11 +142,11 @@ for i,x in enumerate(xs):
         bounds = opt.Bounds(np.concatenate([0.3*amx[ms,i],
                                             0.1*bmx[ms,i],
                                             0.9*cmx[ms,i],
-                                            0.5*np.ones(ms.shape)]),
+                                            1.3*np.ones(ms.shape)]),
                             np.concatenate([1.1*amx[ms,i],
                                             2.0*bmx[ms,i],
                                             midpoints,
-                                            1.0*np.ones(ms.shape)]),
+                                            2.3*np.ones(ms.shape)]),
                             True)
         opt_result = opt.minimize(opt_all,abcd0,constants,bounds=bounds)
 
@@ -183,7 +183,7 @@ for i,x in enumerate(xs):
                 lines[m].set_ydata(model[i])                
                 ax.fill_between(vs,model[i],color=colors[m],alpha=0.7)
                 
-            ax.set_title(f"x={x}: a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {1.3+np.round(D*D,1)}")
+            ax.set_title(f"x={x}: a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
             ax.relim()
             ax.autoscale_view()    
             fig.canvas.draw()
