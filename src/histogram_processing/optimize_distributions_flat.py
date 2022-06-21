@@ -7,13 +7,18 @@ from helper_functions import *
 na = np.newaxis
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, field, region_mask, stride = commandline_args({"sample":"<required>",
-                                                     "field":"edt",
-                                                     "region_mask":"<required>",
-                                                     "n_segments": 4})
+sample, field, region_mask, stride, debug = commandline_args({"sample":"<required>",
+                                                              "field":"edt",
+                                                              "region_mask":"<required>",
+                                                              "stride": 4,
+                                                              "debug":8
+})
 
 f_hist   = np.load(f"{hist_path}/{sample}/bins-{region_mask}.npz")
 f_labels = np.load(f"{hist_path}/{sample}/bins-{region_mask}_labeled.npz")
+
+def row_normalize(A,r):
+    return A/(r[:,na]+(r==0)[:,na])
 
 def material_points(labs,material_id):
     mask = labs==material_id    
@@ -22,7 +27,9 @@ def material_points(labs,material_id):
 
 #TODO: Weight importance in piecewise cubic fitting
 
-hist = f_hist["field_bins"][0][::stride,::stride]
+field_id = {'edt':0,'gauss':1}; # TODO: Get from data
+
+hist = f_hist["field_bins"][field_id[field]][::stride,::stride]
 #sums = np.sum(hist,axis=1)[:,na]
 #hist = hist/(sums + (sums==0))
 lab  = f_labels[field][::stride,::stride]
@@ -45,7 +52,6 @@ dmx    = np.sqrt(np.ones_like(bmx)*2)
 
 goodix  = amx>0
 
-debug = 0
 
 if (debug&7):
     plt.ion()
@@ -104,14 +110,18 @@ def opt_all(abcd,*args):
 
 good_xs = []
 good_is = []
-ABCD   = []
+ABCD = []
+#TODO: Need to separate, as not all x have the same number of materials
+# -> each material has a good_xs/good_is and ABCD array. (Potentially different shapes)
+ABCD0   = []
+ABCD1   = []
 
 # FLAT OPTIMIZATION
 for i,x in enumerate(xs):       
     ms = np.array([m for m in range(nmat) if labm[m][i].max() > 0])
     n  = len(ms)
 #    print(f"n = {n}")
-    if(n==2):
+    if(n>0):
         abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
         if (debug==1):
@@ -128,8 +138,16 @@ for i,x in enumerate(xs):
             line2.set_ydata(hist[i])
 
         constants  = i, x, abcd0, vs, hist[i]
-        bounds = opt.Bounds([0.3*amx[0,i],0.3*amx[1,i],0.1*bmx[0,i],0.1*bmx[1,i],0.9*cmx[0,i],0.9*cmx[1,i],0.5,0.5],
-                            [1.1*amx[0,i],1.1*amx[1,i],2*bmx[0,i],2*bmx[1,i],1.1*cmx[0,i],3*cmx[1,i],1,1], True)
+        midpoints = np.concatenate([(cmx[ms,i][1:] + cmx[ms,i][:-1])/2, [vs.max()]])
+        bounds = opt.Bounds(np.concatenate([0.3*amx[ms,i],
+                                            0.1*bmx[ms,i],
+                                            0.9*cmx[ms,i],
+                                            0.5*np.ones(ms.shape)]),
+                            np.concatenate([1.1*amx[ms,i],
+                                            2.0*bmx[ms,i],
+                                            midpoints,
+                                            1.0*np.ones(ms.shape)]),
+                            True)
         opt_result = opt.minimize(opt_all,abcd0,constants,bounds=bounds)
 
         abcd, success = opt_result['x'], opt_result['success']
@@ -149,7 +167,7 @@ for i,x in enumerate(xs):
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
             line3.set_ydata(model[0])
-            line4.set_ydata(model[1])
+            if(n>1): line4.set_ydata(model[1])
             ax.collections.clear()
             ax.fill_between(vs,np.sum(model,axis=0),color='green',alpha=0.5)        
             ax.fill_between(vs,model[0],color='b',alpha=0.7)
@@ -173,20 +191,21 @@ for i,x in enumerate(good_xs):
     hist_m0[gi] = model[0]
     hist_m1[gi] = model[1]    
 
-fig = plt.figure(figsize=(10,10))
-axarr = fig.subplots(2,2)
-fig.suptitle(f'{sample} {region_mask}') # or plt.suptitle('Main title')
-axarr[0,0].imshow(hist)
-axarr[0,0].set_title(f"{field}-field 2D Histogram")
-axarr[0,1].imshow(hist_modeled)
-axarr[0,1].set_title("Remodeled 2D Histogram")
-axarr[1,0].imshow(hist_m0)
-axarr[1,0].set_title("Material 1")
-axarr[1,1].imshow(hist_m1)
-axarr[1,1].set_title("Material 2")
-fig.tight_layout()
-fig.savefig(f"{sample}_hist_vs_modeled_{field}_{region_mask}.png")
-plt.show()
+if (debug&8):
+    fig = plt.figure(figsize=(10,10))
+    axarr = fig.subplots(2,2)
+    fig.suptitle(f'{sample} {region_mask}') # or plt.suptitle('Main title')
+    axarr[0,0].imshow(row_normalize(hist,hist.max(axis=1)))
+    axarr[0,0].set_title(f"{field}-field 2D Histogram")
+    axarr[0,1].imshow(row_normalize(hist_modeled,hist.max(axis=1)))
+    axarr[0,1].set_title("Remodeled 2D Histogram")
+    axarr[1,0].imshow(row_normalize(hist_m0,hist.max(axis=1)))
+    axarr[1,0].set_title("Material 1")
+    axarr[1,1].imshow(row_normalize(hist_m1,hist.max(axis=1)))
+    axarr[1,1].set_title("Material 2")
+    fig.tight_layout()
+    fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png")
+    plt.show()
 
 update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
             group_name=f"{region_mask}/{field}",
