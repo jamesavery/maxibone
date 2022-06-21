@@ -7,9 +7,9 @@ from helper_functions import *
 na = np.newaxis
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, field, region_mask, stride, debug = commandline_args({"sample":"<required>",
-                                                              "field":"edt",
+sample, region_mask, field, stride, debug = commandline_args({"sample":"<required>",
                                                               "region_mask":"<required>",
+                                                              "field":"edt",
                                                               "stride": 4,
                                                               "debug":8
 })
@@ -17,8 +17,6 @@ sample, field, region_mask, stride, debug = commandline_args({"sample":"<require
 f_hist   = np.load(f"{hist_path}/{sample}/bins-{region_mask}.npz")
 f_labels = np.load(f"{hist_path}/{sample}/bins-{region_mask}_labeled.npz")
 
-def row_normalize(A,r):
-    return A/(r[:,na]+(r==0)[:,na])
 
 def material_points(labs,material_id):
     mask = labs==material_id    
@@ -108,9 +106,9 @@ def opt_all(abcd,*args):
     return E1 + 1e2*Ecloseness #+ 10*E2
 
 
-good_xs = [[]] * nmat
-good_is = [[]] * nmat
-ABCDm   = [[]] * nmat
+good_xs = [[] for m in range(nmat)] # BE CAREFUL: [[]] * nmat makes MULTIPLE REFERENCES TO THE SAME LIST MEMORY. Two hours bughunting for that one.
+good_is = [[] for m in range(nmat)] 
+ABCDm   = [[] for m in range(nmat)] 
 ABCD    = [] 
 ABCD_ms = [] 
 ABCD_xs = [] 
@@ -164,7 +162,10 @@ for i,x in enumerate(xs):
             for im,m in enumerate(ms):            
                 good_xs[m] += [x]
                 good_is[m] += [i]
-                ABCDm[m]    += [abcd[im]]
+                ABCDm[m]    += [abcd.reshape(4,n)[:,im]]
+                print(f"ABCDm[{m}]    += {[abcd.reshape(4,n)[:,im]].copy()}")
+
+#            print(f"ABCDm = {ABCDm}")
             
         
         if(debug==4):
@@ -215,12 +216,14 @@ if (debug&8):
     fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png")
     plt.show()
 
+# TODO: How to generalize to arbitrarily many materials?
 update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
             group_name=f"{region_mask}/{field}",
-            datasets={"xs":xs, "vs":vs,
+            datasets={"histogram": f_hist["field_bins"][field_id[field]][:],
+                      "labels": f_labels[field][:],
                       "good_xs0":np.array(good_xs[0]),
                       "good_xs1":np.array(good_xs[1]),                      
-                      "ABCD0":   np.array(ABCD[0]),
-                      "ABCD1":   np.array(ABCD[1])
+                      "ABCD0":   np.array(ABCDm[0]),
+                      "ABCD1":   np.array(ABCDm[1])
             })        
 
