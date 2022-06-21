@@ -137,7 +137,10 @@ for i,x in enumerate(xs):
             line2.set_ydata(hist[i])
 
         constants  = i, x, abcd0, vs, hist[i]
-        midpoints = np.concatenate([(cmx[ms,i][1:] + cmx[ms,i][:-1])/2, [vs.max()]])
+        midpoints = np.maximum(
+            np.concatenate([(cmx[ms,i][1:] + cmx[ms,i][:-1])/2, [vs.max()]]),
+            0.9*cmx[ms,i])
+            
         bounds = opt.Bounds(np.concatenate([0.3*amx[ms,i],
                                             0.1*bmx[ms,i],
                                             0.9*cmx[ms,i],
