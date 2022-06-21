@@ -219,11 +219,13 @@ if (debug&8):
 # TODO: How to generalize to arbitrarily many materials?
 update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
             group_name=f"{region_mask}/{field}",
-            datasets={"histogram": f_hist["field_bins"][field_id[field]][:],
-                      "labels": f_labels[field][:],
-                      "good_xs0":np.array(good_xs[0]),
-                      "good_xs1":np.array(good_xs[1]),                      
-                      "ABCD0":   np.array(ABCDm[0]),
-                      "ABCD1":   np.array(ABCDm[1])
+            datasets={
+                "value_ranges": f_hist["value_ranges"][:],
+                "histogram": f_hist["field_bins"][field_id[field]][:],
+                "labels": f_labels[field][:],
+                "good_xs0":np.array(good_xs[0]),
+                "good_xs1":np.array(good_xs[1]),                      
+                "ABCD0":   np.array(ABCDm[0]),
+                "ABCD1":   np.array(ABCDm[1])
             })        
 
