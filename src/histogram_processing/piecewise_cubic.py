@@ -70,6 +70,9 @@ def mxrow_df(x,borders):
         row[-2:]          = [2*(x-Xleft), 3*((x-Xleft)**2)]
         return row 
     
+# TODO:
+#  - THE COEFFICIENT DERIVATIVE SHOULD BE CONSTRUCTED FROM THE MATRIX?
+#
 
 # We can now put these together to construct the matrix and RHS row by row:
 def piecewisecubic_matrix(xs,ys, Xs): 
@@ -93,6 +96,10 @@ def piecewisecubic_matrix(xs,ys, Xs):
         b[i] = ys[i]
 
     return A,b
+
+
+
+
 
 # A function that takes an N-segment piecewise cubic polynomial
 # produced by fit_piecewisecubic() and evaluates it on an arbitrary
@@ -139,7 +146,7 @@ def piecewisecubic(pc,all_xs,extrapolation="cubic"):
 
     # Process points outside the domain, right side
     Xmax = Xs[-1]
-    xs_right_of_domain = all_xs[all_xs > Xmax]
+    xs_right_of_domain = all_xs[all_xs >= Xmax]
     xs = xs_right_of_domain - Xmax
     
     if extrapolation=="cubic":
