@@ -24,8 +24,8 @@ def save_probabilities(Ps, sample, region,value_ranges,prob_method):
             output_path,
             group_name = f'{prob_method}/{region}/{name}',
             datasets = {
-                f'c0': P0,
-                f'c1': P1,
+                f'P0': P0,
+                f'P1': P1,
                 f'pc_coefs':   pc[0],
                 f'pc_borders': pc[1],
                 f'threshes': threshes,

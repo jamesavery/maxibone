@@ -45,10 +45,10 @@ def apply_otsu(bins, name=None):
     if debug:
         # Plot the two extracted probabilities
         plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_c0.png')
+        plt.savefig(f'{debug_output}/{name}_P_otsu_P0.png')
         plt.clf()
         plt.imshow(P1/(P1.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_c1.png')
+        plt.savefig(f'{debug_output}/{name}_P_otsu_P1.png')
         plt.clf()
 
         # Plot the thresholds on top of the original image
@@ -84,8 +84,8 @@ def save_probabilities(Ps, sample, subbins,value_ranges):
             output_path,
             group_name = f'otsu_separation/{subbins}/{name}',
             datasets = {
-                f'c0': P0,
-                f'c1': P1,
+                f'P0': P0,
+                f'P1': P1,
                 f'pc_coefs':   pc[0],
                 f'pc_borders': pc[1],
                 f'threshes': threshes,

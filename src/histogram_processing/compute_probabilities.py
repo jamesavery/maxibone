@@ -11,6 +11,9 @@ na = np.newaxis
 # TODO: Til fælles fil.
 def save_probabilities(Ps,sample, region_mask,field_name, value_ranges, prob_method):
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
+    print(f"output_path = {output_path}")
+    print(f"group_name1 = {prob_method}/{region_mask}\n" +
+          f"group_name2 = {prob_method}/{region_mask}/{field_name}")
     update_hdf5(
         output_path,
         group_name = f'{prob_method}/{region_mask}',
@@ -18,6 +21,7 @@ def save_probabilities(Ps,sample, region_mask,field_name, value_ranges, prob_met
         attributes = {}
     )
     for m,P in enumerate(Ps):
+        print(f"Storing {P.shape} probabilities P{m}")
         update_hdf5(
             output_path,
             group_name = f'{prob_method}/{region_mask}/{field_name}',
@@ -59,18 +63,19 @@ def evaluate_2d(G, xs, vs):
 
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, region_mask, field, n_segments_c, debug = commandline_args({"sample":"<required>",
-                                                                    "region_mask":"<required>",
-                                                                    "field":"edt",
-                                                                    "n_segments": 4,
-                                                                    "debug":8
+sample, region_mask, field_name, n_segments_c, debug = commandline_args({"sample":"<required>",
+                                                                         "region_mask":"<required>",
+                                                                         "field_name":"edt",
+                                                                         "n_segments": 4,
+                                                                         "debug":8
 })
 
 
+input_filename  = f"{hdf5_root}/processed/histograms/{sample}.h5"
+
 try:
-    model_filename = f"{hdf5_root}/processed/histograms/{sample}.h5"
-    model_file     = h5py.File(model_filename,"r") 
-    g = model_file[f"{region_mask}/{field}"]
+    model_file     = h5py.File(input_filename,"r") 
+    g = model_file[f"{region_mask}/{field_name}"]
     hist, labels = g["histogram"][:], g["labels"][:]
     nmat = labels.max()
 
@@ -78,10 +83,10 @@ try:
     assert(nmat==2)    
     good_xs      = [g["good_xs0"][:], g["good_xs1"][:]]
     ABCD         = [g["ABCD0"][:], g["ABCD1"][:]]
-
+    value_ranges = g['value_ranges'][:]
     model_file.close()
 except Exception as e:
-    print(f"Error in loading {region_mask}/{field} from {model_filename}: {e}")
+    print(f"Error in loading {region_mask}/{field_name} from {input_filename}: {e}")
     sys.exit(-1)
 
 nx, nv = hist.shape
@@ -135,6 +140,7 @@ for m in ms:
     
 P_modeled = np.minimum(np.sum(P_m,axis=0), 1)
 
+save_probabilities(P_m,sample, region_mask,field_name, value_ranges, "optimized_distributions")
 
     
 ##---- TODO: STICK THE DEBUG-PLOTTING FUNCTIONS SOMEWHERE CENTRAL
@@ -175,7 +181,7 @@ if (debug==8):
     axarr = fig.subplots(3,2)
     fig.suptitle(f'{sample} {region_mask}') 
     axarr[0,0].imshow(hist)
-    axarr[0,0].set_title(f"{field}-field 2D Histogram")
+    axarr[0,0].set_title(f"{field_name}-field 2D Histogram")
     axarr[0,1].imshow(hist_modeled)
     axarr[0,1].set_title("Reconstructed 2D Histogram")
     axarr[1,0].imshow(hist_m[0])
@@ -191,7 +197,7 @@ if (debug==8):
 
     output_dir = f"{hdf5_root}/processed/probabilities/{sample}/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)        
-    fig.savefig(f"{output_dir}/compute_probabilities_{field}_{region_mask}.png")
+    fig.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}.png")
     plt.show()    
 
 
