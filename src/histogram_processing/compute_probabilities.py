@@ -31,12 +31,6 @@ def evaluate_2d(G, xs, vs):
     m, bins_c, (pca,pcb,pcc,pcd) = G
 
     A, B, C, D = ABCD[m].T    
-
-    gax = piecewisecubic((pca,bins_c), good_xs[m])
-    gbx = piecewisecubic((pcb,bins_c), good_xs[m])
-    gcx = piecewisecubic((pcc,bins_c), good_xs[m])
-    gdx = piecewisecubic((pcd,bins_c), good_xs[m])
-    
     
     ax = piecewisecubic((pca,bins_c), xs,extrapolation='constant')[:,na]
     bx = piecewisecubic((pcb,bins_c), xs,extrapolation='constant')[:,na]
@@ -47,6 +41,12 @@ def evaluate_2d(G, xs, vs):
     # bx[(xs[:,na]<bins[0])|(xs[:,na]>bins[-1])] = 0
     # cx[(xs[:,na]<bins[0])|(xs[:,na]>bins[-1])] = 0
     # dx[(xs[:,na]<bins[0])|(xs[:,na]>bins[-1])] = 0
+
+
+    # gax = piecewisecubic((pca,bins_c), good_xs[m])
+    # gbx = piecewisecubic((pcb,bins_c), good_xs[m])
+    # gcx = piecewisecubic((pcc,bins_c), good_xs[m])
+    # gdx = piecewisecubic((pcd,bins_c), good_xs[m])
     
     # plt.plot(good_xs[m],A,c='r'); plt.plot(good_xs[m],gax,c='black',linewidth=3); plt.plot(xs, ax); plt.show();
     # plt.plot(good_xs[m],B,c='g'); plt.plot(good_xs[m],gbx,c='black',linewidth=3); plt.plot(xs, bx); plt.show();
@@ -54,7 +54,7 @@ def evaluate_2d(G, xs, vs):
     # plt.plot(good_xs[m],D,c='black'); plt.plot(good_xs[m],gdx,c='black',linewidth=3); plt.plot(xs, dx); plt.show();        
 
     image = ((ax*ax)*np.exp(-(bx*bx)*np.abs(vs[na,:]-cx)**(dx*dx)))
-    plt.imshow(image); plt.show()
+#    plt.imshow(image); plt.show()
     return image
 
 
@@ -125,6 +125,9 @@ P_m = np.zeros((2,)+hist.shape,dtype=float)
 
 for m in ms:
     hist_m[m] = evaluate_2d(Gs[m],xs,vs)
+    long_tail = hist_m[m] < 0.01*hist_m[m].max()
+    hist_m[m][long_tail] = 0
+    
 hist_modeled = np.sum(hist_m,axis=0)
 
 for m in ms:
@@ -173,11 +176,11 @@ if (debug==8):
     fig.suptitle(f'{sample} {region_mask}') 
     axarr[0,0].imshow(hist)
     axarr[0,0].set_title(f"{field}-field 2D Histogram")
-    axarr[0,1].imshow(row_normalize(hist_modeled,hist.max(axis=1)))
+    axarr[0,1].imshow(hist_modeled)
     axarr[0,1].set_title("Reconstructed 2D Histogram")
-    axarr[1,0].imshow(row_normalize(hist_m[0],hist.max(axis=1)))
+    axarr[1,0].imshow(hist_m[0])
     axarr[1,0].set_title("Material 1")
-    axarr[1,1].imshow(row_normalize(hist_m[1],hist.max(axis=1)))
+    axarr[1,1].imshow(hist_m[1])
     axarr[1,1].set_title("Material 2")
 
     axarr[2,0].imshow(P_m[0])

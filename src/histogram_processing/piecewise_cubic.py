@@ -107,6 +107,7 @@ def piecewisecubic_matrix(xs,ys, Xs):
 # it was fitted to):
 def piecewisecubic(pc,all_xs,extrapolation="cubic"):
     coefs, Xs = pc          # Polynomial coefficients A1,B1,C1,D1,C2,D2,C3,D3,... and borders
+    all_xs = all_xs.astype(float)
     N = len(Xs)-1           # N segments have N+1 borders: |seg1|seg2|...|segN|
 
     ys = []                 # List of function values for segments
@@ -178,7 +179,7 @@ def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
     else:
         coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
         
-    return (coefs,Xs)
+    return (coefs.reshape(-1),Xs)
 
 def smooth_fun(xs,ys,n_segments,regularization_beta=0):
     borders = linspace(xs.min(), xs.max()+1,n_segments)    
