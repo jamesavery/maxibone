@@ -70,6 +70,9 @@ def mxrow_df(x,borders):
         row[-2:]          = [2*(x-Xleft), 3*((x-Xleft)**2)]
         return row 
     
+# TODO:
+#  - THE COEFFICIENT DERIVATIVE SHOULD BE CONSTRUCTED FROM THE MATRIX?
+#
 
 # We can now put these together to construct the matrix and RHS row by row:
 def piecewisecubic_matrix(xs,ys, Xs): 
@@ -94,12 +97,17 @@ def piecewisecubic_matrix(xs,ys, Xs):
 
     return A,b
 
+
+
+
+
 # A function that takes an N-segment piecewise cubic polynomial
 # produced by fit_piecewisecubic() and evaluates it on an arbitrary
 # set of coordinates xs (not necessarily the same as the data points
 # it was fitted to):
 def piecewisecubic(pc,all_xs,extrapolation="cubic"):
     coefs, Xs = pc          # Polynomial coefficients A1,B1,C1,D1,C2,D2,C3,D3,... and borders
+    all_xs = all_xs.astype(float)
     N = len(Xs)-1           # N segments have N+1 borders: |seg1|seg2|...|segN|
 
     ys = []                 # List of function values for segments
@@ -139,7 +147,7 @@ def piecewisecubic(pc,all_xs,extrapolation="cubic"):
 
     # Process points outside the domain, right side
     Xmax = Xs[-1]
-    xs_right_of_domain = all_xs[all_xs > Xmax]
+    xs_right_of_domain = all_xs[all_xs >= Xmax]
     xs = xs_right_of_domain - Xmax
     
     if extrapolation=="cubic":
@@ -171,7 +179,7 @@ def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
     else:
         coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
         
-    return (coefs,Xs)
+    return (coefs.reshape(-1),Xs)
 
 def smooth_fun(xs,ys,n_segments,regularization_beta=0):
     borders = linspace(xs.min(), xs.max()+1,n_segments)    
