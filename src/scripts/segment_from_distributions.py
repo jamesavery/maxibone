@@ -11,10 +11,10 @@ from helper_functions import block_info, load_block
 debug = True
 
 
-def load_probabilities(path, group, axes_names, field_names, c):
+def load_probabilities(path, group, axes_names, field_names, m):
     with h5py.File(path, 'r') as prob_file:
-        P_axes   = [prob_file[f'{group}/{name}/P{c}'][:,:] for name in axes_names]
-        P_fields = [prob_file[f'{group}/{name}/P{c}'][:,:] for name in field_names]
+        P_axes   = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in axes_names]
+        P_fields = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in field_names]
     return P_axes, P_fields
 
 def load_value_ranges(path, group):
@@ -56,12 +56,12 @@ if __name__ == '__main__':
         voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
-        for c in [0,1]:
-            output_dir  = f'{binary_root}/segmented/c{c}/1x/'
+        for m in [0,1]:
+            output_dir  = f'{binary_root}/segmented/P{m}/1x/'
             output_file = f"{output_dir}/{sample}.uint16";
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-            P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, c)
+            P_axes, P_fields = load_probabilities(probs_file, group_name, axes_names, field_names, m)
             n_probs = len(P_axes) + len(P_fields)
             result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint16)
 
