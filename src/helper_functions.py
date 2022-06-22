@@ -132,4 +132,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
 #    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.show()
 #    plt.imshow(fields[0,:,fields[0].shape[1]//2,:]); plt.show()    
     return voxels, fields
-    
+
+def row_normalize(A,r):
+    na = np.newaxis
+    return A/(r[:,na]+(r==0)[:,na])
