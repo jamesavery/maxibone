@@ -13,8 +13,8 @@ debug = True
 
 def load_probabilities(path, group, axes_names, field_names, c):
     with h5py.File(path, 'r') as prob_file:
-        P_axes   = [prob_file[f'{group}/{name}/c{c}'][:,:] for name in axes_names]
-        P_fields = [prob_file[f'{group}/{name}/c{c}'][:,:] for name in field_names]
+        P_axes   = [prob_file[f'{group}/{name}/P{c}'][:,:] for name in axes_names]
+        P_fields = [prob_file[f'{group}/{name}/P{c}'][:,:] for name in field_names]
     return P_axes, P_fields
 
 def load_value_ranges(path, group):
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     Nz, Ny, Nx = bi['dimensions'][:3]
     fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
-    field_names = ["edt"]#,"gauss"] # TODO: Vi bruger kun eet field p.t.
+    field_names = ["edt"] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
