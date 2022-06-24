@@ -75,14 +75,15 @@ def np_save(path,data):
 # Requires: implant-FoR
 #           soft-tissue/bone segmentation + blood analysis
 #           EDT-field
-sample, scale = commandline_args({"sample":"<required>","scale":8}) #,"segment_scale":8}) #TODO: Implement higher resolution segment scale
+sample, scale, segment_scale = commandline_args({"sample":"<required>","scale":8,"segment_Scale":1}) #,"segment_scale":8}) #TODO: Implement higher resolution segment scale
 
 
 h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r")
 h5mask = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r")
 
 
-voxel_size     = h5meta["voxels"].attrs["voxelsize"]*scale
+Cs_voxel_size     = h5meta["voxels"].attrs["voxelsize"]*segment_scale
+mask_voxel_size     = h5meta["voxels"].attrs["voxelsize"]*scale
 (Nz,Ny,Nx)     = h5meta["voxels"].shape
 Nz            -= np.sum(h5meta["volume_matching_shifts"][:])
 (nz,ny,nx)     = np.array([Nz,Ny,Nx])//scale
@@ -122,11 +123,10 @@ implant_radius = h5g.attrs["implant_radius"]
 theta_range    = h5g["theta_range"][:]
 
 
-voxel_binfile         = f"{binary_root}/voxels/{scale}x/{sample}.uint16"
-c0_binfile            = f"{binary_root}/segmented/c0/{scale}x/{sample}.uint16"
-c1_binfile            = f"{binary_root}/segmented/c1/{scale}x/{sample}.uint16"
+#voxel_binfile         = f"{binary_root}/voxels/{scale}x/{sample}.uint16"
+P0_binfile            = f"{binary_root}/segmented/P0/{segment_scale}x/{sample}.uint16"
+P1_binfile            = f"{binary_root}/segmented/P1/{segment_scale}x/{sample}.uint16"
 edt_binfile           = f"{binary_root}/fields/implant-edt/{scale}x/{sample}.uint16"
-
 
 
 M1 = zyx_to_UVWp_transform()
@@ -141,12 +141,12 @@ M2 = h5meta["implant-FoR/UVWp_transform"][:]
 # print(f"cm = {np.round(cm,2)}")
 
 
-print(f"Loading {scale}x voxels from {voxel_binfile}")
-voxels = np.memmap(voxel_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
+# print(f"Loading {segment_scale}x voxels from {voxel_binfile}")
+# voxels = np.memmap(voxel_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
 
-print(f"Loading {scale}x segmentation from {c0_binfile} and {c1_binfile}")
-c0 = np.memmap(c0_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
-c1 = np.memmap(c1_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
+print(f"Loading {segment_scale}x segmentation from {P0_binfile} and {P1_binfile}")
+P0 = np.memmap(P0_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
+P1 = np.memmap(P1_binfile,dtype=np.uint16,mode="r",shape=(nz,ny,nx))
 
 edt_field = edt.edt(~solid_implant,parallel=16)*voxel_size
 
@@ -192,8 +192,8 @@ shell_voxels      = voxels.reshape(-1)[shell_indices]
 
 # assert(segment_scale <= scale)
 # sq = scale//segment_scale
-shell_c0      = c0.reshape(-1)[shell_indices]
-shell_c1      = c1.reshape(-1)[shell_indices]
+shell_P0      = P0.reshape(-1)[shell_indices]
+shell_P1      = P1.reshape(-1)[shell_indices]
 shell_blood   = blood_mask.reshape(-1)[shell_indices]
 
 n_th, n_Up = 1800//scale,3200//scale
@@ -211,8 +211,8 @@ th_binned = np.floor((n_th-1)*(shell_thetas2 - th_min)/(th_max - th_min)).astype
 Up_binned = np.floor((n_Up-1)*(shell_Ups2    - Up_min)/(Up_max - Up_min)).astype(int)
 
 for i in tqdm.tqdm(range(len(shell_indices)),"Binning voxels"):
-    blood[th_binned[i],Up_binned[i]]  += shell_c0[i]*shell_blood[i]
-    bone[th_binned[i], Up_binned[i]]  += shell_c1[i]
+    blood[th_binned[i],Up_binned[i]]  += shell_P0[i]*shell_blood[i]
+    bone[th_binned[i], Up_binned[i]]  += shell_P1[i]
     counts[th_binned[i],Up_binned[i]] = 1
 
 blood /= (counts + (counts==0))
@@ -257,8 +257,8 @@ ax.imshow((blood-bone).T[::-1],cmap='YlOrRd')
 fig.savefig(f"{hdf5_root}/processed/output/cylinder_projection_blood_and_bone_{scale}x.png")
 
 
-blood_img = c0*blood_mask*shell_mask
-bone_img  = c1*shell_mask
+blood_img = P0*blood_mask*shell_mask
+bone_img  = P1*shell_mask
 voxel_shell_img = voxels*shell_mask
 
 np_save(f"{binary_root}/analysis/shell/blood/{scale}x/{sample}.npy",blood_img)
