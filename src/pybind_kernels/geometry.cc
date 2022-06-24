@@ -1,3 +1,4 @@
+// TODO: Coordinates are named X,Y,Z in c++, but Z,Y,X in python. Homogenize to X,Y,Z!
 #include <chrono>
 #include <assert.h>
 #include <inttypes.h>
@@ -18,6 +19,7 @@ void print_timestamp(string message)
 }
 
 
+// TODO: Fix OpenACC copies & re-enable GPU
 array<real_t,3> center_of_mass(const input_ndarray<mask_type> voxels) {
   // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
   real_t cmx = 0, cmy = 0, cmz = 0;
@@ -165,74 +167,83 @@ void integrate_axes(const input_ndarray<mask_type> &voxels,
   }
 }
 
-template <typename t> real_t resample2x2x2(const input_ndarray<t> &voxels,
-					   const real_t &x, const real_t &y, const real_t &z)
-{
-  ssize_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
 
-  if(!(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<Nx && (y+0.5)<Ny && (z+0.5)<Nz)){
-    uint64_t flat_index = floor(x)*Ny*Nz + floor(y)*Nz + floor(z);
-    return voxels.data[flat_index];
+bool in_bbox(float U, float V, float W, const std::array<float,6> bbox)
+{
+  const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
+
+  return U>=U_min && U<=U_max && V>=V_min && V<=V_min && W>=W_min && W<=W_max;
+}
+
+
+template<typename field_type> float resample2x2x2(const field_type      *voxels,
+						  const array<ssize_t,3> &shape,
+						  const array<float,3>   &X)
+{
+  auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
+  if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5})){
+    uint64_t voxel_index = X[0]*Ny*Nz+X[1]*Ny+X[2];      
+    return voxels[voxel_index];
   }
-				    
-  real_t   X[3] = {x,y,z};
-  real_t   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
+  float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
   int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
-  real_t   value = 0;
+  float   value = 0;
 
   for(int i=0;i<3;i++){
     double Iminus, Iplus;
     Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-    Xfrac[1][i] = modf(X[i]+0.5,   &Iplus); // {X[i]+1/2}, floor(X[i]+1/2)
+    Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
     Xint[0][i] = Iminus;
-    Xint[1][i] = Iplus;	
+    Xint[1][i] = Iplus;
   }
-    
-  // Resample voxel in 2x2x2 neighbourhood
-  //000 --- 
-  //001 --+
-  //010 -+-
-  //011 -++
-  //100 +--
-  //101 +-+
-  //110 ++-
-  //111 +++
+
 
   for(int ijk=0; ijk<=7; ijk++) {
-    real_t  weight = 1;
-    int64_t IJK[3];
-	
+    float  weight = 1;
+    int64_t IJK[3] = {0,0,0};
+
     for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
-      int pm = ijk&(1<<axis);
+      int pm = (ijk>>axis) & 1;
       IJK[axis] = Xint[pm][axis];
       weight   *= Xfrac[pm][axis];
     }
-	
-    mask_type voxel = voxels.data[IJK[0]+IJK[1]*Nx+IJK[2]*Nx*Ny];
+
+    auto [I,J,K] = IJK;
+    if(I<0 || J<0 || K<0){
+      printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
+
+      abort();
+    }
+    if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)){
+      printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
+      abort();
+    }
+    uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
+    field_type voxel = voxels[voxel_index];
     value += voxel*weight;
   }
   return value;
 }
 
-void sample_plane(const input_ndarray<mask_type> &voxels, const plane_t &plane, output_ndarray<mask_type> plane_samples, array<real_t,3> L)
-{
-  ssize_t Ny = voxels.shape[1], Nx = voxels.shape[2];
-  ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];  
-  real_t  du = L[0]/nu, dv = L[1]/nv;
+// void sample_plane(const input_ndarray<mask_type> &voxels, const plane_t &plane, output_ndarray<mask_type> plane_samples, array<real_t,3> L)
+// {
+//   ssize_t Ny = voxels.shape[1], Nx = voxels.shape[2];
+//   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];  
+//   real_t  du = L[0]/nu, dv = L[1]/nv;
 
-  for(ssize_t ui=0;ui<nu;ui++)
-    for(ssize_t vj=0;vj<nv;vj++){
-      real_t u = (ui-nu/2)*du, v = (vj-nv/2)*dv;
+//   for(ssize_t ui=0;ui<nu;ui++)
+//     for(ssize_t vj=0;vj<nv;vj++){
+//       real_t u = (ui-nu/2)*du, v = (vj-nv/2)*dv;
 
-      real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
+//       real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
 
-      mask_type value = resample2x2x2(voxels,x,y,z);      
-      if(x >= 0.5 && y >= 0.5 && x+0.5 <= Nx && y+0.5 <= Ny){
-	plane_samples.data[ui*nv + vj] = value;
-      }
-    }
-}
+//       mask_type value = resample2x2x2(voxels.data,{Nz,Ny,Nx},x,y,z);      
+//       if(x >= 0.5 && y >= 0.5 && x+0.5 <= Nx && y+0.5 <= Ny){
+// 	plane_samples.data[ui*nv + vj] = value;
+//       }
+//     }
+// }
 
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
@@ -314,9 +325,10 @@ for(ssize_t block_start=0;block_start<mask_length;block_start+=acc_block_size){\
 
 #define loop_mask_end(mask) }}} 
 
+
 void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
 		       float voxel_size,
-		       float U_min, float U_max,
+		       const array<float,6> &bbox,
 		       float r_fraction,
 		       const matrix4x4 &Muvw,
 		       output_ndarray<mask_type> solid_implant_mask,
@@ -324,8 +336,9 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
 		       output_ndarray<float> profile
 		       )
 {
-  real_t theta_min = M_PI, theta_max = -M_PI, W_min = MAXFLOAT;  
+  real_t theta_min = M_PI, theta_max = -M_PI;  
   ssize_t n_segments = rsqr_maxs.shape[0];
+  const auto [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
   
   printf("implant_mask.shape = %ld,%ld,%ld\n",implant_mask.shape[0],implant_mask.shape[1],implant_mask.shape[2]);
   printf("solid_implant_mask.shape = %ld,%ld,%ld\n",solid_implant_mask.shape[0],solid_implant_mask.shape[1],solid_implant_mask.shape[2]);
@@ -338,7 +351,7 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
   
   // First pass computes some bounds -- possibly separate out to avoid repeating
   loop_mask_start(implant_mask, solid_implant_mask,
-		  (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16]) );
+		  (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16], bbox[:6]) );
   if(mask_value){
     auto [U,V,W,c] = hom_transform(Xs,Muvw);
     
@@ -347,11 +360,12 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
 
     int U_i = floor((U-U_min)*(n_segments-1)/(U_max-U_min));
 
-    if(U_i >= 0 && U_i < n_segments){
+    //    if(U_i >= 0 && U_i < n_segments){
+    if( in_bbox(U,V,W,bbox) ){
       rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
       theta_min = min(theta_min, theta);
       theta_max = max(theta_max, theta);
-      W_min     = min(W_min,     W);
+      //      W_min     = min(W_min,     W);
     } else {
       // Otherwise we've calculated it wrong!
       //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
@@ -392,7 +406,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 			 float voxel_size,		   // Voxel size for Cs
 			 float d_min, float d_max,	   // Distance shell to map to cylinder
 			 float theta_min, float theta_max, // Angle range (wrt cylinder center)
-			 float U_min, float U_max,         // Height range (wrt cylinder center)
+			 std::array<float,6> bbox,
 			 const matrix4x4 &Muvw,		   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
 			 output_ndarray<float>    images,  // Probability-weighted volume of (class,theta,U)-voxels
 			 output_ndarray<int64_t>  counts   // Number of (class,theta,U)-voxels
@@ -400,13 +414,12 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 {
   ssize_t n_images = images.shape[0], n_theta = images.shape[1], n_U = images.shape[2];
 
-  real_t dtheta = (theta_max-theta_min)/real_t(n_theta); 
-  real_t dU     = (U_max-U_min)/real_t(n_U);
-    
-  size_t                     ex = edt.shape[0], ey = edt.shape[1], ez = edt.shape[2];
-  size_t  nC = Cs.shape[0],  Cx = Cs.shape[1],  Cy = Cs.shape[2],  Cz = Cs.shape[3];
+  const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
 
-  real_t edx = Cx/real_t(ex), edy = Cy/real_t(ey), edz = Cz/real_t(ex);
+  ssize_t                     ex = edt.shape[0], ey = edt.shape[1], ez = edt.shape[2];
+  ssize_t  nC = Cs.shape[0],  Cx = Cs.shape[1],  Cy = Cs.shape[2],  Cz = Cs.shape[3];
+
+  real_t edx = ex/real_t(Cx), edy = ey/real_t(Cy), edz = ex/real_t(Cz);
   
   assert(nC == n_images);  
 
@@ -414,10 +427,19 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
   ssize_t C_strides[4]     = {Cx*Cy*Cz,Cy*Cz,Cz,1};
   ssize_t image_strides[3] = {n_theta*n_U,n_U,1};  
 
+  printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
 
+  printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
+	 U_min,U_max,V_min,V_max,W_min,W_max);-
+  printf("EDT field is (%ld,%ld,%ld)\n",ex,ey,ez);
+  
+  const float   *edt_d = edt.data; // Current OpenACC doesn't like to copy from struct member pointers
+
+
+  ssize_t n_shell = 0;
+  ssize_t n_shell_bbox = 0;  
   //TODO: new acc/openmp macro in parallel.hh
-#pragma acc data copyin(edt[:ex*ey*ez])
-  {
+  {    
     for(int c=0;c<nC;c++){   // TODO: Skal denne være udenfor?
       const uint8_t *C = &Cs.data[c*C_strides[0]];
       auto *image = &images.data[c*image_strides[0]];
@@ -427,39 +449,49 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 	const uint8_t *C_buffer = C + block_start;
 	ssize_t  this_block_length = min(acc_block_size,C_length-block_start);
 
-	// TODO: copyin edt and Cs. Let them be small enough that everyone can have a copy
-	// TODO: Private output (images, counts), synchronize after?
-
-	//parallel_loop((C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U]));
-#pragma acc parallel loop copy(C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U])
-	for(int64_t k = 0; k<this_block_length;k++){
-	  int64_t flat_idx = block_start + k;
-	  int64_t X = (flat_idx  / (Cy*Cz)), Y = (flat_idx / Cz) % Cy, Z = flat_idx  % Cz; // Integer indices: Cs[c,X,Y,Z]
-	  float   ex = X*edx, ey = Y*edy, ez = Z*edz; // Fractional indices into edt image
+	//#pragma acc parallel loop copy(C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U], bbox[:6], Muvw[:16], edt_d[:ex*ey*ez]) reduction(+:n_shell)
+	//#pragma omp parallel for reduction(+:n_shell,n_shell_bbox)	
+	for(int64_t k = 0; k<this_block_length;k++){	
+	  const int64_t flat_idx = block_start + k;
+	  const int64_t X = (flat_idx  / (Cy*Cz)), Y = (flat_idx / Cz) % Cy, Z = flat_idx  % Cz; // Integer indices: Cs[c,X,Y,Z]
+	  const float   x = X*edx, y = Y*edy, z = Z*edz; // Fractional indices into edt image
+	  const int64_t flat_field_idx = floor(x)*ey*ez + floor(y)*ez + floor(z);
 	  // Boilerplate until here. TODO: macroize or lambda out!
-
-	  real_t distance = resample2x2x2(edt,ex,ey,ez);
-
+	  if(Y == 67 && Z == 108){
+	    array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};	  
+	    const auto [U,V,W,c] = hom_transform(Xs,Muvw);
+	  
+	    printf("%ld = %ld+%ld: X,Y,Z = %ld,%ld,%ld -> U,V,W,c = %g,%g,%g,%g\n",
+		   flat_idx, block_start,k, X,Y,Z,U,V,W,c);
+	  }
+	  
+	  //****** MEAT OF THE IMPLEMENTATION IS HERE ******
+	  real_t distance = resample2x2x2<float>(edt_d,{ex,ey,ez},{x,y,z});
 	  if(distance > d_min && distance <= d_max){ // TODO: and W>w_min
 	    array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};
 	    auto [U,V,W,c] = hom_transform(Xs,Muvw);
-
-	    real_t r_sqr    = V*V + W*W;
-	    real_t theta    = atan2(V,W);
-
-	    size_t theta_i = floor(theta*dtheta);
-	    size_t U_i     = floor(U*dU);
-
-	
-	    real_t p = C_buffer[k];
-	    atomic_statement()
-	      image[theta_i*n_U + U_i] += p;
-	    atomic_statement()	  
-	      count[theta_i*n_U + U_i] += 1;	  
+	    n_shell ++;
+	    
+	    if(in_bbox(U,V,W,bbox)){
+	      n_shell_bbox++;
+	      fprintf(stderr,"%g,%g,%g in bbox\n",U,V,W);
+	      
+	      real_t theta    = atan2(V,W);
+	      
+	      size_t theta_i = floor( (theta-theta_min) * (n_theta-1)/(theta_max-theta_min) );
+	      size_t U_i     = floor( (U    -    U_min) * (n_U    -1)/(    U_max-    U_min) );
+	      
+	      real_t p = C_buffer[k];
+	      atomic_statement()
+		image[theta_i*n_U + U_i] += p;
+	      atomic_statement()	  
+		count[theta_i*n_U + U_i] += 1;
+	    }
 	  }
 	}
       }
     }
   }
+  printf("n_shell = %ld, n_shell_bbox = %ld\n",n_shell,n_shell_bbox);
 }
 

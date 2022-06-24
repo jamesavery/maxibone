@@ -34,21 +34,21 @@ namespace python_api {
   }  
 
 
-  void sample_plane(const np_maskarray &np_voxels,
-		    const array<real_t,3> &cm,
-		    const array<real_t,3> &u_axis,
-		    const array<real_t,3> &v_axis,		    
-		    np_maskarray &np_plane_samples,
-		    const array<real_t,3> &L)
-  {
-    auto voxels_info = np_voxels.request();
-    auto plane_samples_info  = np_plane_samples.request();
+  // void sample_plane(const np_maskarray &np_voxels,
+  // 		    const array<real_t,3> &cm,
+  // 		    const array<real_t,3> &u_axis,
+  // 		    const array<real_t,3> &v_axis,		    
+  // 		    np_maskarray &np_plane_samples,
+  // 		    const array<real_t,3> &L)
+  // {
+  //   auto voxels_info = np_voxels.request();
+  //   auto plane_samples_info  = np_plane_samples.request();
     
-    ::sample_plane({voxels_info.ptr, voxels_info.shape},
-		   {cm,u_axis,v_axis},
-		   {plane_samples_info.ptr, plane_samples_info.shape},
-		   L);
-  }
+  //   ::sample_plane({voxels_info.ptr, voxels_info.shape},
+  // 		   {cm,u_axis,v_axis},
+  // 		   {plane_samples_info.ptr, plane_samples_info.shape},
+  // 		   L);
+  // }
 
 
   void integrate_axes(const np_maskarray &np_voxels,
@@ -82,7 +82,7 @@ namespace python_api {
 
 void fill_implant_mask(const np_maskarray implant_mask,
 		       float voxel_size,
-		       float U_min, float U_max,
+		       const array<float,6> &bbox,
 		       float r_fraction,
 		       const matrix4x4 &Muvw,
 		       np_maskarray solid_implant_mask,
@@ -96,7 +96,7 @@ void fill_implant_mask(const np_maskarray implant_mask,
     profile_info       =  profile.request();
 
   return ::fill_implant_mask({implant_info.ptr,       implant_info.shape},
-			     voxel_size, U_min, U_max, r_fraction, Muvw,
+			     voxel_size, bbox, r_fraction, Muvw,
 			     {solid_implant_info.ptr, solid_implant_info.shape},
 			     {rsqr_info.ptr,          rsqr_info.shape},
 			     {profile_info.ptr,       profile_info.shape}
@@ -109,8 +109,8 @@ void fill_implant_mask(const np_maskarray implant_mask,
 			   float Cs_voxel_size,		   // Voxel size for Cs
 			   float d_min, float d_max,	   // Distance shell to map to cylinder
 			   float theta_min, float theta_max, // Angle range (wrt cylinder center)
-			   float U_min, float U_max,         // Height range (wrt cylinder center)
-			   const matrix4x4 &Muvw,		   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
+			   const array<float,6> &bbox,     // Implant bounding box (in U'V'W'-coordinates)
+			   const matrix4x4 &Muvw,	   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
 			   np_float32array &np_images,	   // Probability-weighted volume of (class,theta,U)-voxels
 			   np_int64array &np_counts	   // Number of (class,theta,U)-voxels
 			   )
@@ -122,7 +122,7 @@ void fill_implant_mask(const np_maskarray implant_mask,
 
     ::cylinder_projection({edt_info.ptr,edt_info.shape},
 			  {Cs_info.ptr, Cs_info.shape},
-			  Cs_voxel_size,d_min,d_max,theta_min,theta_max,U_min,U_max,Muvw,
+			  Cs_voxel_size,d_min,d_max,theta_min,theta_max,bbox,Muvw,
 			  {images_info.ptr, images_info.shape},
 			  {counts_info.ptr, counts_info.shape});
   }
@@ -139,7 +139,8 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix",       &python_api::inertia_matrix);
     m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
     m.def("integrate_axes",       &python_api::integrate_axes);        
-    m.def("sample_plane",         &python_api::sample_plane);
+    //    m.def("sample_plane",         &python_api::sample_plane);
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
-    m.def("fill_implant_mask",    &python_api::fill_implant_mask);  
+    m.def("fill_implant_mask",    &python_api::fill_implant_mask);
+    m.def("cylinder_projection",  &python_api::cylinder_projection);  
 }
