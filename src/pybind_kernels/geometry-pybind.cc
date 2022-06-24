@@ -6,12 +6,12 @@
 
 namespace python_api { 
   namespace py = pybind11;
-
+  template <typename voxel_type>
+  using np_array = py::array_t<voxel_type, py::array::c_style | py::array::forcecast>;
+  
   typedef py::array_t<mask_type, py::array::c_style | py::array::forcecast> np_maskarray;
   typedef py::array_t<real_t, py::array::c_style | py::array::forcecast>    np_realarray;
-  typedef py::array_t<float, py::array::c_style | py::array::forcecast>     np_float32array;
   typedef py::array_t<uint8_t, py::array::c_style | py::array::forcecast>   np_bytearray;
-  typedef py::array_t<uint64_t, py::array::c_style | py::array::forcecast>  np_int64array;
 
   array<real_t,3> center_of_mass(const np_maskarray &np_voxels){
     auto voxels_info    = np_voxels.request();
@@ -34,21 +34,23 @@ namespace python_api {
   }  
 
 
-  // void sample_plane(const np_maskarray &np_voxels,
-  // 		    const array<real_t,3> &cm,
-  // 		    const array<real_t,3> &u_axis,
-  // 		    const array<real_t,3> &v_axis,		    
-  // 		    np_maskarray &np_plane_samples,
-  // 		    const array<real_t,3> &L)
-  // {
-  //   auto voxels_info = np_voxels.request();
-  //   auto plane_samples_info  = np_plane_samples.request();
+template <typename voxel_type>
+void sample_plane(const np_array<voxel_type> &np_voxels,
+		  const real_t voxel_size, // In micrometers
+		  const array<real_t,3> cm,
+		  const array<real_t,3> u_axis,
+		  const array<real_t,3> v_axis,		  
+		  const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
+		  np_array<float> np_plane_samples)
+  {
+    auto voxels_info = np_voxels.request();
+    auto plane_samples_info  = np_plane_samples.request();
     
-  //   ::sample_plane({voxels_info.ptr, voxels_info.shape},
-  // 		   {cm,u_axis,v_axis},
-  // 		   {plane_samples_info.ptr, plane_samples_info.shape},
-  // 		   L);
-  // }
+    ::sample_plane<voxel_type>({voxels_info.ptr, voxels_info.shape}, voxel_size,
+		   cm,u_axis,v_axis,bbox,
+		   {plane_samples_info.ptr, plane_samples_info.shape});
+  }
+  
 
 
   void integrate_axes(const np_maskarray &np_voxels,
@@ -86,8 +88,8 @@ void fill_implant_mask(const np_maskarray implant_mask,
 		       float r_fraction,
 		       const matrix4x4 &Muvw,
 		       np_maskarray solid_implant_mask,
-		       np_float32array rsqr_maxs,
-		       np_float32array profile
+		       np_array<float> rsqr_maxs,
+		       np_array<float> profile
 		       )
 {
   auto implant_info    = implant_mask.request(),
@@ -104,15 +106,15 @@ void fill_implant_mask(const np_maskarray implant_mask,
 }
   
   
-  void cylinder_projection(const np_float32array  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
+  void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
 			   const np_bytearray     &np_Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
 			   float Cs_voxel_size,		   // Voxel size for Cs
 			   float d_min, float d_max,	   // Distance shell to map to cylinder
 			   float theta_min, float theta_max, // Angle range (wrt cylinder center)
 			   const array<float,6> &bbox,     // Implant bounding box (in U'V'W'-coordinates)
 			   const matrix4x4 &Muvw,	   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
-			   np_float32array &np_images,	   // Probability-weighted volume of (class,theta,U)-voxels
-			   np_int64array &np_counts	   // Number of (class,theta,U)-voxels
+			   np_array<float> &np_images,	   // Probability-weighted volume of (class,theta,U)-voxels
+			   np_array<uint64_t> &np_counts	   // Number of (class,theta,U)-voxels
 			   )
   {
     auto edt_info    = np_edt.request();
@@ -142,5 +144,7 @@ PYBIND11_MODULE(geometry, m) {
     //    m.def("sample_plane",         &python_api::sample_plane);
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     m.def("fill_implant_mask",    &python_api::fill_implant_mask);
-    m.def("cylinder_projection",  &python_api::cylinder_projection);  
+    m.def("cylinder_projection",  &python_api::cylinder_projection);
+    m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
+    m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
 }

@@ -12,7 +12,7 @@ else
 $(info OpenACC compiler nvc++ not found. Compiling without)
 endif
 
-CXXFLAGS += -I../contrib/cpptqdm/
+CXXFLAGS += -I../contrib/cpptqdm/ -Wno-narrowing
 
 all: histograms$(PYBIND_SUFFIX) geometry$(PYBIND_SUFFIX) label$(PYBIND_SUFFIX)
 

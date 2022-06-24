@@ -925,8 +925,8 @@ bool in_bbox(float U, float V, float W, const std::array<float,6> bbox)
 
 INLINE
 float resample2x2x2(const field_type      *voxels,
-						  const array<ssize_t,3> &shape,
-						  const array<float,3>   &X)
+		    const array<ssize_t,3> &shape,
+		    const array<float,3>   &X)
 {
   auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
   if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5})){

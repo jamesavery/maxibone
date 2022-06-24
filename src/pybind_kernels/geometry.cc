@@ -226,24 +226,39 @@ template<typename field_type> float resample2x2x2(const field_type      *voxels,
   return value;
 }
 
-// void sample_plane(const input_ndarray<mask_type> &voxels, const plane_t &plane, output_ndarray<mask_type> plane_samples, array<real_t,3> L)
-// {
-//   ssize_t Ny = voxels.shape[1], Nx = voxels.shape[2];
-//   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];  
-//   real_t  du = L[0]/nu, dv = L[1]/nv;
+template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type> &voxels,
+						 const real_t voxel_size, // In micrometers
+						 const array<real_t,3> cm,
+						 const array<real_t,3> u_axis,
+						 const array<real_t,3> v_axis,		  
+						 const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
+						 output_ndarray<real_t> plane_samples)
+{
+  const auto& [umin,umax,vmin,vmax] = bbox; // In micrometers
+  ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
+  ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];
+  real_t  du = (umax-umin)/nu, dv = (vmax-vmin)/nv;
 
-//   for(ssize_t ui=0;ui<nu;ui++)
-//     for(ssize_t vj=0;vj<nv;vj++){
-//       real_t u = (ui-nu/2)*du, v = (vj-nv/2)*dv;
+#pragma omp parallel for collapse(2)
+  for(ssize_t ui=0;ui<nu;ui++)
+    for(ssize_t vj=0;vj<nv;vj++){
+      const real_t u = umin + ui*du, v = vmin + vj*dv;
 
-//       real_t x = plane.cm[0] + u*plane.u_axis[0] + v*plane.v_axis[0], y = plane.cm[1] + u*plane.u_axis[1] + v*plane.v_axis[1], z = plane.cm[2] + u*plane.u_axis[2] + v*plane.v_axis[2];
+      // X,Y,Z in micrometers;  x,y,z in voxel index space      
+      const real_t		
+	X = cm[0] + u*u_axis[0] + v*v_axis[0],
+	Y = cm[1] + u*u_axis[1] + v*v_axis[1],
+	Z = cm[2] + u*u_axis[2] + v*v_axis[2];
 
-//       mask_type value = resample2x2x2(voxels.data,{Nz,Ny,Nx},x,y,z);      
-//       if(x >= 0.5 && y >= 0.5 && x+0.5 <= Nx && y+0.5 <= Ny){
-// 	plane_samples.data[ui*nv + vj] = value;
-//       }
-//     }
-// }
+      const real_t x = X/voxel_size, y = Y/voxel_size, z = Z/voxel_size;
+      
+      voxel_type value = 0;
+      if(in_bbox(x,y,z,{0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5}))
+	value = resample2x2x2<voxel_type>(voxels.data,{Nx,Ny,Nz},{x,y,z});
+
+      plane_samples.data[ui*nv + vj] = value;
+    }
+}
 
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
@@ -430,7 +445,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
   printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
 
   printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
-	 U_min,U_max,V_min,V_max,W_min,W_max);-
+	 U_min,U_max,V_min,V_max,W_min,W_max);
   printf("EDT field is (%ld,%ld,%ld)\n",ex,ey,ez);
   
   const float   *edt_d = edt.data; // Current OpenACC doesn't like to copy from struct member pointers
@@ -455,7 +470,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 	  const int64_t flat_idx = block_start + k;
 	  const int64_t X = (flat_idx  / (Cy*Cz)), Y = (flat_idx / Cz) % Cy, Z = flat_idx  % Cz; // Integer indices: Cs[c,X,Y,Z]
 	  const float   x = X*edx, y = Y*edy, z = Z*edz; // Fractional indices into edt image
-	  const int64_t flat_field_idx = floor(x)*ey*ez + floor(y)*ez + floor(z);
+	  //	  const int64_t flat_field_idx = floor(x)*ey*ez + floor(y)*ez + floor(z);
 	  // Boilerplate until here. TODO: macroize or lambda out!
 	  if(Y == 67 && Z == 108){
 	    array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};	  
