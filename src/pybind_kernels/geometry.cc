@@ -172,7 +172,11 @@ bool in_bbox(float U, float V, float W, const std::array<float,6> bbox)
 {
   const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
 
-  return U>=U_min && U<=U_max && V>=V_min && V<=V_min && W>=W_min && W<=W_max;
+  bool inside = U>=U_min && U<=U_max && V>=V_min && V<=V_max && W>=W_min && W<=W_max;
+
+  // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
+  // 	 U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
+  return inside;
 }
 
 
@@ -239,7 +243,7 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];
   real_t  du = (umax-umin)/nu, dv = (vmax-vmin)/nv;
 
-#pragma omp parallel for collapse(2)
+  //#pragma omp parallel for collapse(2)
   for(ssize_t ui=0;ui<nu;ui++)
     for(ssize_t vj=0;vj<nv;vj++){
       const real_t u = umin + ui*du, v = vmin + vj*dv;
@@ -251,10 +255,14 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
 	Z = cm[2] + u*u_axis[2] + v*v_axis[2];
 
       const real_t x = X/voxel_size, y = Y/voxel_size, z = Z/voxel_size;
+
+      //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
       
       voxel_type value = 0;
       if(in_bbox(x,y,z,{0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5}))
 	value = resample2x2x2<voxel_type>(voxels.data,{Nx,Ny,Nz},{x,y,z});
+      // else
+      // 	fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
 
       plane_samples.data[ui*nv + vj] = value;
     }
