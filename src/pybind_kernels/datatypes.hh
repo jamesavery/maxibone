@@ -2,7 +2,7 @@
 #include <vector>
 
 typedef uint8_t mask_type;	// TODO: Template + explicit instantiation
-typedef double real_t;
+typedef float real_t;
 
 constexpr ssize_t acc_block_size =  1024 * 1024 * 1024/sizeof(mask_type); // 1 GB
 

@@ -243,7 +243,7 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
   ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];
   real_t  du = (umax-umin)/nu, dv = (vmax-vmin)/nv;
 
-  //#pragma omp parallel for collapse(2)
+  #pragma omp parallel for collapse(2)
   for(ssize_t ui=0;ui<nu;ui++)
     for(ssize_t vj=0;vj<nv;vj++){
       const real_t u = umin + ui*du, v = vmin + vj*dv;
