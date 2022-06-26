@@ -12,15 +12,25 @@ debug = True
 
 
 def load_probabilities(path, group, axes_names, field_names, m):
-    with h5py.File(path, 'r') as prob_file:
+    try:
+        prob_file = h5py.File(path, 'r')
         P_axes   = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in axes_names]
         P_fields = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in field_names]
-    return P_axes, P_fields
+        prob_file.close()
+        return P_axes, P_fields
+    except Exception as e:
+        print(f"Couldn't load {group}/{name}/P{m} from {path}: {e}")
+        sys.exit(-1)
 
 def load_value_ranges(path, group):
-    print(f"Reading value_ranges from {group} in {path}\n")    
-    with h5py.File(path, 'r') as f:
+    print(f"Reading value_ranges from {group} in {path}\n")
+    try:
+        f = h5py.File(path, 'r')
         return f[group]['value_ranges'][:].astype(int)
+    except Exception as e:
+        print(f"Couldn't load {group}/value_ranges from {path}: {e}")
+        sys.exit(-1)
+    
 
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
@@ -43,7 +53,11 @@ if __name__ == '__main__':
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
-        group_name = f"{group}/{region_mask}{b}/"
+#        if str(region_mask) == "None":
+        group_name = f"{group}/bone_region{b}/"            #TODO: two different masks
+#        else:
+#            group_name = f"{group}/{region_mask}{b}/"
+        
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
 
@@ -65,7 +79,6 @@ if __name__ == '__main__':
             n_probs = len(P_axes) + len(P_fields)
             result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint16)
 
-            plt.imshow(P_fields[0])
 
             label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
@@ -84,5 +97,6 @@ if __name__ == '__main__':
             if debug:
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
+            print(f"Writing results from block {b}")
             histograms.write_slice(result, zstart*Ny*Nx, output_file)
 
