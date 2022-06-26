@@ -10,6 +10,13 @@ import vedo, vedo.pointcloud as pc
 from helper_functions import *
 from numpy import array, newaxis as na
 
+def largest_cc_of(mask):
+    label, n_features = ndi.label(mask)
+    bincnts           = np.bincount(label[label>0],minlength=n_features+1)
+    
+    largest_cc_ix   = np.argmax(bincnts)
+    return (label==largest_cc_ix)
+
 sample, coarse_scale, fine_scale, implant_dilation = commandline_args({"sample":"<required>","coarse_scale":8, "fine_scale":2, "implant_dilation":2})
 
 #TODO: Output image checks
@@ -20,7 +27,7 @@ try:
     mask_file     = h5py.File(mask_filename,"r")
     coarse_bone_region     = mask_file["bone_region/mask"][:]
     coarse_back_mask       = mask_file["cut_cylinder_air/mask"][:]
-    coarse_solid_implant   = mask_file["implant_solid/mask"][:]        
+    coarse_solid_implant   = mask_file["implant_solid/mask"][:]
     coarse_voxel_size = mask_file["bone_region"].attrs["voxel_size"]
     mask_file.close()
     
@@ -46,11 +53,20 @@ print("## 0C: Reconcile dimensions")
 (Nz,Ny,Nx) = front_mask.shape
 
 print("## 1A: Construct coarse resin mask")
-coarse_solid_implant = ndi.grey_dilation(coarse_solid_implant,5) # Coarse bone region has smoothed away inner implant threads
+cxs = np.linspace(-1,1,nx)
+coarse_cylinder = (cxs[:,na]**2 + cxs[na,:]**2) <= 1
+
+# Coarse bone region has smoothed away inner implant threads
+for z in tqdm.tqdm(range(nz)):
+    coarse_bone_region[z] = ndi.grey_dilation(coarse_bone_region[z],int(np.round(100/coarse_voxel_size)))
+
+corase_back_mask     = coarse_back_mask & coarse_cylinder
 coarse_back_mask     = ndi.grey_dilation(coarse_back_mask,10)    # and the back plane of the coarse bone region is pretty crappy, too
-coarse_resin_mask    = (~coarse_back_mask) & (~coarse_bone_region) & (~coarse_solid_implant)
-print(f"##     Dilate coarse resin mask by {coarse_voxel_size*5} micrometers")
-coarse_resin_mask    = ndi.grey_dilation(coarse_resin_mask,5)
+coarse_resin_mask    = (~coarse_back_mask) & (~coarse_bone_region) & (~coarse_solid_implant) & coarse_cylinder
+dilate_diam   = 50
+dilate_diam_v = int(np.round(dilate_diam/coarse_voxel_size))
+print(f"##     Dilate coarse resin mask by {dilate_diam} micrometers ({dilate_diam_v} voxels)")
+coarse_resin_mask    = ndi.grey_dilation(coarse_resin_mask,dilate_diam_v).astype(bool)
 
 
 print("## 1B: Upscale coarse masks")
@@ -66,6 +82,9 @@ upscaled_back_mask[:mz]  = np.broadcast_to(coarse_back_mask[:,na,:,na,:,na],
                                            (nz,scale_factor,ny,scale_factor,nx,scale_factor)).reshape(mz,Ny,Nx)
 upscaled_back_mask[mz:]  = upscaled_back_mask[mz-1]
 
+xs = np.linspace(-1,1,Nx)
+cylinder = (xs[:,na]**2 + xs[na,:]**2) <= 1
+upscaled_resin_mask &= cylinder
 
 
 print("## 1C: Fine bone region is: full front half-cylinder minus resin, and minus solid implant")
@@ -75,8 +94,9 @@ if diam>=1:
     solid_implant = ndi.grey_dilation(solid_implant,diam)
     
 print("##     Computing mask")
-bone_region = (~upscaled_back_mask) & (~upscaled_resin_mask) & (~solid_implant)
+bone_region = (~upscaled_back_mask) & (~upscaled_resin_mask) & (~solid_implant) & cylinder
 
+bone_region = largest_cc_of(bone_region)
 
 print(f"## 2A: Storing bone_region mask in {mask_filename}")
 update_hdf5_mask(mask_filename,
