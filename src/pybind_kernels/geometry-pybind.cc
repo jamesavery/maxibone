@@ -104,7 +104,21 @@ void fill_implant_mask(const np_maskarray implant_mask,
 			     {profile_info.ptr,       profile_info.shape}
 			     );
 }
+
+void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
+		const float voxel_size,
+		const matrix4x4 &Muvw,		
+		std::array<float,6> bbox,
+		np_array<mask_type> &np_front_mask)
+{
+  auto solid_implant_info = np_solid_implant.request();
+  auto front_mask_info    = np_front_mask.request();
   
+  ::compute_front_mask({solid_implant_info.ptr, solid_implant_info.shape},
+	       voxel_size, Muvw, bbox,
+	       {front_mask_info.ptr, front_mask_info.shape});
+}
+
   
   void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
 			   const np_bytearray     &np_Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
@@ -132,7 +146,7 @@ void fill_implant_mask(const np_maskarray implant_mask,
 }
 
 
-
+		       
 
 PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
@@ -141,10 +155,10 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix",       &python_api::inertia_matrix);
     m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
     m.def("integrate_axes",       &python_api::integrate_axes);        
-    //    m.def("sample_plane",         &python_api::sample_plane);
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     m.def("fill_implant_mask",    &python_api::fill_implant_mask);
     m.def("cylinder_projection",  &python_api::cylinder_projection);
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
+    m.def("compute_front_mask", &python_api::compute_front_mask);
 }
