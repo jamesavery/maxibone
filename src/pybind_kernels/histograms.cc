@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <vector>
 #include <inttypes.h>
 #include <stdio.h>
@@ -17,6 +18,10 @@ typedef uint16_t field_type;
 typedef uint8_t mask_type;
 typedef float gauss_type;
 
+template <typename voxel_type>
+  using np_array = py::array_t<voxel_type, py::array::c_style | py::array::forcecast>;
+
+
 #define INLINE __attribute__((always_inline)) inline
 
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
@@ -24,9 +29,9 @@ typedef float gauss_type;
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
 
-template <typename T> void convolve1d(const py::array_t<T> np_kernel,
-		const py::array_t<T> np_from,
-		py::array_t<T> &np_to,
+template <typename T> void convolve1d(const np_array<T> np_kernel,
+		const np_array<T> np_from,
+		np_array<T> &np_to,
 		int axis)
 {
   auto
@@ -62,9 +67,9 @@ template <typename T> void convolve1d(const py::array_t<T> np_kernel,
 }
 
 template <typename Op, bool neutral> void morphology_3d_sphere_cpu(
-        const py::array_t<mask_type> &np_voxels,
+        const np_array<mask_type> &np_voxels,
         const int64_t radius,
-        const py::array_t<mask_type> np_result
+        const np_array<mask_type> np_result
 ) {
     auto
         voxels_info = np_voxels.request(),
@@ -116,9 +121,9 @@ template <typename Op, bool neutral> void morphology_3d_sphere_cpu(
 }
 
 template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
-        const py::array_t<mask_type> &np_voxels,
+        const np_array<mask_type> &np_voxels,
         const int64_t radius,
-        const py::array_t<mask_type> np_result) {
+        const np_array<mask_type> np_result) {
 #ifdef _OPENACC
     auto
         voxels_info = np_voxels.request(),
@@ -173,11 +178,11 @@ template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
 #endif
 }
 
-void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
+void gauss_filter_par_cpu(const np_array<mask_type> np_mask,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
-                          const py::array_t<gauss_type> np_kernel,
+                          const np_array<gauss_type> np_kernel,
                           const uint64_t reps,
-                          py::array_t<gauss_type> &np_result) {
+                          np_array<gauss_type> &np_result) {
     auto
         mask_info = np_mask.request(),
         kernel_info = np_kernel.request(),
@@ -278,7 +283,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
     free(tmp1);
 }
 
-pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
+pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
     auto voxels_info    = np_voxels.request();
     size_t image_length = voxels_info.size;
@@ -296,7 +301,7 @@ pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     return make_pair(voxel_min,voxel_max);
 }
 
-pair<float,float> float_minmax(const py::array_t<float> np_field) {
+pair<float,float> float_minmax(const np_array<float> np_field) {
     // Extract NumPy array basearray-pointer and length
     auto field_info    = np_field.request();
     size_t image_length = field_info.size;
@@ -314,7 +319,7 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     return make_pair(voxel_min,voxel_max);
 }
 
-void load_slice(py::array_t<voxel_type> &np_data, string filename,
+void load_slice(np_array<voxel_type> &np_data, string filename,
                 const tuple<uint64_t, uint64_t, uint64_t> offset,
                 const tuple<uint64_t, uint64_t, uint64_t> shape) {
     auto data_info = np_data.request();
@@ -333,7 +338,7 @@ void load_slice(py::array_t<voxel_type> &np_data, string filename,
     file.close();
 }
 
-void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filename) {
+void write_slice(np_array<voxel_type> &np_data, uint64_t offset, string filename) {
     auto data_info = np_data.request();
     const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
     ofstream file;
@@ -347,7 +352,7 @@ void write_slice(py::array_t<voxel_type> &np_data, uint64_t offset, string filen
     file.close();
 }
 
-void append_slice(py::array_t<voxel_type> &np_data, string filename) {
+void append_slice(np_array<voxel_type> &np_data, string filename) {
     auto data_info = np_data.request();
     const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
     ofstream file;
@@ -357,13 +362,13 @@ void append_slice(py::array_t<voxel_type> &np_data, string filename) {
 }
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
-void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_par_cpu(const np_array<voxel_type> np_voxels,
                             const tuple<uint64_t,uint64_t,uint64_t> offset,
                             const uint64_t block_size,
-                            py::array_t<uint64_t> &np_x_bins,
-                            py::array_t<uint64_t> &np_y_bins,
-                            py::array_t<uint64_t> &np_z_bins,
-                            py::array_t<uint64_t> &np_r_bins,
+                            np_array<uint64_t> &np_x_bins,
+                            np_array<uint64_t> &np_y_bins,
+                            np_array<uint64_t> &np_z_bins,
+                            np_array<uint64_t> &np_r_bins,
                             const tuple<uint64_t, uint64_t> center,
                             const tuple<double, double> vrange,
                             const bool verbose) {
@@ -561,13 +566,13 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_par_gpu(const np_array<voxel_type> np_voxels,
                             const tuple<uint64_t,uint64_t,uint64_t> offset,
                             const uint64_t outside_block_size,
-                            py::array_t<uint64_t> &np_x_bins,
-                            py::array_t<uint64_t> &np_y_bins,
-                            py::array_t<uint64_t> &np_z_bins,
-                            py::array_t<uint64_t> &np_r_bins,
+                            np_array<uint64_t> &np_x_bins,
+                            np_array<uint64_t> &np_y_bins,
+                            np_array<uint64_t> &np_z_bins,
+                            np_array<uint64_t> &np_r_bins,
                             const tuple<uint64_t, uint64_t> center,
                             const tuple<double, double> vrange,
                             const bool verbose) {
@@ -689,13 +694,13 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
 // This function is kept for verification
-void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
                     const tuple<uint64_t,uint64_t,uint64_t> offset,
                     const uint64_t block_size,
-                    py::array_t<uint64_t> &np_x_bins,
-                    py::array_t<uint64_t> &np_y_bins,
-                    py::array_t<uint64_t> &np_z_bins,
-                    py::array_t<uint64_t> &np_r_bins,
+                    np_array<uint64_t> &np_x_bins,
+                    np_array<uint64_t> &np_y_bins,
+                    np_array<uint64_t> &np_z_bins,
+                    np_array<uint64_t> &np_r_bins,
                     const tuple<uint64_t, uint64_t> center,
                     const tuple<double, double> vrange,
                     const bool verbose) {
@@ -781,13 +786,13 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
 }
 
 // TODO: Allow field to be lower resolution than voxel data
-void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
-                             const py::array_t<field_type> np_field,
+void field_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
+                             const np_array<field_type> np_field,
                              const tuple<uint64_t,uint64_t,uint64_t> offset,
                              const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
                              const tuple<uint64_t,uint64_t,uint64_t> field_shape,
                              const uint64_t block_size,
-                             py::array_t<uint64_t> &np_bins,
+                             np_array<uint64_t> &np_bins,
                              const tuple<double, double> vrange,
                              const tuple<double, double> frange) {
     py::buffer_info
@@ -844,13 +849,13 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
-                             const py::array_t<field_type> np_field,
+void field_histogram_par_cpu(const np_array<voxel_type> np_voxels,
+                             const np_array<field_type> np_field,
                              const tuple<uint64_t,uint64_t,uint64_t> offset,
                              const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
                              const tuple<uint64_t,uint64_t,uint64_t> field_shape,
                              const uint64_t block_size,
-                             py::array_t<uint64_t> &np_bins,
+                             np_array<uint64_t> &np_bins,
                              const tuple<double, double> vrange,
                              const tuple<double, double> frange) {
     py::buffer_info
@@ -929,7 +934,7 @@ float resample2x2x2(const field_type      *voxels,
 		    const array<float,3>   &X)
 {
   auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
-  if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5})){
+  if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})){
     uint64_t voxel_index = X[0]*Ny*Nz+X[1]*Ny+X[2];      
     return voxels[voxel_index];
   }
@@ -974,13 +979,14 @@ float resample2x2x2(const field_type      *voxels,
   return value;
 }
 
-void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
-				      const py::array_t<field_type> np_field,
-				      const array<ssize_t,3> offset,
-				      const array<ssize_t,3> voxels_shape,
-				      const array<ssize_t,3> field_shape,
-				      const ssize_t block_size,
-				      py::array_t<uint64_t> &np_bins,
+
+void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
+				      const np_array<field_type> np_field,
+				      const array<int64_t,3> offset,
+				      const array<int64_t,3> voxels_shape,
+				      const array<int64_t,3> field_shape,
+				      const int64_t block_size,
+				      np_array<uint64_t> &np_bins,
 				      const array<double,2> vrange,
 				      const array<double,2> frange) {
 
@@ -1055,8 +1061,8 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
 }
 
 void otsu(
-        const py::array_t<uint64_t> np_bins,
-        py::array_t<uint64_t> np_result,
+        const np_array<uint64_t> np_bins,
+        np_array<uint64_t> np_result,
         uint64_t step_size) {
     py::buffer_info
         bins_info = np_bins.request(),
