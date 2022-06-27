@@ -186,7 +186,7 @@ template<typename field_type> float resample2x2x2(const field_type      *voxels,
 {
   auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
   if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})){
-    uint64_t voxel_index = X[0]*Ny*Nz+X[1]*Ny+X[2];      
+    uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);      
     return voxels[voxel_index];
   }
   float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
@@ -223,6 +223,8 @@ template<typename field_type> float resample2x2x2(const field_type      *voxels,
     //   abort();
     // }
     uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
+    assert(I>=0 && J>=0 && K>=0);
+    assert(I<Nx && J<Ny && K<Nz);    
     field_type voxel = voxels[voxel_index];
     value += voxel*weight;
   }
@@ -444,31 +446,27 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
 
 
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
-			 const input_ndarray<uint8_t> Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
+			 const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
 			 float voxel_size,		   // Voxel size for Cs
 			 float d_min, float d_max,	   // Distance shell to map to cylinder
 			 float theta_min, float theta_max, // Angle range (wrt cylinder center)
 			 std::array<float,6> bbox,
 			 const matrix4x4 &Muvw,		   // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
-			 output_ndarray<float>    images,  // Probability-weighted volume of (class,theta,U)-voxels
-			 output_ndarray<int64_t>  counts   // Number of (class,theta,U)-voxels
+			 output_ndarray<float>    image,  // Probability-weighted volume of (class,theta,U)-voxels
+			 output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
 			 )
 {
-  ssize_t n_images = images.shape[0], n_theta = images.shape[1], n_U = images.shape[2];
+  ssize_t n_theta = image.shape[0], n_U = image.shape[1];
 
   const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
 
-  ssize_t                     ex = edt.shape[0], ey = edt.shape[1], ez = edt.shape[2];
-  ssize_t  nC = Cs.shape[0],  Cx = Cs.shape[1],  Cy = Cs.shape[2],  Cz = Cs.shape[3];
+  ssize_t ex = edt.shape[0], ey = edt.shape[1], ez = edt.shape[2];
+  ssize_t Cx = C.shape[0],   Cy = C.shape[1],   Cz = C.shape[2];
 
   real_t edx = ex/real_t(Cx), edy = ey/real_t(Cy), edz = ex/real_t(Cz);
   
-  assert(nC == n_images);  
-
   ssize_t edt_length       = ex*ey*ez;
   ssize_t C_length         = Cx*Cy*Cz;  
-  ssize_t C_strides[4]     = {Cx*Cy*Cz,Cy*Cz,Cz,1};
-  ssize_t image_strides[3] = {n_theta*n_U,n_U,1};  
 
   printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
 
@@ -480,26 +478,24 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
   ssize_t n_shell = 0;
   ssize_t n_shell_bbox = 0;
 
-  ssize_t block_height = 128;
+  ssize_t block_height = 64;
   
   //TODO: new acc/openmp macro in parallel.hh
   {    
-    for(int c=0;c<nC;c++){   // TODO: Skal denne være udenfor?
-      const uint8_t *C = &Cs.data[c*C_strides[0]];
-      auto *image = &images.data[c*image_strides[0]];
-      auto *count = &counts.data[c*image_strides[0]];
+      float   *image_d = image.data;
+      int64_t *count_d = count.data;
 
       for(ssize_t block_start=0, edt_block_start=0;
 	  block_start<C_length;
 	  block_start+=block_height*Cy*Cz, edt_block_start+=block_height*ey*ez){
-	const uint8_t *C_buffer = C + block_start;
+	const uint8_t *C_buffer = C.data + block_start;
 	const float  *edt_block = edt.data + max(block_start-ey*ez,0L);
 
 	ssize_t  this_block_length = min(block_height*Cy*Cz,C_length-block_start);
 	ssize_t  this_edt_length   = min((block_height+2)*ey*ez,edt_length-block_start);
 
-#pragma acc parallel loop copy(C_buffer[:this_block_length], image[:n_theta*n_U], count[:n_theta*n_U], bbox[:6], Muvw[:16], edt_block[:this_edt_length]) reduction(+:n_shell,n_shell_bbox)
-	//#pragma omp parallel for reduction(+:n_shell,n_shell_bbox)	
+	//#pragma acc parallel loop copy(C_buffer[:this_block_length], image_d[:n_theta*n_U], count_d[:n_theta*n_U], bbox[:6], Muvw[:16], edt_block[:this_edt_length]) reduction(+:n_shell,n_shell_bbox)
+	#pragma omp parallel for reduction(+:n_shell,n_shell_bbox)	
 	for(int64_t k = 0; k<this_block_length;k++){	
 	  const int64_t flat_idx = block_start + k;
 	  const int64_t X = (flat_idx  / (Cy*Cz)), Y = (flat_idx / Cz) % Cy, Z = flat_idx  % Cz; // Integer indices: Cs[c,X,Y,Z]
@@ -507,6 +503,11 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 	  const int64_t Xl = (k  / (Cy*Cz)), Yl = (k / Cz) % Cy, Zl = k  % Cz;
 	  // Index into local edt block. Note EDT has 1-slice padding top+bottom
 	  const float  x = (Xl+1)*edx, y = Yl*edy, z = Zl*edy;
+
+	  if(x>block_height){
+	    printf("Block number k=%ld.\nX,Y,Z=%ld,%ld,%ld\nXl,Yl,Zl=%ld,%ld,%ld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
+	    abort();
+	  }
 	  
 	  //****** MEAT OF THE IMPLEMENTATION IS HERE ******
 	  real_t distance = resample2x2x2<float>(edt_block,{this_edt_length/(ey*ez),ey,ez},
@@ -518,31 +519,43 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 	    n_shell ++;
 
 	    //	    printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n",distance,U,V,W);
-	    if(in_bbox(U,V,W,bbox)){
-	      n_shell_bbox++;
-	      
-	      real_t theta    = atan2(V,W);
-	      
-	      size_t theta_i = floor( (theta-theta_min) * (n_theta-1)/(theta_max-theta_min) );
-	      size_t U_i     = floor( (U    -    U_min) * (n_U    -1)/(    U_max-    U_min) );
-	      
-	      real_t p = C_buffer[k]/255.;
+	    if(in_bbox(U,V,W,bbox) ){
 
-	      if(p>0){
-		th_min = min(theta,th_min);
-		th_max = max(theta,th_max);	      
+	      real_t theta    = atan2(V,W);
+
+	      if(theta>=theta_min && theta<=theta_max){
+		n_shell_bbox++;
 		
-		atomic_statement()
-		  image[theta_i*n_U + U_i] += p;
-	      
-		atomic_statement()	  
-		  count[theta_i*n_U + U_i] += 1;
+		
+		ssize_t theta_i = floor( (theta-theta_min) * (n_theta-1)/(theta_max-theta_min) );
+		ssize_t U_i     = floor( (U    -    U_min) * (n_U    -1)/(    U_max-    U_min) );
+		
+		real_t p = C_buffer[k]/255.;
+		
+		assert(theta >= theta_min);
+		assert(theta <= theta_max);
+		assert(U >= U_min);
+		assert(U <= U_max);	      
+		assert(theta_i >= 0);
+		assert(theta_i < n_theta);
+		assert(U_i >= 0);
+		assert(U_i < n_U);	      
+		
+		if(p>0){
+		  th_min = min(theta,th_min);
+		  th_max = max(theta,th_max);	      
+		  
+		  atomic_statement()
+		    image_d[theta_i*n_U + U_i] += p;
+		  
+		  atomic_statement()	  
+		    count_d[theta_i*n_U + U_i] += 1;
+		}
 	      }
 	    }
 	  }
 	}
       }
-    }
   }
   printf("n_shell = %ld, n_shell_bbox = %ld\n",n_shell,n_shell_bbox);
   printf("theta_min, theta_max = %.2f,%.2f\n",theta_min,theta_max);

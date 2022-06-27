@@ -623,7 +623,7 @@ void axis_histogram_par_gpu(const np_array<voxel_type> np_voxels,
     uint64_t initial_block = min(image_length, block_size);
 
     if (verbose) {
-        printf("\nStarting winning %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+        printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
         printf("Allocating result memory (%ld bytes (%.02f Mbytes))\n", memory_needed, memory_needed/1024./1024.);
         printf("Starting calculation\n");
         printf("Size of voxels is %ld bytes (%.02f Mbytes)\n", image_length * sizeof(voxel_type), (image_length * sizeof(voxel_type))/1024./1024.);
@@ -743,7 +743,7 @@ void axis_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
 
     if (verbose) {
-        printf("\nStarting winning %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+        printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
         printf("Starting calculation\n");
         fflush(stdout);
     }
@@ -784,6 +784,7 @@ void axis_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
         fflush(stdout);
     }
 }
+
 
 // TODO: Allow field to be lower resolution than voxel data
 void field_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
@@ -848,6 +849,9 @@ void field_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
         }
     }
 }
+
+
+
 
 void field_histogram_par_cpu(const np_array<voxel_type> np_voxels,
                              const np_array<field_type> np_field,
@@ -934,8 +938,9 @@ float resample2x2x2(const field_type      *voxels,
 		    const array<float,3>   &X)
 {
   auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
+
   if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})){
-    uint64_t voxel_index = X[0]*Ny*Nz+X[1]*Ny+X[2];      
+    uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);      
     return voxels[voxel_index];
   }
   float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
@@ -979,86 +984,100 @@ float resample2x2x2(const field_type      *voxels,
   return value;
 }
 
-
 void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
 				      const np_array<field_type> np_field,
-				      const array<int64_t,3> offset,
-				      const array<int64_t,3> voxels_shape,
-				      const array<int64_t,3> field_shape,
-				      const int64_t block_size,
+				      const array<uint64_t,3> offset,
+				      const array<uint64_t,3> voxels_shape,
+				      const array<uint64_t,3> field_shape,
+				      const uint64_t block_size,
 				      np_array<uint64_t> &np_bins,
-				      const array<double,2> vrange,
-				      const array<double,2> frange) {
-
+				      const array<double, 2> vrange,
+				      const array<double, 2> frange) {
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const ssize_t
+    const uint64_t
         bins_length  = bins_info.size,
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
 
-    auto [nZ, nY, nX] = voxels_shape;
-    auto [nz, ny, nx] = field_shape;
+    auto [nX, nY, nZ] = voxels_shape;
+    auto [nx, ny, nz] = field_shape;
 
-    float dz = nz/((float)nZ), dy = ny/((float)nY), dx = nx/((float)nX);
+    double dx = nx/((double)nX), dy = ny/((double)nY), dz = nz/((double)nZ);
 
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
     const field_type *field  = static_cast<field_type*>(field_info.ptr);
-    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+    uint64_t         *bins   = static_cast<uint64_t*>(bins_info.ptr);
 
     auto [f_min, f_max] = frange;
     auto [v_min, v_max] = vrange;
     auto [z_start, y_start, x_start] = offset;
-    ssize_t
-      z_end = min(z_start+block_size, nZ),
-      y_end = nY,
-      x_end = nX;
+    uint64_t
+        x_end = min(x_start+block_size, nX),
+        y_end = nY,
+        z_end = nZ;
 
-#pragma omp parallel
+    #pragma omp parallel
     {
-      uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
-#pragma omp for nowait collapse(3)
-        for (ssize_t Z = 0; Z < z_end-z_start; Z++) {
-            for (ssize_t Y = y_start; Y < y_end; Y++) {
-                for (ssize_t X = x_start; X < x_end; X++) {
-                    uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
+        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+        #pragma omp for nowait
+        for (uint64_t X = 0; X < x_end-x_start; X++) {
+            for (uint64_t Y = y_start; Y < y_end; Y++) {
+                for (uint64_t Z = z_start; Z < z_end; Z++) {
+                    uint64_t flat_index = (X*nY*nZ) + (Y*nZ) + Z;
                     auto voxel = voxels[flat_index];
                     voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = floor(static_cast<float>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 
-                    // And what are the corresponding x,y,z coordinates into the field sub-block?
-                    array<float,3> xyz = {X*dx, Y*dy, Z*dz};
-		    auto [x,y,z] = xyz;
+                    // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+                    // TODO: Sample 2x2x2 volume?
+                    float    x = X*dx, y = Y*dy, z = Z*dz;
+		    uint64_t i = floor(x)*ny*nz + floor(y)*nz + floor(z);
 
-		    uint16_t  field_value = 0;
-		     if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
-		       field_value = round(resample2x2x2(field,field_shape,xyz));
-		     else {
-		       uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);
-		       field_value = field[i];
-		     }
 
+		    
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
-                    if(VALID_VOXEL(voxel) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                        int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+                    if(VALID_VOXEL(voxel) && field[i]>0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+		      field_type field_value = round(resample2x2x2(field,{nx,ny,nz},{x,y,z}));
+		      int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+
+
+		      if(field_index < 0 || field_index >= field_bins){
+			fprintf(stderr,"field value out of bounds at X,Y,Z = %ld,%ld,%ld, x,y,z = %.1f,%.1f,%.1f:\n"
+				"\t field_value = %d (%.3f), field_index = %ld, voxel_value = %d, field[%ld] = %d\n",
+				X,Y,Z,x,y,z,
+				field_value, round(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
+			printf("nx,ny,nz = %ld,%ld,%ld. %ld*%ld + %ld*%ld + %ld = %ld\n",
+			       nx,ny,nz,
+			       int(floor(x)),ny*nz,
+			       int(floor(y)),nz,
+			       int(floor(z)),
+			       i
+			       );
+			
+			abort();
+		      }
+
+		      
+		      if((field_index >= 0) && (field_index < field_bins)) // Resampling with masked voxels can give field_value < field_min
 			tmp_bins[field_index*voxel_bins + voxel_index]++;
-                    }
+		    }
                 }
             }
         }
         #pragma omp critical
         {
-            for (ssize_t i = 0; i < bins_length; i++)
+            for (uint64_t i = 0; i < bins_length; i++)
                 bins[i] += tmp_bins[i];
         }
         free(tmp_bins);
     }
-
-
 }
+
+
 
 void otsu(
         const np_array<uint64_t> np_bins,
