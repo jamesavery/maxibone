@@ -32,24 +32,34 @@ hist = f_hist["field_bins"][field_id[field]][::stride,::stride]
 #hist = hist/(sums + (sums==0))
 lab  = f_labels[field][::stride,::stride]
 
+if debug==1:
+    plt.imshow(lab)
+    plt.show()
+    
 nmat    = lab.max()
 (nx,nv) = hist.shape
 xs = np.arange(0,nx*stride,stride)
 vs = np.arange(0,nv*stride,stride)
 
 # Compute start parameter approximation samples
-labm = [ndi.grey_erosion(lab==m+1,5) for m in range(nmat)]
+labm = np.array([lab==m+1 for m in range(nmat)])
 amx = np.sqrt(np.array([   np.max(labm[m]*hist,axis=1) for m in range(nmat)]))
 cmx = np.array([np.argmax(labm[m]*hist,axis=1) for m in range(nmat)])*stride
+
+starts = np.argmax(labm,axis=-1) * stride
+ends   = (nv-np.argmax(labm[...,::-1],axis=-1)) * stride
+ends[ends==nv] = 0
+
 
 
 widths = np.abs(np.concatenate([ [(cmx[1]-cmx[0])/2], (cmx[1:]-cmx[:-1])/2 ]).astype(float))
 #bmx    = np.sqrt(6)/(widths+(widths==0))
-bmx    = 6/(widths+(widths==0))
+bmx    = np.sqrt(3/(widths**2+(widths==0)))
 dmx    = np.sqrt(np.ones_like(bmx)*2)
 
 goodix  = amx>0
 
+print(f"Optimizing distributions for {field} with {lab.max()} materials")
 
 if (debug&7):
     plt.ion()
@@ -97,13 +107,13 @@ def opt_all(abcd,*args):
 #    print(np.round(E1,2), np.round(1e2*Ecloseness,2))
     if(debug==2):
         line1.set_ydata(model)
-        ax.set_title(f"{x}: a = {np.round(A*A,1)}, b = {np.round(B*B,1)}, c = {np.round(C,1)}, d = {1+np.round(D*D,1)}")
+        ax.set_title(f"{x}: a = {np.round(A*A,1)}, b = {np.round(B*B,1)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
         ax.relim()
         ax.autoscale_view()    
         fig.canvas.draw()
         fig.canvas.flush_events()
     
-    return E1 + 1e2*Ecloseness #+ 10*E2
+    return E1 + 1e2*Ecloseness + 3*E2
 
 
 good_xs = [[] for m in range(nmat)] # BE CAREFUL: [[]] * nmat makes MULTIPLE REFERENCES TO THE SAME LIST MEMORY. Two hours bughunting for that one.
@@ -112,7 +122,8 @@ ABCDm   = [[] for m in range(nmat)]
 ABCD    = [] 
 ABCD_ms = [] 
 ABCD_xs = [] 
-ABCD_is = [] 
+ABCD_is = []
+m_max   = 0
 
 # FLAT OPTIMIZATION
 for i,x in enumerate(xs):       
@@ -140,13 +151,13 @@ for i,x in enumerate(xs):
             0.9*cmx[ms,i])
             
         bounds = opt.Bounds(np.concatenate([0.3*amx[ms,i],
-                                            0.1*bmx[ms,i],
-                                            0.9*cmx[ms,i],
-                                            1.3*np.ones(ms.shape)]),
+                                            np.minimum(0.5,np.maximum(0.1*bmx[ms,i],1e-3)),
+                                            starts[ms,i], #0.9*cmx[ms,i],
+                                            np.sqrt(1.5)*np.ones(ms.shape)]),
                             np.concatenate([1.1*amx[ms,i],
-                                            2.0*bmx[ms,i],
-                                            midpoints,
-                                            2.3*np.ones(ms.shape)]),
+                                            np.minimum(2.0*bmx[ms,i],0.7),
+                                            ends[ms,i], #midpoints,
+                                            np.sqrt(2.5)*np.ones(ms.shape)]),
                             True)
         opt_result = opt.minimize(opt_all,abcd0,constants,bounds=bounds)
 
@@ -158,6 +169,7 @@ for i,x in enumerate(xs):
             ABCD_ms   += [ms]
             ABCD_xs   += [x]
             ABCD_is   += [i]
+            m_max      = max(m_max, np.max(ms))
             
             for im,m in enumerate(ms):            
                 good_xs[m] += [x]
@@ -174,7 +186,8 @@ for i,x in enumerate(xs):
             model = powers(vs,abcd)
             n = len(abcd)//4    
             A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]    
-        
+
+            fig.suptitle(f"x = {x}, ms = {ms}")
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
             ax.collections.clear()
@@ -183,7 +196,7 @@ for i,x in enumerate(xs):
                 lines[m].set_ydata(model[i])                
                 ax.fill_between(vs,model[i],color=colors[m],alpha=0.7)
                 
-            ax.set_title(f"x={x}: a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
+            ax.set_title(f"a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
             ax.relim()
             ax.autoscale_view()    
             fig.canvas.draw()
@@ -191,7 +204,7 @@ for i,x in enumerate(xs):
             fig.savefig(f"opt_debug-{i:03}.png")
 
 hist_modeled = np.zeros_like(hist)
-hist_m = np.zeros((2,)+hist.shape,dtype=float)
+hist_m = np.zeros((m_max+1,)+hist.shape,dtype=float)
             
 for i,gi in enumerate(ABCD_is):
     abcd = ABCD[i]
