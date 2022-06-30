@@ -6,7 +6,7 @@ from pybind_kernels.histograms import load_slice
 from scipy import ndimage as ndi
 from helper_functions import *
 
-sample, m, chunk_size = commandline_args({"sample":"<required>", "material":0, "chunk_size":256})
+sample, m, scheme, chunk_size = commandline_args({"sample":"<required>", "material":0, "scheme":"edt","chunk_size":256})
 
 scales = [32, 16, 8, 4, 2]
 
@@ -14,7 +14,7 @@ bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
 Nz, Ny, Nx, _ = bi["dimensions"]
 
 for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
-    data = f'{binary_root}/segmented/P{m}/{scale}x/{sample}.uint16'
+    data = f'{binary_root}/segmented/{scheme}/P{m}/{scale}x/{sample}.uint16'
     output_dir = f'{hdf5_root_fast}/masks/{scale}x'
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     nz, ny, nx = Nz // scale, Ny // scale, Nx // scale
@@ -39,4 +39,5 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
                 datasets={'mask':mask},
                 attributes={'scale':scale,'voxel_size':voxel_size,
                             'sample':sample, 'name':"blood_mask"})
+
 

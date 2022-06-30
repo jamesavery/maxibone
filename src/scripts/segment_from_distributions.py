@@ -1,4 +1,4 @@
-import os, sys, pathlib, h5py, numpy as np
+import os, sys, pathlib, h5py, numpy as np, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 import pybind_kernels.histograms as histograms
 import pybind_kernels.label as label
@@ -7,6 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from PIL import Image
 from helper_functions import block_info, load_block
+na = np.newaxis
 
 debug = True
 
@@ -36,12 +37,13 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__': 
-    sample, block_start, n_blocks, region_mask, group, mask_scale, debug_output = commandline_args({'sample':'<required>',
+    sample, block_start, n_blocks, region_mask, group, mask_scale, scheme, debug_output = commandline_args({'sample':'<required>',
                                                                                    "block_start":0,
                                                                                    "n_blocks":0,
                                                                                    'region_mask': 'bone_region',
                                                                                    'group': 'otsu_separation',
-                                                                                   'mask_scale': 8,  
+                                                                                   'mask_scale': 8,
+                                                                                   'scheme':"edt", #MIDLERTIDIG
                                                                                    'debug_output': None})
 
     # Iterate over all subvolumes
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
 #        if str(region_mask) == "None":
-        group_name = f"{group}/bone_region{b}/"            #TODO: two different masks
+        group_name = f"{group}/bone_region{b}/"            #TODO: two different masks from command line
 #        else:
 #            group_name = f"{group}/{region_mask}{b}/"
         
@@ -70,8 +72,23 @@ if __name__ == '__main__':
         voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
+        # TODO: Flyt til generering af figurer - hører ikke til her
+        try:
+            f = h5py.File(f"{hdf5_root}/masks/2x/{sample}.h5","r")
+            solid_implant   = f["implant_solid/mask"][zstart//2:zstart//2+block_size//2]
+            (nz,ny,nx) = solid_implant.shape
+            f.close()
+            
+            # solid_implant1x = np.broadcast_to(solid_implant[:,na,:,na,:,na],(nz,2,ny,2,nx,2)).reshape(2*nz,2*ny,2*nx)
+            # solid_implant1x = ndi.grey_dilation(solid_implant1x,2)
+            # voxels[:2*nz,:2*ny,:2*nx] *= ~solid_implant1x
+
+            # del solid_implant, solid_implant1x
+        except Exception as e:
+            print(f"Couldn't remove dilated solid implant: {e}")
+            
         for m in [0,1]:
-            output_dir  = f'{binary_root}/segmented/P{m}/1x/'
+            output_dir  = f'{binary_root}/segmented/{scheme}/P{m}/1x/'
             output_file = f"{output_dir}/{sample}.uint16";
             pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
