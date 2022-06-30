@@ -25,7 +25,7 @@ def material_points(labs,material_id):
 
 #TODO: Weight importance in piecewise cubic fitting
 
-field_id = {'edt':0,'gauss':1}; # TODO: Get from data
+field_id = {'edt':0,'gauss':1,'gauss+edt':2}; # TODO: Get from data
 
 hist = f_hist["field_bins"][field_id[field]][::stride,::stride]
 #sums = np.sum(hist,axis=1)[:,na]
@@ -113,7 +113,7 @@ def opt_all(abcd,*args):
         fig.canvas.draw()
         fig.canvas.flush_events()
     
-    return E1 + 1e2*Ecloseness + 3*E2
+    return E1 + 1e2*Ecloseness + E2
 
 
 good_xs = [[] for m in range(nmat)] # BE CAREFUL: [[]] * nmat makes MULTIPLE REFERENCES TO THE SAME LIST MEMORY. Two hours bughunting for that one.
@@ -181,7 +181,7 @@ for i,x in enumerate(xs):
             
         
         if(debug==4):
-            colors = ['b','r']
+            colors = ['r','orange']
             lines  = [line3,line4]
             model = powers(vs,abcd)
             n = len(abcd)//4    
@@ -191,7 +191,7 @@ for i,x in enumerate(xs):
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
             ax.collections.clear()
-            ax.fill_between(vs,np.sum(model,axis=0),color='green',alpha=0.5)
+            ax.fill_between(vs,np.sum(model,axis=0),color='grey',alpha=0.5)
             for i,m in enumerate(ms):
                 lines[m].set_ydata(model[i])                
                 ax.fill_between(vs,model[i],color=colors[m],alpha=0.7)
