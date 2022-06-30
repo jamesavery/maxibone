@@ -122,7 +122,7 @@ vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.)
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
     
 def figure_FoR_UVW(debug=True):
-    vol = vedo.Volume(implant,alpha=[0,0,0.05,0.1])
+    vol = vedo.Volume(implant,alpha=[0,0,0.05,0.2])
     u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
     v_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
     w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)    
@@ -138,7 +138,13 @@ def figure_FoR_UVW(debug=True):
         pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
 
     if debug:
-        vedo.show([vol,u_arrow,v_arrow,w_arrow],interactive=True)
+        pl = vedo.Plotter(offscreen=False, interactive=True)
+        pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
+            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+            'focalPoint': (nz/2,ny/2,nx/2),
+            'viewup':-vaxis[axis]
+        })
+
 
 # TODO: Fix lengths (voxel_size times...)        
 def figure_FoR_UVWp(debug=True):
@@ -271,7 +277,7 @@ if __name__ == "__main__":
     
     if(scale<8):
         print(f"Selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
-        sys.exit(-1)
+        #sys.exit(-1)
 
     ## STEP 0: LOAD MASKS, VOXELS, AND METADATA
     image_output_dir = f"{hdf5_root}/processed/implant-FoR/{sample}/"
@@ -427,7 +433,6 @@ if __name__ == "__main__":
 
     implant_shell = implant_UVWs[implant_rs>0.7*implant_radius]
 
-
     # Voxel-image-shaped stuff: This is the part sthat should only be done for coarse resolution (>= 8x)
     zyxs = coordinate_image(implant.shape)
     uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
@@ -545,7 +550,7 @@ if __name__ == "__main__":
         print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
         
         bone_mask1 = front_part > midpoint                                                                                                                                                                                                                                       
-        closing_diameter, opening_diameter = 500, 300           # micrometers                                                                                                                                                                   
+        closing_diameter, opening_diameter = 400, 300           # micrometers                                                                                                                                                                   
         closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         
