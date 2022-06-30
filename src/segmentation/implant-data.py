@@ -2,7 +2,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root, commandline_args
-from pybind_kernels.geometry import center_of_mass, inertia_matrix, integrate_axes, fill_implant_mask
+from pybind_kernels.geometry import center_of_mass, inertia_matrix, integrate_axes, fill_implant_mask, compute_front_mask
 from pybind_kernels.histograms import load_slice, erode_3d_sphere_gpu as erode_3d, dilate_3d_sphere_gpu as dilate_3d
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
@@ -48,11 +48,17 @@ solid_implant_mask = np.empty(implant.shape, dtype=np.uint8)
 rsqr_maxs          = np.zeros((n_bins,), dtype=np.float32)
 profile            = np.zeros((n_bins,), dtype=np.float32)
 
+bbox_flat  = tuple(bbox.flatten())
+Muvwp_flat = tuple(Muvwp.flatten())
 print(f"Filling implant mask")
 fill_implant_mask(implant.astype(np.uint8,copy=False),
-                  voxel_size,tuple(bbox.flatten()), rsqr_fraction,
-                  tuple(Muvwp.flatten()),
+                  voxel_size,bbox_flat, rsqr_fraction,
+                  Muvwp_flat,
                   solid_implant_mask, rsqr_maxs, profile);
+
+front_mask = np.zeros_like(solid_implant_mask)
+compute_front_mask(solid_implant_mask,voxel_size,
+                   Muvwp_flat, bbox_flat, front_mask);
 
 # back_mask  = (Ws<0)
 # front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
@@ -69,6 +75,11 @@ update_hdf5(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",
 update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="implant_solid",
                  datasets={"mask":solid_implant_mask.astype(bool,copy=False)},
+                 attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+
+update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
+                 group_name="cut_cylinder_bone",
+                 datasets={"mask":front_mask.astype(bool,copy=False)},
                  attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
 
