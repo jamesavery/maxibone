@@ -20,7 +20,7 @@ partial_factor = 4
 
 def random(shape, dtype):
     rnds = np.random.random(shape) * 100
-    return rnds > .5 if dtype == np.bool else rnds.astype(dtype)
+    return rnds > .5 if dtype == bool else rnds.astype(dtype)
 
 @pytest.mark.parametrize("dtype", dtypes_to_test)
 def test_dtype(dtype):
