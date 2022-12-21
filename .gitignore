@@ -16,3 +16,7 @@ src/meow/meow_triggers/*
 src/meow/runner_data/*
 src/meow/runner_output/*
 src/meow/runner_processing/*
+
+# Compiled files
+*.so
+*.so.dSYM
