@@ -1,39 +1,29 @@
-PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17
+# Define constants and collections 
+PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17 -O3
 PYBIND_SUFFIX = $(shell python3-config --extension-suffix)
-
-OPENCV_INCLUDE=$(shell pkg-config opencv4 --cflags)
-OPENCV_LIB=$(shell pkg-config opencv4 --libs)
+#CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
+CXXFLAGS += -Iinclude
+PLATFORMS=cpu_seq cpu gpu
+LIBS=io morphology
+TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
+CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(PLATFORM)/__pycache__)
 
 # Detect if OpenACC can be used
 ifneq (, $(shell which nvc++))
 CXX = nvc++
 CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
-else
-$(info OpenACC compiler nvc++ not found. Compiling without)
+else 
+$(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
 
-CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-
-PLATFORMS=cpu_seq cpu gpu
-LIBS=io morphology
-TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
+# Detect OS for OS specific changes
+ifeq ($(shell uname -s), Darwin) # Mac OSX
+CXX = g++-12 # Use homebrew gcc, as system gcc is an alias for clang
+CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
+CLEANUP += $(TARGETS) $(foreach TARGET, $(TARGETS), $(TARGET).dSYM) # These are also generated on Mac
+endif
 
 all: $(TARGETS)
-
-histograms$(PYBIND_SUFFIX): histograms.cc
-	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) $< -o histograms$(PYBIND_SUFFIX)
-
-geometry$(PYBIND_SUFFIX): geometry-pybind.cc geometry.cc
-	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) $< -o geometry$(PYBIND_SUFFIX)
-
-label$(PYBIND_SUFFIX): label.cc
-	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) $< -o label$(PYBIND_SUFFIX)
-
-opencv_pybind$(PYBIND_SUFFIX): opencv_pybind.cc
-	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) $(OPENCV_INCLUDE) $(OPENCV_LIB) $< -o opencv_pybind$(PYBIND_SUFFIX)
-
-opencv_tester: opencv_tester.cc
-	$(CXX) $(CXXFLAGS) $(OPENCV_INCLUDE) $(OPENCV_LIB) $< -o opencv_tester
 
 define GEN_RULE
 $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(PLATFORM)/$(LIB).cc
@@ -47,7 +37,7 @@ $(foreach PLATFORM, $(PLATFORMS), \
 )
 
 test: all
-	python3 -m pytest test
+	python3 -m pytest -n auto test
 
 clean:
-	rm -f $(TARGETS)
+	rm -rf $(CLEANUP) test/__pycache__ .pytest_cache
