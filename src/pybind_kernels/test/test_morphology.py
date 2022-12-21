@@ -9,6 +9,7 @@ import gpu.morphology as m_gpu
 import numpy as np
 from scipy import ndimage as ndi
 import pytest
+from functools import partial
 
 # Parameters
 implant_dims = 32
@@ -16,7 +17,7 @@ cross_width = 8
 # TODO if implant_dims doesn't divide by radius, it doesn't work. Except for 2, which also fails.
 rs = [4, 8, 16]
 impls = [m_cpu_seq, m_cpu, m_gpu]
-funcs = [('dilate', ndi.binary_dilation), ('erode', ndi.binary_erosion)]
+funcs = [('dilate', ndi.binary_dilation), ('erode', partial(ndi.binary_erosion, border_value=1))]
 
 def sphere(n):
     xs = np.linspace(-1,1,n)
@@ -26,7 +27,7 @@ def sphere(n):
 @pytest.mark.parametrize('m', impls)
 @pytest.mark.parametrize('op,nd', funcs)
 def test_morphology(r, m, op, nd):
-    implant_mask = np.zeros((implant_dims,implant_dims,implant_dims), dtype=np.uint8)
+    implant_mask = np.random.randint(0, 2, (implant_dims, implant_dims, implant_dims), dtype=np.uint8)
     c = implant_dims // 2
     cross_start, cross_end = c - (cross_width // 2), c + (cross_width // 2)
 
