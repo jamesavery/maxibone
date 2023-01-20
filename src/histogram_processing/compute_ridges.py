@@ -163,15 +163,15 @@ def process_closing(mask, config):
 
 def process_contours(hist, rng: _range, config):
     contours, _ = cv2.findContours(hist, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    contours = [c for c in contours if cv2.arcLength(c, True) > config['min contour size']]
+    contours_sizes = [cv2.arcLength(c, True) for c in contours]
+    contours_filtered = [contours[i] for i, size in enumerate(contours_sizes) if size > config['min contour size']]
     result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
-    bounding_boxes = [cv2.boundingRect(c) for c in contours]
-    (contours, _) = zip(*sorted(zip(contours, bounding_boxes), key=lambda b:b[1][0]))
-    for i in np.arange(len(contours)):
-        result = cv2.drawContours(result, contours, i, int(i+1), -1)
+    bounding_boxes = [cv2.boundingRect(c) for c in contours_filtered]
+    (contours_filtered, _) = zip(*sorted(zip(contours_filtered, bounding_boxes), key=lambda b:b[1][0]))
+    for i in np.arange(len(contours_filtered)):
+        result = cv2.drawContours(result, contours_filtered, i, int(i+1), -1)
 
-    return result, [i+1 for i in range(len(contours))]
+    return result, [i+1 for i in range(len(contours_filtered))]
 
 def process_joints(hist):
     global config
