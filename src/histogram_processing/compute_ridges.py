@@ -67,7 +67,7 @@ def load_config(filename):
             'line smooth': 7,
             'iter dilate': 10,
             'iter erode': 5,
-            'min contour size': 2000,
+            'min contour size': 1500,
             'joint kernel size': 2
         }
     return config
