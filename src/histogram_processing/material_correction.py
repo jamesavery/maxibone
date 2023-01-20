@@ -5,7 +5,11 @@ from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Corrects the material labeling made by find_ridges, so that the labels correspond across histograms.")
+    parser = argparse.ArgumentParser(description="""Corrects the material labeling made by find_ridges, so that the labels correspond across histograms.
+    
+Example command for running: 
+python src/histogram_processing/material_correction.py -o $BONE_DATA/processed/histograms/770c_pag/ $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3_labeled.npz
+""")
 
     parser.add_argument('histograms',
         help='Specifies the histograms file in npz format. Used for computing the different materials.')

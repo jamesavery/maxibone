@@ -112,7 +112,11 @@ class _range:
         self.y.stop  = range_y_stop
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.")
+    parser = argparse.ArgumentParser(description="""Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.
+    
+Example command for running with default configuration:
+python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz -b -o $BONE_DATA/processed/histograms/770c_pag/
+""")
 
     # E.g. histogram: /mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins1.npz
     # TODO glob support / -r --recursive
