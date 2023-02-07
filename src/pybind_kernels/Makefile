@@ -1,6 +1,7 @@
+PYTHON = python3.11
 # Define constants and collections 
-PYBIND_FLAGS += $(shell python3 -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17 -O3
-PYBIND_SUFFIX = $(shell python3-config --extension-suffix)
+PYBIND_FLAGS += $(shell $(PYTHON) -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17 -O3
+PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
 CXXFLAGS += -Iinclude
 PLATFORMS=cpu_seq cpu gpu
@@ -37,7 +38,7 @@ $(foreach PLATFORM, $(PLATFORMS), \
 )
 
 test: all
-	python3 -m pytest -n auto test
+	$(PYTHON) -m pytest -n auto test
 
 clean:
 	rm -rf $(CLEANUP) test/__pycache__ .pytest_cache
