@@ -1,5 +1,8 @@
-hdf5_root      = "/data/MAXIBONE/Goats/tomograms"
-hdf5_root_fast = "/mnt/shared/MAXIBONE/Goats/tomograms"
+data_root = "/data"
+fast_root = "/data_fast"
+
+hdf5_root      = f"{data_root}/MAXIBONE/Goats/tomograms"
+hdf5_root_fast = f"{fast_root}/MAXIBONE/Goats/tomograms"
 binary_root    = f"{hdf5_root_fast}/binary"
 
 esrf_data_local= f"{hdf5_root}/ESRF/"
