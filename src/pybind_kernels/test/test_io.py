@@ -25,6 +25,8 @@ def random(shape, dtype):
 @pytest.mark.parametrize("dtype", dtypes_to_test)
 def test_dtype(dtype):
     individual_tmp_file = f'{tmp_file}.{dtype.__name__}'
+    if os.path.exists(individual_tmp_file):
+        os.remove(individual_tmp_file)
     data = random(dim_shape, dtype)
     data[0,0,1] = False
     partial = dim_size // partial_factor
