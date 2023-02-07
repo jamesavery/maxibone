@@ -197,8 +197,8 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     ax.add_line(Line2D([p0[0],p1[0]],[p0[1],p1[1]],c='red'))
     ax.add_line(Line2D([p0[0],p2[0]],[p0[1],p2[1]],c='red'))
 
-    ax.add_line(Line2D([m1[0]*1.1,0],[m1[1]*1.1,0],c='green'))
-    ax.add_line(Line2D([m2[0]*1.1,0],[m2[1]*1.1,0],c='green'))        
+    ax.add_line(Line2D([m1[0]*1.05,0],[m1[1]*1.05,0],c='green'))
+    ax.add_line(Line2D([m2[0]*1.05,0],[m2[1]*1.05,0],c='green'))        
     
     fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300)
 
@@ -222,7 +222,7 @@ def figure_FoR_profiles(debug):
     
         
         
-def figure_FoR_cylinder(debug=True):
+def figure_FoR_cylinder(debug=True): 
 #    center_line = vedo.Arrow(C1,C2)
     center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
     cylinder = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels,height=implant_length_voxels, axis=(C2-C1),alpha=0.3)
