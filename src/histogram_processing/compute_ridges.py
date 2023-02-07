@@ -11,8 +11,10 @@ import os
 import time
 NA = np.newaxis
 
+
 def row_normalize(A):
         return A/(1+np.max(A,axis=1))[:,np.newaxis]
+
 
 def batch():
     global args, config
@@ -65,7 +67,7 @@ def load_config(filename):
             'line smooth': 7,
             'iter dilate': 10,
             'iter erode': 5,
-            'min contour size': 2000,
+            'min contour size': 1500,
             'joint kernel size': 2
         }
     return config
@@ -110,7 +112,11 @@ class _range:
         self.y.stop  = range_y_stop
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.")
+    parser = argparse.ArgumentParser(description="""Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.
+    
+Example command for running with default configuration:
+python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz -b -o $BONE_DATA/processed/histograms/770c_pag/
+""")
 
     # E.g. histogram: /mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins1.npz
     # TODO glob support / -r --recursive
@@ -161,15 +167,15 @@ def process_closing(mask, config):
 
 def process_contours(hist, rng: _range, config):
     contours, _ = cv2.findContours(hist, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    contours = [c for c in contours if cv2.arcLength(c, True) > config['min contour size']]
+    contours_sizes = [cv2.arcLength(c, True) for c in contours]
+    contours_filtered = [contours[i] for i, size in enumerate(contours_sizes) if size > config['min contour size']]
     result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
-    bounding_boxes = [cv2.boundingRect(c) for c in contours]
-    (contours, _) = zip(*sorted(zip(contours, bounding_boxes), key=lambda b:b[1][0]))
-    for i in np.arange(len(contours)):
-        result = cv2.drawContours(result, contours, i, int(i+1), -1)
+    bounding_boxes = [cv2.boundingRect(c) for c in contours_filtered]
+    (contours_filtered, _) = zip(*sorted(zip(contours_filtered, bounding_boxes), key=lambda b:b[1][0]))
+    for i in np.arange(len(contours_filtered)):
+        result = cv2.drawContours(result, contours_filtered, i, int(i+1), -1)
 
-    return result, [i+1 for i in range(len(contours))]
+    return result, [i+1 for i in range(len(contours_filtered))]
 
 def process_joints(hist):
     global config
