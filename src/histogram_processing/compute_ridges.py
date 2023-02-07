@@ -11,12 +11,9 @@ import os
 import time
 NA = np.newaxis
 
-<<<<<<< HEAD
-=======
 def row_normalize(A):
         return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
->>>>>>> 7c368efb51e0e48a894210d0c55c9e6185d9233f
 def batch():
     global args, config
 
