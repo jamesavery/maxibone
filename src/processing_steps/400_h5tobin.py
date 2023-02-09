@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import sys, pathlib, h5py, numpy as np
 sys.path.append(sys.path[0]+"/../")
-import pybind_kernels.histograms as histograms
-from config.paths import hdf5_root, binary_root, commandline_args
+from config.paths import hdf5_root, binary_root
 from tqdm import tqdm
-from helper_functions import update_hdf5
+from lib.cpp.cpu.io import write_slice
+from lib.py.helpers import commandline_args, update_hdf5
 
 slice_all = slice(None)
 
@@ -65,7 +65,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
         subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
 
-        histograms.write_slice((subvolume_msb << 8) | subvolume_lsb, output_zstarts[i]*Ny*Nx, outfile)
+        write_slice((subvolume_msb << 8) | subvolume_lsb, output_zstarts[i]*Ny*Nx, outfile)
 
         del subvolume_msb
         del subvolume_lsb
