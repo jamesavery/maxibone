@@ -10,6 +10,7 @@ import numpy as np
 from scipy import ndimage as ndi
 import pytest
 from functools import partial
+import datetime
 
 # Parameters
 implant_dims = 32
@@ -38,14 +39,21 @@ def test_morphology(r, m, op, nd):
     result = np.empty_like(implant_mask)
     f = getattr(m, f'{op}_3d_sphere')
     f(implant_mask, r, result)
+    fsta = datetime.datetime.now()
+    f(implant_mask, r, result)
+    fend = datetime.datetime.now()
 
+    vsta = datetime.datetime.now()
     verification = nd(implant_mask, sphere((2*r)+1))
+    vend = datetime.datetime.now()
 
     assert np.allclose(verification, result)
 
+    return fend - fsta, (vend - vsta) / (fend - fsta)
+
 if __name__ == '__main__':
+    # TDOO move the data generation and ndi verification out to speed up running
     for r in rs:
         for m in impls:
             for op, nd in funcs:
-                print (f'Testing the {m.__name__} implementation of {op}')
-                test_morphology(r, m, op, nd)
+                print (f'Testing the {m.__name__} implementation of {op}', test_morphology(r, m, op, nd))
