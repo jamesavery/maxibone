@@ -31,14 +31,15 @@ if __name__ == '__main__':
     output_dir = f"{binary_root}/fields/implant-gauss/{scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading implant mask from {binary_root}/masks/implant/{scale}x/{sample}.npz")
-    with np.load(f"{binary_root}/masks/implant/{scale}x/{sample}.npz") as f:
-        implant_mask = f['implant_mask'][:]
+    print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
+    with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r") as f:
+        implant_mask = f['implant_solid/mask'][:]
 
     nz,ny,nx = implant_mask.shape
+    print(f"Implant mask has shape {implant_mask.shape}")
 
     if debug:
-        print(f"Debug: Writing PNGs of implant mask slices to {output_dir}")
+        print(f"Writing PNGs of implant mask slices to {output_dir}")
         Image.fromarray(toint(implant_mask[:,:,nx//2].astype(impl_type))).save(f"{output_dir}/{sample}-mask-yz.png")
         Image.fromarray(toint(implant_mask[:,ny//2,:].astype(impl_type))).save(f"{output_dir}/{sample}-mask-xz.png")
         Image.fromarray(toint(implant_mask[nz//2,:,:].astype(impl_type))).save(f"{output_dir}/{sample}-mask-xy.png")
@@ -103,6 +104,7 @@ if __name__ == '__main__':
 
     print(f"Computing Euclidean distance transform.")
     fedt = edt.edt(~implant_mask,parallel=16)
+    del implant_mask
     
     edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
     pathlib.Path(edt_output_dir).mkdir(parents=True, exist_ok=True)

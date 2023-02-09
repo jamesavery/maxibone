@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <vector>
 #include <inttypes.h>
 #include <stdio.h>
@@ -11,6 +12,10 @@ namespace py = pybind11;
 
 #include "datatypes.hh"
 
+template <typename voxel_type>
+  using np_array = py::array_t<voxel_type, py::array::c_style | py::array::forcecast>;
+
+
 #define INLINE __attribute__((always_inline)) inline
 
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
@@ -18,9 +23,9 @@ namespace py = pybind11;
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
 
 
-template <typename T> void convolve1d(const py::array_t<T> np_kernel,
-		const py::array_t<T> np_from,
-		py::array_t<T> &np_to,
+template <typename T> void convolve1d(const np_array<T> np_kernel,
+		const np_array<T> np_from,
+		np_array<T> &np_to,
 		int axis)
 {
   auto
@@ -33,7 +38,7 @@ template <typename T> void convolve1d(const py::array_t<T> np_kernel,
   T       *to     = static_cast<T*>       (to_info.ptr);
 
 
-  int32_t
+  int64_t
     kernel_size = kernel_info.size,
     padding = kernel_size / 2, // kx should always be odd
     // Partial shape
@@ -55,11 +60,123 @@ template <typename T> void convolve1d(const py::array_t<T> np_kernel,
 
 }
 
-void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
+template <typename Op, bool neutral> void morphology_3d_sphere_cpu(
+        const np_array<mask_type> &np_voxels,
+        const int64_t radius,
+        const np_array<mask_type> np_result
+) {
+    auto
+        voxels_info = np_voxels.request(),
+        result_info = np_result.request();
+
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t N[3] = {Nz, Ny, Nx};
+    int64_t strides[3] = {Ny*Nx, Nx, 1};
+
+    const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    mask_type *result = static_cast<mask_type*>(result_info.ptr);
+
+    Op op;
+
+    int64_t sqradius = radius * radius;
+
+    #pragma omp parallel for collapse(3)
+    for (int64_t z = 0; z < N[0]; z++) {
+        for (int64_t y = 0; y < N[1]; y++) {
+            for (int64_t x = 0; x < N[2]; x++) {
+                // Compute boundaries
+                int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
+                int64_t X[3] = {z, y, x};
+                int64_t limits[6];
+                for (int axis = 0; axis < 3; axis++) {
+                    limits[(axis*2)] = -min(radius, X[axis]);
+                    limits[(axis*2)+1] = min(radius, N[axis] - X[axis] - 1);
+                }
+
+                // Apply the spherical kernel
+                bool value = neutral;
+                //#pragma omp simd collapse(3) reduction(op:value)
+                for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
+                    for (int64_t py = limits[2]; py <= limits[3]; py++) {
+                        for (int64_t px = limits[4]; px <= limits[5]; px++) {
+                            // TODO exact match with ndimage
+                            bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
+                            int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
+                            value = within? op(value, voxels[flat_index+offset]) : value;
+                        }
+                    }
+                }
+
+                // Store the results
+                result[flat_index] = value;
+            }
+        }
+    }
+}
+
+template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
+        const np_array<mask_type> &np_voxels,
+        const int64_t radius,
+        const np_array<mask_type> np_result) {
+#ifdef _OPENACC
+    auto
+        voxels_info = np_voxels.request(),
+        result_info = np_result.request();
+
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t N[3] = {Nz, Ny, Nx};
+    int64_t strides[3] = {Ny*Nx, Nx, 1};
+
+    const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
+    mask_type *result = static_cast<mask_type*>(result_info.ptr);
+
+    Op op;
+    int64_t sqradius = radius * radius;
+
+    #pragma acc data copyin(voxels[:Nz*Ny*Nx], N[:3], strides[:3], sqradius) copyout(result[:Nz*Ny*Nx])
+    {
+        #pragma acc parallel loop collapse(3)
+        for (int64_t z = 0; z < N[0]; z++) {
+            for (int64_t y = 0; y < N[1]; y++) {
+                for (int64_t x = 0; x < N[2]; x++) {
+                    // Compute boundaries
+                    int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
+                    int64_t X[3] = {z, y, x};
+                    int64_t limits[6];
+                    for (int axis = 0; axis < 3; axis++) {
+                        limits[(axis*2)] = -min(radius, X[axis]);
+                        limits[(axis*2)+1] = min(radius, N[axis] - X[axis] - 1);
+                    }
+
+                    // Apply the spherical kernel
+                    bool value = neutral;
+                    //#pragma omp simd collapse(3) reduction(op:value)
+                    for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
+                        for (int64_t py = limits[2]; py <= limits[3]; py++) {
+                            for (int64_t px = limits[4]; px <= limits[5]; px++) {
+                                bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
+                                int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
+                                value = within? op(value, voxels[flat_index+offset]) : value;
+                            }
+                        }
+                    }
+
+                    // Store the results
+                    result[flat_index] = value;
+                }
+            }
+        }
+    }
+#else
+    throw runtime_error("Library wasn't compiled with OpenACC.");
+#endif
+}
+
+void gauss_filter_par_cpu(const np_array<mask_type> np_mask,
                           const tuple<uint64_t, uint64_t, uint64_t> shape,
-                          const py::array_t<gauss_type> np_kernel,
+                          const np_array<gauss_type> np_kernel,
                           const uint64_t reps,
-                          py::array_t<gauss_type> &np_result) {
+                          np_array<gauss_type> &np_result) {
     auto
         mask_info = np_mask.request(),
         kernel_info = np_kernel.request(),
@@ -72,7 +189,7 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 
     //auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
 
-    int32_t
+    int64_t			// OMG! WTF!
         kernel_size = kernel_info.size,
         padding = kernel_size / 2, // kx should always be odd
         // Partial shape
@@ -86,9 +203,13 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 
     assert(kernel_size % 2 == 1);
 
+    ssize_t image_size = Rz*Ry*Rx;
     gauss_type
-        *tmp0 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type)),
-        *tmp1 = (gauss_type *) calloc(Rz*Ry*Rx, sizeof(gauss_type));
+        *tmp0 = (gauss_type *) calloc(image_size, sizeof(gauss_type)),
+        *tmp1 = (gauss_type *) calloc(image_size, sizeof(gauss_type));
+
+    assert(tmp0 != 0);
+    assert(tmp1 != 0);
 
     #pragma omp parallel for
     for (int64_t i = 0; i < mask_info.size; i++) {
@@ -119,6 +240,14 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
             for (int64_t y = 0; y < Py; y++) {
                 for (int64_t x = 0; x < Px; x++) {
 		  int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
+		  if(!(output_index >= 0 && output_index < image_size)){
+		    fprintf(stderr,"output_index out of bounds:\n");
+		    fprintf(stderr,"output_index, image_size = %ld,%ld\n",output_index,image_size);
+		    fprintf(stderr,"x,y,z    = %ld,%ld,%ld\n",x,y,z);
+		    fprintf(stderr,"Px,Py,Pz = %ld,%ld,%ld\n",Px,Py,Pz);
+		    fprintf(stderr,"Rx,Ry,Rz = %ld,%ld,%ld\n",Rx,Ry,Rz);
+		    abort();
+		  }
 		  auto mask_value = mask[output_index];
 		  if (mask_value) {
 		    tout[output_index] = 1;
@@ -135,7 +264,6 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
 		      int64_t voxel_index = output_index + stride*i;
 		      sum += tin[voxel_index] * kernel[i+padding];
 		    }
-
 		    tout[output_index] = sum;
 		  }
                 }
@@ -143,12 +271,13 @@ void gauss_filter_par_cpu(const py::array_t<mask_type> np_mask,
         }
     }
 
+    fprintf(stderr,"Done.\n");
     memcpy(result, n_iterations % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
     free(tmp0);
     free(tmp1);
 }
 
-pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
+pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
     auto voxels_info    = np_voxels.request();
     size_t image_length = voxels_info.size;
@@ -166,7 +295,7 @@ pair<int,int> masked_minmax(const py::array_t<voxel_type> np_voxels) {
     return make_pair(voxel_min,voxel_max);
 }
 
-pair<float,float> float_minmax(const py::array_t<float> np_field) {
+pair<float,float> float_minmax(const np_array<float> np_field) {
     // Extract NumPy array basearray-pointer and length
     auto field_info    = np_field.request();
     size_t image_length = field_info.size;
@@ -184,14 +313,56 @@ pair<float,float> float_minmax(const py::array_t<float> np_field) {
     return make_pair(voxel_min,voxel_max);
 }
 
+void load_slice(np_array<voxel_type> &np_data, string filename,
+                const tuple<uint64_t, uint64_t, uint64_t> offset,
+                const tuple<uint64_t, uint64_t, uint64_t> shape) {
+    auto data_info = np_data.request();
+    voxel_type *data = static_cast<voxel_type*>(data_info.ptr);
+    ifstream file;
+    file.open(filename.c_str(), ios::binary);
+    if(!file.is_open()){
+      fprintf(stderr,"load_slice: Error opening %s for reading.\n",filename.c_str());
+      exit(-1);
+    }
+    auto [Nz, Ny, Nx] = shape;
+    auto [oz, oy, ox] = offset;
+    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(voxel_type);
+    file.seekg(flat_offset, ios::beg);
+    file.read((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
+
+void write_slice(np_array<voxel_type> &np_data, uint64_t offset, string filename) {
+    auto data_info = np_data.request();
+    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
+    ofstream file;
+    file.open(filename.c_str(), ios::binary | ios::in);
+    if (!file.is_open()) {
+        file.clear();
+        file.open(filename.c_str(), ios::binary);
+    }
+    file.seekp(offset * sizeof(voxel_type), ios::beg);
+    file.write((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
+
+void append_slice(np_array<voxel_type> &np_data, string filename) {
+    auto data_info = np_data.request();
+    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
+    ofstream file;
+    file.open(filename.c_str(), ios::binary | ios::app);
+    file.write((char*) data, data_info.size * sizeof(voxel_type));
+    file.close();
+}
+
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
-void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_par_cpu(const np_array<voxel_type> np_voxels,
                             const tuple<uint64_t,uint64_t,uint64_t> offset,
                             const uint64_t block_size,
-                            py::array_t<uint64_t> &np_x_bins,
-                            py::array_t<uint64_t> &np_y_bins,
-                            py::array_t<uint64_t> &np_z_bins,
-                            py::array_t<uint64_t> &np_r_bins,
+                            np_array<uint64_t> &np_x_bins,
+                            np_array<uint64_t> &np_y_bins,
+                            np_array<uint64_t> &np_z_bins,
+                            np_array<uint64_t> &np_r_bins,
                             const tuple<uint64_t, uint64_t> center,
                             const tuple<double, double> vrange,
                             const bool verbose) {
@@ -209,7 +380,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
         z_info = np_z_bins.request(),
         r_info = np_r_bins.request();
 
-    const uint32_t
+    const uint64_t
         voxel_bins = x_info.shape[1],
         Nx = x_info.shape[0],
         Ny = y_info.shape[0],
@@ -233,13 +404,12 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     auto [vmin, vmax] = vrange;
     auto [cy, cx] = center;
 
-    if (verbose) {
-        uint64_t memory_needed = omp_get_num_threads() * voxel_bins * sizeof(uint64_t);
-        printf("\nStarting winning %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%d,%d,%d,%d)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
-        printf("Allocating working state memory (%ld bytes (%.02f Kbytes))\n", memory_needed, memory_needed/1024.);
-        printf("Starting calculation\n");
-        fflush(stdout);
-    }
+    // if (verbose) {
+    //     uint64_t memory_needed = omp_get_num_threads() * voxel_bins * sizeof(uint64_t);
+    //     printf("Allocating working state memory (%ld bytes (%.02f Kbytes))\n", memory_needed, memory_needed/1024.);
+    //     printf("Starting calculation\n");
+    //     fflush(stdout);
+    // }
 
     auto start = chrono::steady_clock::now();
 
@@ -265,7 +435,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                     int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %d:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
@@ -296,7 +466,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                     int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %d:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
@@ -327,7 +497,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                     int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %d:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
@@ -360,7 +530,7 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
                     int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t) voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %d:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                         tmp[voxel_index]++;
                     }
@@ -390,13 +560,13 @@ void axis_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_par_gpu(const np_array<voxel_type> np_voxels,
                             const tuple<uint64_t,uint64_t,uint64_t> offset,
                             const uint64_t outside_block_size,
-                            py::array_t<uint64_t> &np_x_bins,
-                            py::array_t<uint64_t> &np_y_bins,
-                            py::array_t<uint64_t> &np_z_bins,
-                            py::array_t<uint64_t> &np_r_bins,
+                            np_array<uint64_t> &np_x_bins,
+                            np_array<uint64_t> &np_y_bins,
+                            np_array<uint64_t> &np_z_bins,
+                            np_array<uint64_t> &np_r_bins,
                             const tuple<uint64_t, uint64_t> center,
                             const tuple<double, double> vrange,
                             const bool verbose) {
@@ -447,7 +617,7 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
     uint64_t initial_block = min(image_length, block_size);
 
     if (verbose) {
-        printf("\nStarting winning %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+        printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
         printf("Allocating result memory (%ld bytes (%.02f Mbytes))\n", memory_needed, memory_needed/1024./1024.);
         printf("Starting calculation\n");
         printf("Size of voxels is %ld bytes (%.02f Mbytes)\n", image_length * sizeof(voxel_type), (image_length * sizeof(voxel_type))/1024./1024.);
@@ -518,13 +688,13 @@ void axis_histogram_par_gpu(const py::array_t<voxel_type> np_voxels,
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
 // This function is kept for verification
-void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
+void axis_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
                     const tuple<uint64_t,uint64_t,uint64_t> offset,
                     const uint64_t block_size,
-                    py::array_t<uint64_t> &np_x_bins,
-                    py::array_t<uint64_t> &np_y_bins,
-                    py::array_t<uint64_t> &np_z_bins,
-                    py::array_t<uint64_t> &np_r_bins,
+                    np_array<uint64_t> &np_x_bins,
+                    np_array<uint64_t> &np_y_bins,
+                    np_array<uint64_t> &np_z_bins,
+                    np_array<uint64_t> &np_r_bins,
                     const tuple<uint64_t, uint64_t> center,
                     const tuple<double, double> vrange,
                     const bool verbose) {
@@ -542,7 +712,7 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
         z_info = np_z_bins.request(),
         r_info = np_r_bins.request();
 
-    const uint32_t
+    const uint64_t
         voxel_bins = x_info.shape[1],
         Nx = x_info.shape[0],
         Ny = y_info.shape[0],
@@ -567,7 +737,7 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
 
     if (verbose) {
-        printf("\nStarting winning %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%d,%d,%d,%d)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+        printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
         printf("Starting calculation\n");
         fflush(stdout);
     }
@@ -585,7 +755,7 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
                 int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                 if (voxel_index >= (int64_t)voxel_bins) {
-                    fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %d:\n", flat_idx, voxel_index, voxel_bins);
+                    fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                 } else if VALID_VOXEL(voxel) { // Voxel not masked, and within vmin,vmax range
                     x_bins[x*voxel_bins + voxel_index]++;
                     y_bins[y*voxel_bins + voxel_index]++;
@@ -609,14 +779,15 @@ void axis_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
+
 // TODO: Allow field to be lower resolution than voxel data
-void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
-                             const py::array_t<field_type> np_field,
+void field_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
+                             const np_array<field_type> np_field,
                              const tuple<uint64_t,uint64_t,uint64_t> offset,
                              const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
                              const tuple<uint64_t,uint64_t,uint64_t> field_shape,
                              const uint64_t block_size,
-                             py::array_t<uint64_t> &np_bins,
+                             np_array<uint64_t> &np_bins,
                              const tuple<double, double> vrange,
                              const tuple<double, double> frange) {
     py::buffer_info
@@ -624,7 +795,7 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
 
@@ -673,13 +844,16 @@ void field_histogram_seq_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
-                             const py::array_t<field_type> np_field,
+
+
+
+void field_histogram_par_cpu(const np_array<voxel_type> np_voxels,
+                             const np_array<field_type> np_field,
                              const tuple<uint64_t,uint64_t,uint64_t> offset,
                              const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
                              const tuple<uint64_t,uint64_t,uint64_t> field_shape,
                              const uint64_t block_size,
-                             py::array_t<uint64_t> &np_bins,
+                             np_array<uint64_t> &np_bins,
                              const tuple<double, double> vrange,
                              const tuple<double, double> frange) {
     py::buffer_info
@@ -687,7 +861,7 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         bins_length  = bins_info.size,
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
@@ -744,130 +918,147 @@ void field_histogram_par_cpu(const py::array_t<voxel_type> np_voxels,
     }
 }
 
-INLINE float resample2x2x2(const field_type *voxels,
-			   const tuple<uint64_t,uint64_t,uint64_t> &shape,
-			   const array<float,3>    &X)
+bool in_bbox(float U, float V, float W, const std::array<float,6> bbox)
 {
-      auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
-      assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
-      assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));
+  const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
 
-      float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
-      int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
-      float   value = 0;
+  return U>=U_min && U<=U_max && V>=V_min && V<=V_min && W>=W_min && W<=W_max;
+}
 
-      for(int i=0;i<3;i++){
-	double Iminus, Iplus;
-	Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-	Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
-	Xint[0][i] = Iminus;
-	Xint[1][i] = Iplus;
-      }
+INLINE
+float resample2x2x2(const field_type      *voxels,
+		    const array<ssize_t,3> &shape,
+		    const array<float,3>   &X)
+{
+  auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
 
-      // Resample voxel in 2x2x2 neighbourhood
-      //000 ---
-      //001 --+
-      //010 -+-
-      //011 -++
-      //100 +--
-      //101 +-+
-      //110 ++-
-      //111 +++
+  if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})){
+    uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);      
+    return voxels[voxel_index];
+  }
+  float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
+  int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
+  float   value = 0;
 
-      for(int ijk=0; ijk<=7; ijk++) {
-	float  weight = 1;
-	int64_t IJK[3] = {0,0,0};
+  for(int i=0;i<3;i++){
+    double Iminus, Iplus;
+    Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+    Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
-	for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
-	  int pm = (ijk>>axis) & 1;
-	  IJK[axis] = Xint[pm][axis];
-	  weight   *= Xfrac[pm][axis];
-	}
+    Xint[0][i] = Iminus;
+    Xint[1][i] = Iplus;
+  }
 
-	auto [I,J,K] = IJK;
-	if(I<0 || J<0 || K<0){
-	  printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
 
-	  abort();
-	}
-	if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)){
-	  printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
-	  abort();
-	}
-	uint64_t voxel_index = I+J*Nx+K*Nx*Ny;
-	field_type voxel = voxels[voxel_index];
-	value += voxel*weight;
-      }
-      return value;
+  for(int ijk=0; ijk<=7; ijk++) {
+    float  weight = 1;
+    int64_t IJK[3] = {0,0,0};
+
+    for(int axis=0;axis<3;axis++){ // x-1/2 or x+1/2
+      int pm = (ijk>>axis) & 1;
+      IJK[axis] = Xint[pm][axis];
+      weight   *= Xfrac[pm][axis];
     }
 
-void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
-					  const py::array_t<field_type> np_field,
-					  const tuple<uint64_t,uint64_t,uint64_t> offset,
-				          const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
-				          const tuple<uint64_t,uint64_t,uint64_t> field_shape,
-					  const uint64_t block_size,
-					  py::array_t<uint64_t> &np_bins,
-					  const tuple<double, double> vrange,
-					  const tuple<double, double> frange) {
+    auto [I,J,K] = IJK;
+    if(I<0 || J<0 || K<0){
+      printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
 
+      abort();
+    }
+    if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)){
+      printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
+      abort();
+    }
+    uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
+    field_type voxel = voxels[voxel_index];
+    value += voxel*weight;
+  }
+  return value;
+}
+
+void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
+				      const np_array<field_type> np_field,
+				      const array<uint64_t,3> offset,
+				      const array<uint64_t,3> voxels_shape,
+				      const array<uint64_t,3> field_shape,
+				      const uint64_t block_size,
+				      np_array<uint64_t> &np_bins,
+				      const array<double, 2> vrange,
+				      const array<double, 2> frange) {
     py::buffer_info
         voxels_info = np_voxels.request(),
         field_info = np_field.request(),
         bins_info = np_bins.request();
 
-    const uint32_t
+    const uint64_t
         bins_length  = bins_info.size,
         field_bins   = bins_info.shape[0],
         voxel_bins   = bins_info.shape[1];
 
-    auto [nZ, nY, nX] = voxels_shape;
-    auto [nz, ny, nx] = field_shape;
+    auto [nX, nY, nZ] = voxels_shape;
+    auto [nx, ny, nz] = field_shape;
 
-    float dz = nz/((float)nZ), dy = ny/((float)nY), dx = nx/((float)nX);
+    double dx = nx/((double)nX), dy = ny/((double)nY), dz = nz/((double)nZ);
 
     const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
     const field_type *field  = static_cast<field_type*>(field_info.ptr);
-    uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+    uint64_t         *bins   = static_cast<uint64_t*>(bins_info.ptr);
 
     auto [f_min, f_max] = frange;
     auto [v_min, v_max] = vrange;
     auto [z_start, y_start, x_start] = offset;
     uint64_t
-        z_end = min(z_start+block_size, nZ),
+        x_end = min(x_start+block_size, nX),
         y_end = nY,
-        x_end = nX;
+        z_end = nZ;
 
-#pragma omp parallel
+    #pragma omp parallel
     {
-      uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
-#pragma omp for nowait collapse(3)
-        for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
+        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+        #pragma omp for nowait
+        for (uint64_t X = 0; X < x_end-x_start; X++) {
             for (uint64_t Y = y_start; Y < y_end; Y++) {
-                for (uint64_t X = x_start; X < x_end; X++) {
-                    uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
+                for (uint64_t Z = z_start; Z < z_end; Z++) {
+                    uint64_t flat_index = (X*nY*nZ) + (Y*nZ) + Z;
                     auto voxel = voxels[flat_index];
                     voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = floor(static_cast<float>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 
-                    // And what are the corresponding x,y,z coordinates into the field sub-block?
-                    array<float,3> xyz = {X*dx, Y*dy, Z*dz};
-		    auto [x,y,z] = xyz;
+                    // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+                    // TODO: Sample 2x2x2 volume?
+                    float    x = X*dx, y = Y*dy, z = Z*dz;
+		    uint64_t i = floor(x)*ny*nz + floor(y)*nz + floor(z);
 
-		    uint16_t  field_value = 0;
-		     if(x>=0.5 && y>=0.5 && z>=0.5 && (x+0.5)<nx && (y+0.5)<ny && (z+0.5)<nz)
-		       field_value = round(resample2x2x2(field,field_shape,xyz));
-		     else {
-		       uint64_t i = floor(z)*ny*nx + floor(y)*nx + floor(x);
-		       field_value = field[i];
-		     }
 
+		    
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
-                    if(VALID_VOXEL(voxel) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                        int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+                    if(VALID_VOXEL(voxel) && field[i]>0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+		      field_type field_value = round(resample2x2x2(field,{nx,ny,nz},{x,y,z}));
+		      int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+
+
+		      if(field_index < 0 || field_index >= field_bins){
+			fprintf(stderr,"field value out of bounds at X,Y,Z = %ld,%ld,%ld, x,y,z = %.1f,%.1f,%.1f:\n"
+				"\t field_value = %d (%.3f), field_index = %ld, voxel_value = %d, field[%ld] = %d\n",
+				X,Y,Z,x,y,z,
+				field_value, round(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
+			printf("nx,ny,nz = %ld,%ld,%ld. %ld*%ld + %ld*%ld + %ld = %ld\n",
+			       nx,ny,nz,
+			       int(floor(x)),ny*nz,
+			       int(floor(y)),nz,
+			       int(floor(z)),
+			       i
+			       );
+			
+			abort();
+		      }
+
+		      
+		      if((field_index >= 0) && (field_index < field_bins)) // Resampling with masked voxels can give field_value < field_min
 			tmp_bins[field_index*voxel_bins + voxel_index]++;
-                    }
+		    }
                 }
             }
         }
@@ -878,20 +1069,20 @@ void field_histogram_resample_par_cpu(const py::array_t<voxel_type> np_voxels,
         }
         free(tmp_bins);
     }
-
-
 }
 
+
+
 void otsu(
-        const py::array_t<uint64_t> np_bins,
-        py::array_t<uint64_t> np_result,
+        const np_array<uint64_t> np_bins,
+        np_array<uint64_t> np_result,
         uint64_t step_size) {
     py::buffer_info
         bins_info = np_bins.request(),
         result_info = np_result.request();
     // https://vincmazet.github.io/bip/segmentation/histogram.html
 
-    uint32_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
+    uint64_t N_rows = bins_info.shape[0], N_cols = bins_info.shape[1];
     uint64_t N_threshes = N_cols / step_size;
 
     const uint64_t *bins = static_cast<const uint64_t*>(bins_info.ptr);

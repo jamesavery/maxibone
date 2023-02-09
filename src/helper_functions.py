@@ -3,7 +3,7 @@ import os, h5py, pathlib, numpy as np, pybind_kernels.histograms as histograms, 
 from config.paths import hdf5_root, binary_root
 from numpy import newaxis as NA
 
-def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
+def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
                 compression=None,chunk_shape=None):
 
     output_dir = os.path.dirname(filename)
@@ -17,8 +17,9 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
     
     for k in datasets:
         v = datasets[k]
-        g.require_dataset(k,shape=v.shape,dtype=v.dtype,
-                          compression=compression, chunks=chunk_shape)
+        if(k in g): del g[k]
+        g.create_dataset(k,shape=v.shape,dtype=v.dtype,
+                          compression=compression, chunks=chunk_shape,maxshape=None)
         g[k][:] = v[:]
 
         if dimensions is not None:
@@ -37,21 +38,33 @@ def update_hdf5(filename,group_name,datasets,attributes,dimensions=None,
 
 
 #TODO: Use this for masks, no compression and no chunking default for small metadata datasets
-def update_hdf5_mask(filename,group_name,datasets,attributes,dimensions=None,
+def update_hdf5_mask(filename,group_name,datasets={},attributes={},dimensions=None,
                      compression="lzf",chunk_shape=(64,64,64)):
     update_hdf5(filename,group_name,datasets,attributes,dimensions,compression,chunk_shape)
 
 
+def h5meta_info_volume_matched(sample):
+    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r") as h5meta:
+        vm_shifts  = h5meta["volume_matching_shifts"][:]        
+        Nz, Ny, Nx = h5meta['voxels'].shape
+        Nz -= np.sum(vm_shifts)
+
+        subvolume_dimensions =  h5meta['subvolume_dimensions'][:]                
+        subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
+        voxel_size    = h5meta["voxels"].attrs["voxelsize"]
+        
+        return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
+        
 def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
     print(f"Opening {h5meta_filename}")
-    with h5py.File(h5meta_filename, 'r') as dm:
-        vm_shifts  = dm["volume_matching_shifts"][:]
-        Nz, Ny, Nx = dm['voxels'].shape
+    with h5py.File(h5meta_filename, 'r') as h5meta:
+        vm_shifts  = h5meta["volume_matching_shifts"][:]
+        Nz, Ny, Nx = h5meta['voxels'].shape
         Nz -= np.sum(vm_shifts)
         Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
 
 
-        subvolume_dimensions =  dm['subvolume_dimensions'][:]                
+        subvolume_dimensions =  h5meta['subvolume_dimensions'][:]                
         subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
 
         if block_size == 0:
@@ -69,7 +82,7 @@ def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
 
 
         return {'dimensions':(Nz,Ny,Nx,Nr),
-                'voxel_size':dm["voxels"].attrs["voxelsize"],
+                'voxel_size':h5meta["voxels"].attrs["voxelsize"],
                 'n_blocks': n_blocks,
                 'block_size': block_size,
                 'blocks_are_subvolumes': blocks_are_subvolumes,
@@ -86,10 +99,10 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     '''
     Nfields = len(field_names)
 
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    Nz, Ny, Nx = dm['voxels'].shape
-    Nz -= np.sum(dm["volume_matching_shifts"][:])
-    dm.close()
+    h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    Nz, Ny, Nx = h5meta['voxels'].shape
+    Nz -= np.sum(h5meta["volume_matching_shifts"][:])
+    h5meta.close()
 #    print(block_size,Nz,offset)   
     block_size       = min(block_size, Nz-offset)
 
@@ -119,4 +132,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
 #    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.show()
 #    plt.imshow(fields[0,:,fields[0].shape[1]//2,:]); plt.show()    
     return voxels, fields
-    
+
+def row_normalize(A,r):
+    na = np.newaxis
+    return A/(r[:,na]+(r==0)[:,na])

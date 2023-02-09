@@ -5,7 +5,11 @@ from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Corrects the material labeling made by find_ridges, so that the labels correspond across histograms.")
+    parser = argparse.ArgumentParser(description="""Corrects the material labeling made by find_ridges, so that the labels correspond across histograms.
+    
+Example command for running: 
+python src/histogram_processing/material_correction.py -o $BONE_DATA/processed/histograms/770c_pag/ $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3_labeled.npz
+""")
 
     parser.add_argument('histograms',
         help='Specifies the histograms file in npz format. Used for computing the different materials.')
@@ -24,9 +28,14 @@ if __name__ == '__main__':
     # Load the data
     bins = np.load(args.histograms)
     labs = np.load(args.labels)
+    vals = dict()
+    for name in bins['axis_names']:
+        vals[name] = bins[f'{name}_bins']
+    for i, name in enumerate(bins['field_names']):
+        vals[name] = bins['field_bins'][i]
 
     # Compute the material peaks
-    sums = np.mean([value.sum(axis=0) for value in bins.values()], axis=0)
+    sums = np.mean([value.sum(axis=0) for _, value in vals.items()], axis=0)
     smoothed = gaussian_filter1d(sums, 3)
     peaks, _ = signal.find_peaks(smoothed, .01*sums.max())
 

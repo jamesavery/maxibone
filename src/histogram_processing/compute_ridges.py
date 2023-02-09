@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from numpy.lib.function_base import disp
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 from moviepy.video.io.bindings import mplfig_to_npimage
@@ -10,8 +9,12 @@ import json
 import argparse
 import os
 import time
+NA = np.newaxis
 
-from torch import dtype
+
+def row_normalize(A):
+        return A/(1+np.max(A,axis=1))[:,np.newaxis]
+
 
 def batch():
     global args, config
@@ -64,7 +67,7 @@ def load_config(filename):
             'line smooth': 7,
             'iter dilate': 10,
             'iter erode': 5,
-            'min contour size': 2000,
+            'min contour size': 1500,
             'joint kernel size': 2
         }
     return config
@@ -75,7 +78,7 @@ def load_hists(filename):
     for name, hist in hists.items():
         hist_sum = np.sum(hist, axis=1)
         hist_sum[hist_sum==0] = 1
-        results[name] = hist / hist_sum[:,np.newaxis]
+        results[name] = hist / hist_sum[:,NA]
     return hists
 
 class _range:
@@ -109,7 +112,11 @@ class _range:
         self.y.stop  = range_y_stop
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.")
+    parser = argparse.ArgumentParser(description="""Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.
+    
+Example command for running with default configuration:
+python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz -b -o $BONE_DATA/processed/histograms/770c_pag/
+""")
 
     # E.g. histogram: /mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins1.npz
     # TODO glob support / -r --recursive
@@ -160,15 +167,15 @@ def process_closing(mask, config):
 
 def process_contours(hist, rng: _range, config):
     contours, _ = cv2.findContours(hist, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    contours = [c for c in contours if cv2.arcLength(c, True) > config['min contour size']]
+    contours_sizes = [cv2.arcLength(c, True) for c in contours]
+    contours_filtered = [contours[i] for i, size in enumerate(contours_sizes) if size > config['min contour size']]
     result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
-    bounding_boxes = [cv2.boundingRect(c) for c in contours]
-    (contours, _) = zip(*sorted(zip(contours, bounding_boxes), key=lambda b:b[1][0]))
-    for i in np.arange(len(contours)):
-        result = cv2.drawContours(result, contours, i, int(i+1), -1)
+    bounding_boxes = [cv2.boundingRect(c) for c in contours_filtered]
+    (contours_filtered, _) = zip(*sorted(zip(contours_filtered, bounding_boxes), key=lambda b:b[1][0]))
+    for i in np.arange(len(contours_filtered)):
+        result = cv2.drawContours(result, contours_filtered, i, int(i+1), -1)
 
-    return result, [i+1 for i in range(len(contours))]
+    return result, [i+1 for i in range(len(contours_filtered))]
 
 def process_joints(hist):
     global config
@@ -202,7 +209,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
         scatter_plot = np.zeros((3,3,3), dtype=np.uint8)
     else:
         fig, ax = plt.subplots()
-        ax.imshow(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop], cmap='jet')
+        ax.imshow(row_normalize(hist[rng.y.start:rng.y.stop,rng.x.start:rng.x.stop]), cmap='jet')
         if peaks:
             ax.scatter(px, py, color='red', alpha=.008)
         scatter_plot = mplfig_to_npimage(fig)
@@ -212,7 +219,7 @@ def process_scatter_peaks(hist, rng: _range, peaks=None):
     return scatter_plot, px, py
 
 def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial_size):
-    display = ((hist.astype(np.float32) / hist.max()) * 255.0).astype(np.uint8)
+    display = (row_normalize(hist) * 255).astype(np.uint8)
     box_x_start = int(rng.x.start * scale_x)
     box_y_start = int(rng.y.start * scale_y)
     box_x_stop = int(rng.x.stop * scale_x)
@@ -242,7 +249,7 @@ def scatter_peaks(hist, config):
 def gui():
     global last, args
     def update_image(_):
-        hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+        hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
         cv2.setTrackbarMax('range start x', 'Histogram lines', hist_shape[1]-1)
         cv2.setTrackbarPos('range start x', 'Histogram lines', min(cv2.getTrackbarPos('range start x', 'Histogram lines'), hist_shape[1]-1))
         cv2.setTrackbarMax('range stop x', 'Histogram lines', hist_shape[1]-1)
@@ -292,7 +299,7 @@ def gui():
                     update(force=True)
             elif (event == cv2.EVENT_MBUTTONDOWN):
                 print ('reset bounding box')
-                hist_shape = f[keys[cv2.getTrackbarPos('bins', 'Histogram lines')]].shape
+                hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
                 cv2.setTrackbarPos('range start x', 'Histogram lines', 0)
                 cv2.setTrackbarPos('range stop x', 'Histogram lines', hist_shape[1]-1)
                 cv2.setTrackbarPos('range start y', 'Histogram lines', 0)
@@ -311,7 +318,7 @@ def gui():
         # Check if trackbar ranges should be updated
         modified = force or False
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
-        hist = f[keys[bin]]
+        hist = hists[bin]
         if bin != last['bin']:
             modified = True
             last['bin'] = bin
@@ -465,9 +472,11 @@ def gui():
         return changed
 
     f = np.load(args.histogram[0])
-    keys = [key for key in f.keys()]
-    print ('keys', keys)
-    first_hist = f[keys[0]]
+    keys = [key for key in f.keys() if key.endswith('_bins') and not key == 'field_bins']
+    hists = [f[key] for key in keys]
+    hists += list(f['field_bins'])
+    
+    first_hist = hists[0]
     last = {
         # Trackbars
         'bin': None,
@@ -501,7 +510,7 @@ def gui():
     cv2.createTrackbar('range stop y', 'Histogram lines', first_hist.shape[0]-1, first_hist.shape[0]-1, update)
     cv2.createTrackbar('size x', 'Histogram lines', 1920, 1920, update)
     cv2.createTrackbar('size y', 'Histogram lines', 1080, 1080, update)
-    cv2.createTrackbar('bins', 'Histogram lines', 0, len(keys)-1, update_image)
+    cv2.createTrackbar('bins', 'Histogram lines', 0, len(hists)-1, update_image)
     cv2.createTrackbar('line', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('line smooth', 'Histogram lines', config['line smooth'], 50, update)
     cv2.createTrackbar('min peak height', 'Histogram lines', config['min peak height'], 100, update)

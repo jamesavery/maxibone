@@ -24,6 +24,8 @@ CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stabl
 CLEANUP += $(TARGETS) $(foreach TARGET, $(TARGETS), $(TARGET).dSYM) # These are also generated on Mac
 endif
 
+CXXFLAGS += -I../contrib/cpptqdm/ 
+
 all: $(TARGETS)
 
 define GEN_RULE
@@ -41,4 +43,4 @@ test: all
 	$(PYTHON) -m pytest -n auto test
 
 clean:
-	rm -rf $(CLEANUP) test/__pycache__ .pytest_cache
+	rm -rf $(CLEANUP) test/__pycache__ .pytest_cache **/*.so

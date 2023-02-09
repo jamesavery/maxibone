@@ -136,7 +136,7 @@ def piecewisequadratic(pc,all_xs,extrapolation="quadratic"):
 
     # Process points outside the domain, right side
     Xmax = Xs[-1]
-    xs_right_of_domain = all_xs[all_xs > Xmax]
+    xs_right_of_domain = all_xs[all_xs >= Xmax]
     xs = xs_right_of_domain - Xmax
     
     if extrapolation=="quadratic":

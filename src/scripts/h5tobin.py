@@ -75,7 +75,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
 
     update_hdf5(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5',
                 group_name="volume_matched",
-                datasets={"shape": (np.sum(nzs), Ny, Nx),
+                datasets={"shape": np.array([np.sum(nzs), Ny, Nx]),
                           "subvolume_starts": output_zstarts,
                           "subvolume_ends": output_zends})
     
