@@ -1,5 +1,5 @@
-PYTHON = python3.11
-# Define constants and collections 
+PYTHON = python3.10
+# Define constants and collections
 PYBIND_FLAGS += $(shell $(PYTHON) -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17 -O3
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
@@ -13,7 +13,7 @@ CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(PLATFORM)/__pycache__)
 ifneq (, $(shell which nvc++))
 CXX = nvc++
 CXXFLAGS += -acc=gpu -Minfo=accel -tp=native
-else 
+else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
 
