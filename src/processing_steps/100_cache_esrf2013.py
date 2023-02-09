@@ -1,10 +1,11 @@
 import os, sys, pathlib, tqdm, fabric
 sys.path.append(sys.path[0]+"/../")
-from config.paths import commandline_args, esrf_data_sftp, esrf_data_local
+from lib.py.helpers import commandline_args
+from config.paths import esrf_data_sftp, esrf_data_local
 
 if __name__ == "__main__":
-    sample, experiment = commandline_args({"sample":"<required>",
-                                           "experiment":"esrf_dental_implants_april_2013"})
+    sample, experiment = commandline_args({"sample" : "<required>",
+                                           "experiment" : "esrf_dental_implants_april_2013"})
     
     index_dir  = f"{esrf_data_local}/{experiment}/index/";
     with open(f"{index_dir}/{sample}.txt") as f:
@@ -32,4 +33,3 @@ if __name__ == "__main__":
                     sftp.get(f,f)
 
             connection.close()
-    
