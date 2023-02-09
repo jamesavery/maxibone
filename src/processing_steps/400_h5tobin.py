@@ -7,6 +7,7 @@ from lib.cpp.cpu.io import write_slice
 from lib.py.helpers import commandline_args, update_hdf5
 
 slice_all = slice(None)
+verbose = 1
 
 def slice_length(s,n):
     start = s.start if s.start is not None else 0
@@ -37,23 +38,23 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     input_zstarts         = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)
     input_zends           = (np.cumsum(Nzs) - np.concatenate([vm_shifts,[0]])).astype(int)
     
-    print(f'HDF5 voxel data:')
-    print(f'subvolume_dims =\n{subvolume_dims}')
-    print(f'Nzs = {Nzs}')
-    print(f'vm_shifts = {vm_shifts}')    
-    print(f'input_zstarts  = {input_zstarts}')
-    print(f'input_zends    = {input_zends}')
+    if verbose >= 1: print(f'HDF5 voxel data:')
+    if verbose >= 1: print(f'subvolume_dims =\n{subvolume_dims}')
+    if verbose >= 1: print(f'Nzs = {Nzs}')
+    if verbose >= 1: print(f'vm_shifts = {vm_shifts}')    
+    if verbose >= 1: print(f'input_zstarts  = {input_zstarts}')
+    if verbose >= 1: print(f'input_zends    = {input_zends}')
 
     output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)]).astype(int)
     output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]]).astype(int)
-    print(f'output_zstarts = {output_zstarts}')
-    print(f'output_zends   = {output_zends}')
+    if verbose >= 1: print(f'output_zstarts = {output_zstarts}')
+    if verbose >= 1: print(f'output_zends   = {output_zends}')
     assert((input_zends - input_zstarts == output_zends - output_zstarts).all())
 
-    print(f'Shape to extract:\n{region}')
+    if verbose >= 1: print(f'Shape to extract:\n{region}')
     
     nzs = input_zends - input_zstarts # Actual number of z-slices per subvolume after vm-correction
-    print(f"Volume matched subvolume nzs = {nzs}")
+    if verbose >= 1: print(f"Volume matched subvolume nzs = {nzs}")
     # TODO: z_range is ignored
     # TODO: Store metadata about region range in json
     # TODO: Come up with appropriate "file format" scheme
@@ -81,9 +82,10 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     
         
 if __name__ == "__main__":
-    sample, y_cutoff, shift_volume_match = commandline_args({"sample":"<required>",
-                                                             "y_cutoff": 0,
-                                                             "shift_volume_match":1})
+    sample, y_cutoff, shift_volume_match, verbose = commandline_args({"sample" : "<required>",
+                                                                      "y_cutoff" :  0,
+                                                                      "shift_volume_match" : 1,
+                                                                      "verbose" : 1})
 
     region = (slice_all,slice(y_cutoff,None), slice_all)
     h5tobin(sample,region,shift_volume_match)
