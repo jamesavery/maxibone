@@ -12,7 +12,9 @@ import numpy as np
 import jax.numpy as jp
 import h5py, jax, sys
 from PIL import Image
-from config.paths import hdf5_root, commandline_args
+sys.path.append(sys.path[0]+"/../")
+from config.paths import hdf5_root
+from lib.py.helpers import commandline_args
 
 volume_matched_dir = f"{hdf5_root}/processed/volume_matched"
 
