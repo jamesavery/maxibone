@@ -2,7 +2,7 @@
 Unittests for the I/O pybind kernels.
 '''
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(sys.path[0]+"/../lib/cpp")
 import cpu_seq.io as io
 import numpy as np
 import tempfile

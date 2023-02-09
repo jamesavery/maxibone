@@ -1,13 +1,14 @@
-PYTHON = python3.10
 # Define constants and collections
+PYTHON = python3.10
 PYBIND_FLAGS += $(shell $(PYTHON) -m pybind11 --include) -march=native -Wall -shared -fPIC -fopenmp -g -std=c++17 -O3
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
+CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-CXXFLAGS += -Iinclude
+CXXFLAGS += -I$(CPP_FOLDER)/include
 PLATFORMS=cpu_seq cpu gpu
 LIBS=io morphology
-TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
-CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(PLATFORM)/__pycache__)
+TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
+CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(CPP_FOLDER)/$(PLATFORM)/__pycache__)
 
 # Detect if OpenACC can be used
 ifneq (, $(shell which nvc++))
@@ -24,13 +25,11 @@ CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stabl
 CLEANUP += $(TARGETS) $(foreach TARGET, $(TARGETS), $(TARGET).dSYM) # These are also generated on Mac
 endif
 
-CXXFLAGS += -I../contrib/cpptqdm/ 
-
 all: $(TARGETS)
 
 define GEN_RULE
-$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(PLATFORM)/$(LIB).cc
-	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) -I$(PLATFORM) $$< -o $(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)
+$(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(CPP_FOLDER)/$(PLATFORM)/$(LIB).cc
+	$(CXX) $(CXXFLAGS) $(PYBIND_FLAGS) -I$(CPP_FOLDER)/$(PLATFORM) $$< -o $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)
 endef
 
 $(foreach PLATFORM, $(PLATFORMS), \
@@ -43,4 +42,4 @@ test: all
 	$(PYTHON) -m pytest -n auto test
 
 clean:
-	rm -rf $(CLEANUP) test/__pycache__ .pytest_cache **/*.so
+	rm -rf $(CLEANUP) __pycache__ test/__pycache__ .pytest_cache lib/cpp/**/*.so

@@ -2,7 +2,7 @@
 Unittests for the morphology pybind kernels.
 '''
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(sys.path[0]+"/../lib/cpp")
 import cpu_seq.morphology as m_cpu_seq
 import cpu.morphology as m_cpu
 import gpu.morphology as m_gpu
