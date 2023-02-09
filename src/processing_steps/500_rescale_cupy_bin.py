@@ -3,9 +3,9 @@ sys.path.append(sys.path[0]+"/../")
 import numpy as np
 import cupy  as cp
 #import numpy as cp
-from resample import downsample2x, downsample3x
-from config.paths import commandline_args, hdf5_root, binary_root
-from pybind_kernels.histograms import load_slice, write_slice # Rename and place under io_modules 
+from lib.py.helpers import commandline_args
+from lib.py.resample import downsample2x, downsample3x
+from config.paths import hdf5_root, binary_root
 
 mempool = cp.get_default_memory_pool()
 pinned_mempool = cp.get_default_pinned_memory_pool()
