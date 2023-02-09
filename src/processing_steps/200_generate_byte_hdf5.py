@@ -7,16 +7,19 @@
 import h5py, sys, os.path, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 import bohrium as bh # TODO: Get rid of Bohrium dependence without losing too much performance
-from io_modules.esrf_read import *
+from lib.py.esrf_read import *
 import numpy   as np, matplotlib.pyplot as plt
 from config.paths import *
+from lib.py.helpers import commandline_args
 from PIL import Image
 
 
 NA = np.newaxis
 
-sample, chunk_length, use_bohrium, xml_root  = commandline_args({"sample":"<required>","chunk_length":256,
-                                                                 "use_bohrium":True,"xml_root":esrf_implants_root})
+sample, chunk_length, use_bohrium, xml_root  = commandline_args({"sample" : "<required>",
+                                                                 "chunk_length" : 256,
+                                                                 "use_bohrium" : True,
+                                                                 "xml_root" : esrf_implants_root})
 
 
 print(f"data_root={xml_root}")
@@ -97,11 +100,11 @@ h5tomo_msb = h5file_msb['voxels']
 h5tomo_lsb = h5file_lsb['voxels']
 
 def cylinder_mask(Ny,Nx):
-    ys = bh.linspace(-1,1,Ny)
-    xs = bh.linspace(-1,1,Nx)
+    ys = np.linspace(-1,1,Ny)
+    xs = np.linspace(-1,1,Nx)
     return (xs[NA,:]**2 + ys[:,NA]**2) < 1 
 
-mask = bh.array(cylinder_mask(Ny,Nx))
+mask = np.array(cylinder_mask(Ny,Nx))
 
 for i in tqdm.tqdm(range(len(subvolume_metadata))):
     subvolume_info = subvolume_metadata[i];
@@ -115,7 +118,7 @@ for i in tqdm.tqdm(range(len(subvolume_metadata))):
     # print(f"Writing {subvolume_info['experiment']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
-    chunk = bh.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
+    chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
     for z in range(0,nz,chunk_length):
         chunk_end = min(z+chunk_length,nz);
 
@@ -148,7 +151,7 @@ for i in tqdm.tqdm(range(len(subvolume_metadata))):
         chunk_lsb = chunk_lsb.copy2numpy()
         print("chunk_lsb.copy2numpy().max: ", chunk_lsb.max())
         h5tomo_lsb[z_offset+z:z_offset+chunk_end] = chunk_lsb[:]
-        bh.flush()
+        np.flush()
         
     z_offset += nz;
 
