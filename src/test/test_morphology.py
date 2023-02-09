@@ -49,11 +49,11 @@ def test_morphology(r, m, op, nd):
 
     assert np.allclose(verification, result)
 
-    return fend - fsta, (vend - vsta) / (fend - fsta)
+    print (f'Testing the {m.__name__} implementation of {op}. Ran in {fend - fsta}, which is {(vend - vsta) / (fend - fsta)} times better than ndi')
 
 if __name__ == '__main__':
     # TDOO move the data generation and ndi verification out to speed up running
     for r in rs:
         for m in impls:
             for op, nd in funcs:
-                print (f'Testing the {m.__name__} implementation of {op}', test_morphology(r, m, op, nd))
+                test_morphology(r, m, op, nd)
