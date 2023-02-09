@@ -16,13 +16,14 @@ from PIL import Image
 
 NA = np.newaxis
 
-sample, chunk_length, use_bohrium, xml_root  = commandline_args({"sample" : "<required>",
-                                                                 "chunk_length" : 256,
-                                                                 "use_bohrium" : True,
-                                                                 "xml_root" : esrf_implants_root})
+sample, chunk_length, use_bohrium, xml_root, verbose  = commandline_args({"sample" : "<required>",
+                                                                          "chunk_length" : 256,
+                                                                          "use_bohrium" : True,
+                                                                          "xml_root" : esrf_implants_root,
+                                                                          "verbose" : 1})
 
 
-print(f"data_root={xml_root}")
+if verbose >= 1: print(f"data_root={xml_root}")
 
 # Normalize, such that 1,...,2^(nbits)-1 correspond to vmin,...,vmax
 # 0 corresponds to a masked value
@@ -43,10 +44,10 @@ global_vmax = np.max(subvolume_range[:,1])
 (Nz,Ny,Nx)  = (np.sum(subvolume_dimensions[:,0]), np.min(subvolume_dimensions[:,1]&~31), np.min(subvolume_dimensions[:,2]&~31))
 
 for i in range(len(subvolume_metadata)):
-    print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
-print((global_vmin, global_vmax), (Nz,Ny,Nx))    
-print(subvolume_dimensions)
-print(subvolume_range)
+    if verbose >= 1: print(f"{i} {sample}/{subvolume_metadata[i]['experiment']}: {subvolume_range[i]}")
+if verbose >= 1: print((global_vmin, global_vmax), (Nz,Ny,Nx))    
+if verbose >= 1: print(subvolume_dimensions)
+if verbose >= 1: print(subvolume_range)
 
 
 #import re
@@ -69,7 +70,7 @@ pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
 outdir = os.path.dirname(lsb_filename)
 pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
 
-print(f"Writing {msb_filename} and {lsb_filename}")
+if verbose >= 1: print(f"Writing {msb_filename} and {lsb_filename}")
 h5file_msb = h5py.File(msb_filename,"w");
 h5file_lsb = h5py.File(lsb_filename,"w");
 
@@ -111,11 +112,11 @@ for i in tqdm.tqdm(range(len(subvolume_metadata))):
     (nz,ny,nx)     = subvolume_dimensions[i];
     (sy,sx)        = ((ny-Ny)//2+((ny-Ny)%2), (nx-Nx)//2+((nx-Nx)%2))
     (ey,ex)        = (ny-(ny-Ny)//2, nx-(nx-Nx)//2)
-    print((sy,ey),(sx,ex))
+    if verbose >= 1: print((sy,ey),(sx,ex))
     
-    # print(f"Loading {subvolume_info['experiment']}")
+    # if verbose >= 1: print(f"Loading {subvolume_info['experiment']}")
     # tomo = normalize(esrf_full_tomogram_bh(subvolume_info), (global_vmin,global_vmax));
-    # print(f"Writing {subvolume_info['experiment']}")    
+    # if verbose >= 1: print(f"Writing {subvolume_info['experiment']}")    
     # h5tomo[z_offset:z_offset+nz] = tomo[:,sy:ey,sx:ex];
     # del tomo
     chunk = np.zeros((chunk_length,Ny,Nx),dtype=np.uint16);
@@ -123,14 +124,14 @@ for i in tqdm.tqdm(range(len(subvolume_metadata))):
         chunk_end = min(z+chunk_length,nz);
 
         region = [[sx,sy,z],[ex,ey,chunk_end]]
-        print(f"Reading chunk {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
+        if verbose >= 1: print(f"Reading chunk {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}");
         slab_data = esrf_edfrange_to_bh(subvolume_info,region)
-        print(f"Chunk shape: {slab_data.shape}")
-        print("Max value before masking:", slab_data.max())
+        if verbose >= 1: print(f"Chunk shape: {slab_data.shape}")
+        if verbose >= 1: print("Max value before masking:", slab_data.max())
         slab_data *= mask[NA,:,:]
-        print("Max value after masking:", slab_data.max())        
+        if verbose >= 1: print("Max value after masking:", slab_data.max())        
         chunk[:chunk_end-z] = normalize(slab_data,(global_vmin,global_vmax))
-        print("Max value after normalizing:", chunk.max())
+        if verbose >= 1: print("Max value after normalizing:", chunk.max())
 
         # for j in range(0,chunk_end-z):
         #     slice_meta, slice_data = esrf_edf_n_to_npy(subvolume_info,z+j);
@@ -138,18 +139,18 @@ for i in tqdm.tqdm(range(len(subvolume_metadata))):
         #     chunk[j] = normalize(slice_data[sy:ey,sx:ex],(global_vmin,global_vmax)) * mask
 
             
-        print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
+        if verbose >= 1: print(f"Writing {sample} MSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
         chunk_msb = ((chunk[:chunk_end-z]>>8)&0xff).astype(np.uint8)
-        print("chunk_msb.max: ", chunk_msb.max())
+        if verbose >= 1: print("chunk_msb.max: ", chunk_msb.max())
         chunk_msb = chunk_msb.copy2numpy()
-        print("chunk_msb.copy2numpy().max: ", chunk_msb.max())
+        if verbose >= 1: print("chunk_msb.copy2numpy().max: ", chunk_msb.max())
         h5tomo_msb[z_offset+z:z_offset+chunk_end] = chunk_msb[:]
         
-        print(f"Writing {sample} LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
+        if verbose >= 1: print(f"Writing {sample} LSB slice {z+z_offset}:{chunk_end+z_offset} ({i}-{z})");
         chunk_lsb = (chunk[:chunk_end-z]&0xff).astype(np.uint8)
-        print("chunk_lsb.max: ", chunk_lsb.max())
+        if verbose >= 1: print("chunk_lsb.max: ", chunk_lsb.max())
         chunk_lsb = chunk_lsb.copy2numpy()
-        print("chunk_lsb.copy2numpy().max: ", chunk_lsb.max())
+        if verbose >= 1: print("chunk_lsb.copy2numpy().max: ", chunk_lsb.max())
         h5tomo_lsb[z_offset+z:z_offset+chunk_end] = chunk_lsb[:]
         np.flush()
         
