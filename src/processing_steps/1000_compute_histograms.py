@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
-import pybind_kernels.histograms as histograms
+# TODO Move benchmarking out of this script.
+from lib.cpp.cpu_seq.histograms import axis_histogram as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
+from lib.cpp.cpu.histograms import axis_histogram as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu, field_histogram_resample
+from lib.cpp.gpu.histograms import axis_histogram as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
+from lib.cpp.cpu_seq.histograms import masked_minmax # TODO is it histogram specific?
 import numpy as np, h5py, timeit
 from datetime import datetime
 from PIL import Image
 from tqdm import tqdm
 from config.paths import *
 from config.constants import implant_threshold
-from helper_functions import block_info, load_block
+from lib.py.helpers import block_info, load_block, commandline_args
 
 NA = np.newaxis
+verbose = 1
 
 # TODO: Currently specialized to uint16_t
-masked_minmax = histograms.masked_minmax
+#masked_minmax = histograms.masked_minmax
 
-def axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
+def axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
     (Nz,Ny,Nx) = voxels.shape
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
 
@@ -28,25 +33,25 @@ def axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=None, 
         vmin, vmax = masked_minmax(voxels)
     else:
         vmin, vmax = ranges
-    print ("Entering call", datetime.now())
-    func(voxels, x_bins, y_bins, z_bins, r_bins, vmin, vmax, True)
-    print ("Exited call", datetime.now())
+    if verbose >= 1: print ("Entering call", datetime.now())
+    func(voxels, x_bins, y_bins, z_bins, r_bins, vmin, vmax, verbose >= 1)
+    if verbose >= 1: print ("Exited call", datetime.now())
     return x_bins, y_bins, z_bins, r_bins
 
 def field_histogram(voxels, field, field_bins, voxel_bins, ranges):
     bins = np.zeros((field_bins, voxel_bins), dtype=np.uint64)
     vmin, vmax = ranges
     # python3 histograms_tester.py 770c_pag  1849.98s user 170.42s system 512% cpu 6:33.95 total
-    histograms.field_histogram_par_cpu(voxels, field, bins, vmin, vmax)
+    field_histogram_par_cpu(voxels, field, bins, vmin, vmax)
     # python3 histograms_tester.py 770c_pag  1095.49s user 141.76s system 104% cpu 19:44.64 total
-    #histograms.field_histogram_seq_cpu(voxels, field, bins, vmin, vmax)
+    #field_histogram_seq_cpu(voxels, field, bins, vmin, vmax)
 
     return bins
 
 def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
     tolerance = 1e-5
-    schx, schy, schz, schr = axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
-    pchx, pchy, pchz, pchr = axes_histogram(voxels, func=histograms.axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    schx, schy, schz, schr = axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    pchx, pchy, pchz, pchr = axes_histogram(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
 
     dx = np.abs(schx - pchx).sum()
     dy = np.abs(schy - pchy).sum()
@@ -62,7 +67,7 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
         print (f'diff z = {dz}')
         print (f'diff r = {dr}')
 
-    pghx, pghy, pghz, pghr = axes_histogram(voxels, func=histograms.axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
+    pghx, pghy, pghz, pghr = axes_histogram(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
 
     dx = np.abs(schx - pghx).sum()
     dy = np.abs(schy - pghy).sum()
@@ -87,9 +92,9 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
-    par_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=histograms.axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
-    par_gpu = timeit.timeit(lambda: axes_histogram(voxels, func=histograms.axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    par_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    par_gpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
     print (f'Average of {runs} runs:')
     print (f'Seq CPU: {seq_cpu / runs:9.04f}')
     print (f'Par CPU: {par_cpu / runs:9.04f}')
@@ -142,9 +147,9 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
             
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            histograms.axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+            axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            histograms.field_histogram_resample_par_cpu(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
+            field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack            
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -165,10 +170,18 @@ if __name__ == '__main__':
     # Special parameter values:
     # - block_size == 0 means "do one full subvolume at the time, interpret z_offset as start-at-subvolume-number"
     # - n_blocks   == 0 means "all blocks"
+    # TODO move some of the constants / parameters out into the configuration
     sample, block_size, z_offset, n_blocks, suffix, \
-    mask, mask_scale, voxel_bins, field_bins = commandline_args({"sample":"<required>",
-                                                                 "block_size":256, "z_offset": 0, "n_blocks":0, "suffix":"",
-                                                                 "mask":"None", "mask_scale": 8, "voxel_bins":4096, "field_bins":2048})
+    mask, mask_scale, voxel_bins, field_bins, verbose = commandline_args({"sample" : "<required>",
+                                                                          "block_size" : 256, 
+                                                                          "z_offset" :  0, 
+                                                                          "n_blocks" : 0, 
+                                                                          "suffix" : "",
+                                                                          "mask" : "None", 
+                                                                          "mask_scale" :  8, 
+                                                                          "voxel_bins" : 4096, 
+                                                                          "field_bins" : 2048,
+                                                                          "verbose" : 1})
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
     (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
