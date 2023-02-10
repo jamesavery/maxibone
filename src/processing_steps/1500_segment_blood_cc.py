@@ -1,10 +1,10 @@
 import h5py, sys, os.path, pathlib, numpy as np, scipy.ndimage as ndi, tqdm, matplotlib.pyplot as plt
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
-from config.paths import hdf5_root, hdf5_root_fast, binary_root, commandline_args
-from pybind_kernels.histograms import load_slice
+from config.paths import hdf5_root, hdf5_root_fast, binary_root
+from lib.cpp.cpu import load_slice
 from scipy import ndimage as ndi
-from helper_functions import *
+from lib.py.helpers import block_info, commandline_args, update_hdf5
 
 sample, m, scheme, chunk_size = commandline_args({"sample":"<required>", "material":0, "scheme":"edt","chunk_size":256})
 
