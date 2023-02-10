@@ -1,10 +1,10 @@
 import h5py, sys, os.path, pathlib, numpy as np, scipy.ndimage as ndi, tqdm, matplotlib.pyplot as plt
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
-from config.paths import hdf5_root, binary_root, commandline_args
-from pybind_kernels.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
-from pybind_kernels.histograms import load_slice
-from helper_functions import update_hdf5, update_hdf5_mask
+from config.paths import hdf5_root, binary_root
+from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
+from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
+from lib.cpp.cpu.io import load_slice
 
 NA = np.newaxis
 
