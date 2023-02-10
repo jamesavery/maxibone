@@ -7,8 +7,9 @@ from tqdm import tqdm
 from math import pi, sqrt, exp
 from scipy import ndimage as ndi
 
-from config.paths import hdf5_root, binary_root, commandline_args
-import pybind_kernels.histograms as histograms
+from config.paths import hdf5_root, binary_root
+from lib.py.helpers import commandline_args
+from lib.cpp.cpu_seq import gauss_filter
 NA = np.newaxis
 
 impl_type = np.float32
@@ -52,7 +53,7 @@ if __name__ == '__main__':
         start = timeit.default_timer()
 
     print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={radius} coefficients)")
-    histograms.gauss_filter_par_cpu(implant_mask, implant_mask.shape, kernel, reps, result)
+    gauss_filter(implant_mask, implant_mask.shape, kernel, reps, result)
     if verify:
         print (f'Parallel C edition took {timeit.default_timer() - start} seconds')
 
