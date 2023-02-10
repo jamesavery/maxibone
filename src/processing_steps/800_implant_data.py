@@ -10,9 +10,11 @@ from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
 from numpy import array, newaxis as NA
 
 
-sample, scale = commandline_args({"sample":"<required>","scale":2})
+sample, scale, verbose = commandline_args({"sample" : "<required>",
+                                           "scale" : 2,
+                                           "verbose" : 1})
 
-print(f"Loading principal axis and cylinder frame-of-references")
+if verbose >= 1: print(f"Loading principal axis and cylinder frame-of-references")
 h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r")
 try:    
     h5g = h5meta["implant-FoR"]
@@ -26,7 +28,7 @@ except Exception as e:
     print(f"Make sure you have run implant-FoR.py for {sample} at scale {scale}x")
     sys.exit(-1)
 
-print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
+if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
 try:
     implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
     implant      = implant_file["implant/mask"][:]
@@ -49,7 +51,7 @@ profile            = np.zeros((n_bins,), dtype=np.float32)
 
 bbox_flat  = tuple(bbox.flatten())
 Muvwp_flat = tuple(Muvwp.flatten())
-print(f"Filling implant mask")
+if verbose >= 1: print(f"Filling implant mask")
 fill_implant_mask(implant.astype(np.uint8,copy=False),
                   voxel_size,bbox_flat, rsqr_fraction,
                   Muvwp_flat,
