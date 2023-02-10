@@ -7,11 +7,11 @@ from lib.py.helpers import commandline_args, row_normalize, update_hdf5
 na = np.newaxis
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, region_mask, field, stride, debug = commandline_args({"sample":"<required>",
-                                                              "region_mask":"<required>",
-                                                              "field":"edt",
-                                                              "stride": 4,
-                                                              "debug":8
+sample, region_mask, field, stride, verbose = commandline_args({"sample":"<required>",
+                                                                "region_mask":"<required>",
+                                                                "field":"edt",
+                                                                "stride": 4,
+                                                                "verbose":8
 })
 
 f_hist   = np.load(f"{hist_path}/{sample}/bins-{region_mask}.npz")
@@ -32,7 +32,7 @@ hist = f_hist["field_bins"][field_id[field]][::stride,::stride]
 #hist = hist/(sums + (sums==0))
 lab  = f_labels[field][::stride,::stride]
 
-if debug==1:
+if verbose >= 2:
     plt.imshow(lab)
     plt.show()
     
@@ -61,7 +61,7 @@ goodix  = amx>0
 
 print(f"Optimizing distributions for {field} with {lab.max()} materials")
 
-if (debug&7):
+if (verbose >= 3):
     plt.ion()
     fig = plt.figure(figsize=(15,15))
     ax = fig.add_subplot(111)
@@ -105,7 +105,7 @@ def opt_all(abcd,*args):
     Ecloseness = np.sum(1/(np.abs(C[1:]-C[:-1])+0.001))
     
 #    print(np.round(E1,2), np.round(1e2*Ecloseness,2))
-    if(debug==2):
+    if(verbose >= 3):
         line1.set_ydata(model)
         ax.set_title(f"{x}: a = {np.round(A*A,1)}, b = {np.round(B*B,1)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
         ax.relim()
@@ -132,7 +132,7 @@ for i,x in enumerate(xs):
     if(n>0):
         abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
-        if (debug==1):
+        if (verbose == 2):
             model = powers(vs,abcd0)        
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
@@ -141,7 +141,7 @@ for i,x in enumerate(xs):
             fig.canvas.draw()
             fig.canvas.flush_events()
 
-        if(debug==2):
+        if(verbose == 3):
             ax.set_title(f"x = {x}")
             line2.set_ydata(hist[i])
 
@@ -180,7 +180,7 @@ for i,x in enumerate(xs):
 #            print(f"ABCDm = {ABCDm}")
             
         
-        if(debug==4):
+        if(verbose == 5):
             colors = ['r','orange']
             lines  = [line3,line4]
             model = powers(vs,abcd)
@@ -213,7 +213,7 @@ for i,gi in enumerate(ABCD_is):
     hist_modeled[gi] = np.sum(model,axis=0)
     hist_m[ms,gi] = model
 
-if (debug&8):
+if (verbose == 6):
     fig = plt.figure(figsize=(10,10))
     axarr = fig.subplots(2,2)
     fig.suptitle(f'{sample} {region_mask}') # or plt.suptitle('Main title')
