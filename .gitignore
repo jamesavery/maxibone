@@ -19,3 +19,6 @@ src/meow/runner_processing/*
 # Compiled files
 *.so
 *.so.dSYM
+
+# Ignore the $BONE_DATA symlinks, as they're only there for convinience in vscode
+data_*
