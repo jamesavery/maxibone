@@ -6,7 +6,11 @@ from lib.cpp.cpu import load_slice
 from scipy import ndimage as ndi
 from lib.py.helpers import block_info, commandline_args, update_hdf5
 
-sample, m, scheme, chunk_size = commandline_args({"sample":"<required>", "material":0, "scheme":"edt","chunk_size":256})
+sample, m, scheme, chunk_size, verbose = commandline_args({"sample" : "<required>",
+                                                           "material" : 0,
+                                                           "scheme" : "edt",
+                                                           "chunk_size" : 256,
+                                                           "verbose" : 1})
 
 scales = [32, 16, 8, 4, 2]
 
