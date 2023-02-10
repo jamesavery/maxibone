@@ -10,9 +10,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from lib.py.helpers import block_info, commandline_args, load_block
 na = np.newaxis
-
-debug = True
-
+verbose = 1
 
 def load_probabilities(path, group, axes_names, field_names, m):
     try:
@@ -26,7 +24,7 @@ def load_probabilities(path, group, axes_names, field_names, m):
         sys.exit(-1)
 
 def load_value_ranges(path, group):
-    print(f"Reading value_ranges from {group} in {path}\n")
+    if verbose >= 1: print(f"Reading value_ranges from {group} in {path}\n")
     try:
         f = h5py.File(path, 'r')
         return f[group]['value_ranges'][:].astype(int)
@@ -39,14 +37,14 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__': 
-    sample, block_start, n_blocks, region_mask, group, mask_scale, scheme, debug_output = commandline_args({'sample':'<required>',
-                                                                                   "block_start":0,
-                                                                                   "n_blocks":0,
-                                                                                   'region_mask': 'bone_region',
-                                                                                   'group': 'otsu_separation',
-                                                                                   'mask_scale': 8,
-                                                                                   'scheme':"edt", #MIDLERTIDIG
-                                                                                   'debug_output': None})
+    sample, block_start, n_blocks, region_mask, group, mask_scale, scheme, verbose = commandline_args({'sample' : '<required>',
+                                                                                                       "block_start" : 0,
+                                                                                                       "n_blocks" : 0,
+                                                                                                       'region_mask' :  'bone_region',
+                                                                                                       'group' :  'otsu_separation',
+                                                                                                       'mask_scale' :  8,
+                                                                                                       'scheme' : "edt", #MIDLERTIDIG
+                                                                                                       'verbose' : 1})
 
     # Iterate over all subvolumes
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=0, n_blocks=n_blocks, z_offset=block_start)
@@ -113,9 +111,8 @@ if __name__ == '__main__':
             #     (zstart, 0, 0), (zend, sy, sx)
             # )
 
-            if debug:
-                print (f'Segmentation has min {result.min()} and max {result.max()}')
+            if verbose >= 2: print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            print(f"Writing results from block {b}")
+            if verbose >= 1: print(f"Writing results from block {b}")
             write_slice(result, zstart*Ny*Nx, output_file)
 
