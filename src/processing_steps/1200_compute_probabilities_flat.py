@@ -4,16 +4,16 @@ import pathlib
 sys.path.append(sys.path[0]+"/../")
 #from piecewise_linear import piecewiselinear_matrix, piecewiselinear, smooth_fun as smooth_fun_l
 from lib.py.piecewise_cubic import piecewisecubic_matrix, piecewisecubic, smooth_fun as smooth_fun_c
-from config.paths import commandline_args, hdf5_root as hdf5_root
-from lib.py.helpers import update_hdf5, row_normalize
+from config.paths import hdf5_root
+from lib.py.helpers import commandline_args, row_normalize, update_hdf5
 na = np.newaxis
-
+verbose = 1
 
 # TODO: Til fælles fil.
 def save_probabilities(Ps,sample, region_mask,field_name, value_ranges, prob_method):
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
-    print(f"output_path = {output_path}")
-    print(f"group_name1 = {prob_method}/{region_mask}\n" +
+    if verbose >= 1: print(f"output_path = {output_path}")
+    if verbose >= 1: print(f"group_name1 = {prob_method}/{region_mask}\n" +
           f"group_name2 = {prob_method}/{region_mask}/{field_name}")
     update_hdf5(
         output_path,
@@ -22,7 +22,7 @@ def save_probabilities(Ps,sample, region_mask,field_name, value_ranges, prob_met
         attributes = {}
     )
     for m,P in enumerate(Ps):
-        print(f"Storing {P.shape} probabilities P{m}")
+        if verbose >= 1: print(f"Storing {P.shape} probabilities P{m}")
         update_hdf5(
             output_path,
             group_name = f'{prob_method}/{region_mask}/{field_name}',
@@ -47,11 +47,11 @@ def evaluate_2d(G, xs, vs):
 
 
 hist_path = f"{hdf5_root}/processed/histograms/"
-sample, region_mask, field_name, n_segments_c, debug = commandline_args({"sample":"<required>",
-                                                                         "region_mask":"<required>",
-                                                                         "field_name":"edt",
-                                                                         "n_segments": 4,
-                                                                         "debug":8
+sample, region_mask, field_name, n_segments_c, verbose = commandline_args({"sample" : "<required>",
+                                                                           "region_mask" : "<required>",
+                                                                           "field_name" : "edt",
+                                                                           "n_segments" :  4,
+                                                                           "verbose" : 8
 })
 
 hist_path = f"{hdf5_root}/processed/histograms/"
@@ -150,7 +150,7 @@ save_probabilities(P_m,sample, region_mask,field_name, value_ranges, "optimized_
 
     
 ##---- TODO: STICK THE DEBUG-PLOTTING FUNCTIONS SOMEWHERE CENTRAL
-if (debug&7):
+if (verbose & 7):
     plt.ion()
     fig = plt.figure(figsize=(15,15))
     ax = fig.add_subplot(111)
@@ -162,7 +162,7 @@ if (debug&7):
     plt.show()
 
     
-if(debug==4):
+if(verbose == 4):
     colors = ['b','r']
     lines  = [line3,line4]
 
@@ -182,7 +182,7 @@ if(debug==4):
         fig.canvas.flush_events()
 
 
-if (debug==8):
+if (verbose == 8):
     fig = plt.figure(figsize=(10,10))
     axarr = fig.subplots(3,2)
     fig.suptitle(f'{sample} {region_mask}') 
@@ -209,7 +209,7 @@ if (debug==8):
 
 
 
-if (debug==10):
+if (verbose == 10):
     fig = plt.figure(figsize=(15,15))
     axarr = fig.subplots(2,2)
     fig.suptitle(f'{sample} {region_mask}') 
