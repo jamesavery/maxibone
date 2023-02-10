@@ -8,7 +8,10 @@ from lib.cpp.cpu.io import load_slice
 
 NA = np.newaxis
 
-sample, scale, chunk_size = commandline_args({"sample":"<required>","scale":8, "chunk_size":256})
+sample, scale, chunk_size, verbose = commandline_args({"sample" : "<required>",
+                                                       "scale" : 8, 
+                                                       "chunk_size" : 256,
+                                                       "verbose" : 1})
 
 # Load metadata. TODO: Clean up, make automatic function.
 meta_filename = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
@@ -24,7 +27,7 @@ global_vmax = np.max(h5meta['subvolume_range'][:,1])
 values      = np.linspace(global_vmin,global_vmax,2**16)
 implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
 
-print(f"Reading metadata from {meta_filename}.\n"+
+if verbose >= 1: print(f"Reading metadata from {meta_filename}.\n"+
       f"volume_matching_shifts = {vm_shifts}\n"+
       f"full_Nz,Ny,Nx = {full_Nz,Ny,Nx}\n"+
       f"Nz            = {Nz}\n"+
@@ -44,9 +47,9 @@ for z in tqdm.tqdm(range(0,nz,chunk_size),"Loading and thresholding voxels"):
     noisy_implant[z:z+chunk_length] = voxel_chunk[:chunk_length] >= implant_threshold_u16
     
                                                   
-print(f"Computing connected components")
+if verbose >= 1: print(f"Computing connected components")
 label, n_features = ndi.label(noisy_implant)
-print(f"Counting component volumes")
+if verbose >= 1: print(f"Counting component volumes")
 bincnts           = np.bincount(label[label>0],minlength=n_features+1)
 
 largest_cc_ix     = np.argmax(bincnts)
@@ -54,7 +57,7 @@ implant_mask=(label==largest_cc_ix)
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-print(f"Writing largest connected component to {output_dir}/{sample}.h5")
+if verbose >= 1: print(f"Writing largest connected component to {output_dir}/{sample}.h5")
 
 update_hdf5_mask(f"{output_dir}/{sample}.h5",
                  group_name="implant",
