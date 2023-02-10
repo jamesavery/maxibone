@@ -60,17 +60,21 @@ case $step in
 
     11)
 	for b $(seq 0 $nblocks); do python3 histogram_processing/optimize_distributions_flat.py $sample bone_region$b edt 4 0; done
+	;;
+
+    12)
 	for b $(seq 0 $nblocks); do python3 histogram_processing/compute_probabilities_flat.py $sample bone_region$b edt 10 0; done
 	;;    
 
-    12)
+    13)
 	python3 scripts/segment-from-distributions.py $sample 0 0 bone_region optimized_distributions
 	;;
 
-    13) for m in 0 1; do python3 preprocess/rescale-cupy-bin.py $sample segmented/P$m ; done
+    14) 
+	for m in 0 1; do python3 preprocess/rescale-cupy-bin.py $sample segmented/P$m ; done
 	;;
 
-    14)
+    15)
 	python3 segmentation/segment-blod-cc.py $sample
 	;;
 
