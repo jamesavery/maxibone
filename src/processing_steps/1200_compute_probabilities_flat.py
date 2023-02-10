@@ -1,10 +1,11 @@
 import os, sys, tqdm, numpy as np, matplotlib.pyplot as plt, numpy.linalg as la, scipy.ndimage as ndi, scipy.optimize as opt, time
+import h5py
+import pathlib
 sys.path.append(sys.path[0]+"/../")
 #from piecewise_linear import piecewiselinear_matrix, piecewiselinear, smooth_fun as smooth_fun_l
-from piecewise_cubic import piecewisecubic_matrix, piecewisecubic, smooth_fun as smooth_fun_c
+from lib.py.piecewise_cubic import piecewisecubic_matrix, piecewisecubic, smooth_fun as smooth_fun_c
 from config.paths import commandline_args, hdf5_root as hdf5_root
-from distributions import *
-from helper_functions import *
+from lib.py.helpers import update_hdf5, row_normalize
 na = np.newaxis
 
 
