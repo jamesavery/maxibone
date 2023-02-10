@@ -1,12 +1,14 @@
 import os, sys, pathlib, h5py, numpy as np, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
-import pybind_kernels.histograms as histograms
-import pybind_kernels.label as label
-from config.paths import binary_root, hdf5_root_fast as hdf5_root, commandline_args
+#import pybind_kernels.histograms as histograms
+#import pybind_kernels.label as label
+from lib.cpp.gpu.label import material_prob_justonefieldthx
+from lib.cpp.cpu.io import write_slice
+from config.paths import binary_root, hdf5_root_fast as hdf5_root
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from PIL import Image
-from helper_functions import block_info, load_block
+from lib.py.helpers import block_info, commandline_args, load_block
 na = np.newaxis
 
 debug = True
@@ -20,7 +22,7 @@ def load_probabilities(path, group, axes_names, field_names, m):
         prob_file.close()
         return P_axes, P_fields
     except Exception as e:
-        print(f"Couldn't load {group}/{name}/P{m} from {path}: {e}")
+        print(f"Couldn't load {group}/{axes_names}|{field_names}/P{m} from {path}: {e}")
         sys.exit(-1)
 
 def load_value_ranges(path, group):
@@ -97,7 +99,7 @@ if __name__ == '__main__':
             result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint16)
 
 
-            label.material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
+            material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
                                                 (vmin,vmax),(fmin,fmax),
                                                 (zstart,0,0), (zend,Ny,Nx));
 
@@ -115,5 +117,5 @@ if __name__ == '__main__':
                 print (f'Segmentation has min {result.min()} and max {result.max()}')
 
             print(f"Writing results from block {b}")
-            histograms.write_slice(result, zstart*Ny*Nx, output_file)
+            write_slice(result, zstart*Ny*Nx, output_file)
 
