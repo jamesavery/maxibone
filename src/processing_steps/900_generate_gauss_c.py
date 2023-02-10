@@ -21,25 +21,30 @@ def toint(arr, dtype=np.uint8):
 
 # sigma is given in physical units, i.e. in micrometers, in order to give scale-invariant results.
 if __name__ == '__main__':
-    sample, sigma, reps, scale, voxel_size_1x, verify, debug = commandline_args({"sample":"<required>","sigma":40.0,"repititions":10,"scale":2,
-                                                                                 "voxel_size_1x":1.85, "verify_against_ndimage":False, "debug_images":True})
-    print(f"Diffusion approximation by repeated Gaussian blurs.\n")
+    sample, sigma, reps, scale, voxel_size_1x, verify, verbose = commandline_args({"sample":"<required>",
+                                                                                   "sigma":40.0,
+                                                                                   "repititions":10,
+                                                                                   "scale":2,
+                                                                                   "voxel_size_1x":1.85, 
+                                                                                   "verify_against_ndimage":False, 
+                                                                                   "verbose":1})
+    if verbose >= 1: print(f"Diffusion approximation by repeated Gaussian blurs.\n")
     voxel_size   = voxel_size_1x*scale
     sigma_voxels = sigma/voxel_size
-    print(f"At scale {scale}x, voxel size is {voxel_size} micrometers.")
-    print(f"Using sigma={sigma} micrometers, sigma_voxels={sigma_voxels}.")
+    if verbose >= 1: print(f"At scale {scale}x, voxel size is {voxel_size} micrometers.")
+    if verbose >= 1: print(f"Using sigma={sigma} micrometers, sigma_voxels={sigma_voxels}.")
 
     output_dir = f"{binary_root}/fields/implant-gauss/{scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
+    if verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r") as f:
         implant_mask = f['implant_solid/mask'][:]
 
     nz,ny,nx = implant_mask.shape
-    print(f"Implant mask has shape {implant_mask.shape}")
+    if verbose >= 1: print(f"Implant mask has shape {implant_mask.shape}")
 
-    if debug:
+    if verbose >= 2:
         print(f"Writing PNGs of implant mask slices to {output_dir}")
         Image.fromarray(toint(implant_mask[:,:,nx//2].astype(impl_type))).save(f"{output_dir}/{sample}-mask-yz.png")
         Image.fromarray(toint(implant_mask[:,ny//2,:].astype(impl_type))).save(f"{output_dir}/{sample}-mask-xz.png")
@@ -52,20 +57,20 @@ if __name__ == '__main__':
     if verify:
         start = timeit.default_timer()
 
-    print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={radius} coefficients)")
+    if verbose >= 1: print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={radius} coefficients)")
     gauss_filter(implant_mask, implant_mask.shape, kernel, reps, result)
     if verify:
-        print (f'Parallel C edition took {timeit.default_timer() - start} seconds')
+        if verbose >= 1: print (f'Parallel C edition took {timeit.default_timer() - start} seconds')
 
     xs = np.linspace(-1,1,nx)
     rs = np.sqrt(xs[NA,NA,:]**2 + xs[NA,:,NA]**2)
     cylinder_mask = (rs<=1)
 
-    print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
+    if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
     np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
 
     
-    if debug:
+    if verbose >= 2:
         print(f"Debug: Writing PNGs of result slices to {output_dir}")
         Image.fromarray(toint(result[nz//2,:,:])).save(f'{output_dir}/{sample}-gauss-xy.png')
         Image.fromarray(toint(result[:,ny//2,:])).save(f'{output_dir}/{sample}-gauss-xz.png')
@@ -82,7 +87,7 @@ if __name__ == '__main__':
             control[implant_mask] = 1
         print (f'ndimage edition took {timeit.default_timer() - start} seconds')
         np.save(f'{output_dir}/{sample}_ndimage.npy',control)
-        if debug:
+        if verbose >= 2:
             Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
             Image.fromarray(toint(control[:,ny//2,:])).save(f'{output_dir}/{sample}-control-xz.png')
             Image.fromarray(toint(control[:,:,nx//2])).save(f'{output_dir}/{sample}-control-yz.png')
@@ -103,21 +108,21 @@ if __name__ == '__main__':
                 plt.savefig(f'{output_dir}/{sample}-diff-{name}.png')
 
 
-    print(f"Computing Euclidean distance transform.")
+    if verbose >= 1: print(f"Computing Euclidean distance transform.")
     fedt = edt.edt(~implant_mask,parallel=16)
     del implant_mask
     
     edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
     pathlib.Path(edt_output_dir).mkdir(parents=True, exist_ok=True)
-    print(f"Writing EDT-field to {edt_output_dir}/{sample}.npy")
+    if verbose >= 1: print(f"Writing EDT-field to {edt_output_dir}/{sample}.npy")
     np.save(f'{edt_output_dir}/{sample}.npy', toint(fedt*cylinder_mask,np.uint16)*cylinder_mask)
                 
 
     mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"    
-    print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")                
+    if verbose >= 1: print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")                
     pathlib.Path(mixed_output_dir).mkdir(parents=True, exist_ok=True)
     result = (result-fedt/(fedt.max()))*cylinder_mask
     result -= result.min()
     result /= result.max()
-    print(f"Result (min,max) = ({result.min(),result.max()})")
+    if verbose >= 1: print(f"Result (min,max) = ({result.min(),result.max()})")
     np.save(f'{mixed_output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)    
