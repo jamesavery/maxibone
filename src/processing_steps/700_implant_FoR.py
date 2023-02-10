@@ -11,6 +11,8 @@ import vedo, vedo.pointcloud as pc
 from lib.py.helpers import update_hdf5, update_hdf5_mask, commandline_args
 from numpy import array, newaxis as NA
 
+verbose = 1
+
 # Hvor skal disse hen?
 def circle_center(p0,p1,p2):
     m1, m2               = (p0+p1)/2, (p0+p2)/2   # Midpoints 
@@ -56,12 +58,12 @@ def open_3d(image, r):
 
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
-    print(f"Broadcasting coordinates for {shape} image")
+    if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
     zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
                  np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
                  np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
     zyxs = np.stack([zs,ys,xs],axis=-1)
-    print(f"Done")
+    if verbose >= 1: print(f"Done")
     return zyxs
 
 
@@ -105,7 +107,7 @@ def homogeneous_transform(xs, M):
     hxs[...,:3] = xs;
     hxs[..., 3]  = 1
 
-    print(hxs.shape, M.shape)
+    if verbose >= 1: print(hxs.shape, M.shape)
     return hxs @ M.T
 
 
@@ -273,24 +275,26 @@ def figure_FoR_voxels(name,voxels,debug=True):
 
         
 if __name__ == "__main__":
-    sample, scale, debug = commandline_args({"sample":"<required>","scale":8,"debug":1})
+    sample, scale, verbose = commandline_args({"sample" : "<required>",
+                                               "scale" : 8,
+                                               "verbose" : 1})
     
     if(scale<8):
-        print(f"Selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
+        if verbose >= 1: print(f"Selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
         #sys.exit(-1)
 
     ## STEP 0: LOAD MASKS, VOXELS, AND METADATA
     image_output_dir = f"{hdf5_root}/processed/implant-FoR/{sample}/"
-    print(f"Storing all debug-images to {image_output_dir}")    
+    if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")    
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
     
-    print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
+    if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
     implant      = implant_file["implant/mask"][:]
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
     implant_file.close()
     
-    print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
+    if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
     nz,ny,nx = implant.shape
@@ -298,7 +302,7 @@ if __name__ == "__main__":
     ### STEP 1: COMPUTE IMPLANT PRINCIPAL AXES FRAME OF REFERENCE
     ## STEP1A: DIAGONALIZE MOMENT OF INTERTIA MATRIX TO GET PRINCIPAL AXES
     cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
-    print(f"Center of mass is: {cm}")
+    if verbose >= 1: print(f"Center of mass is: {cm}")
     IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
     ls,E  = la.eigh(IM)
 
@@ -320,7 +324,7 @@ if __name__ == "__main__":
     UVW = E.T
     u_vec,v_vec,w_vec = UVW
 
-    figure_FoR_UVW(debug)
+    figure_FoR_UVW(verbose >= 2)
 
     ### STEP 2: COMPUTE PHANTOM SCREW GEOMETRY
     #
@@ -397,7 +401,7 @@ if __name__ == "__main__":
     implant_length_voxels = implant_length/voxel_size
     implant_radius_voxels = implant_radius/voxel_size
     
-    figure_FoR_cylinder(debug)
+    figure_FoR_cylinder(verbose >= 2)
 
     ### 3: In the cylinder coordinates, find radii and angle ranges to fill in the "holes" in the implant and make it solid
     ###    (More robust than closing operations, as we don't want to effect the screw threads).
@@ -412,7 +416,7 @@ if __name__ == "__main__":
 
     #TODO: Local circle figure (instead of showing global fit on local slice, which isn't snug)
     bbox_uvwp = [Up_min,Up_max,Vp_min,Vp_max,Wp_min,Wp_max]
-    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,debug)    
+    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,verbose >= 2)    
 
     ## 3B: Profile of radii and angles
     implant_thetas = np.arctan2(implant_Vps,implant_Wps)
@@ -453,8 +457,8 @@ if __name__ == "__main__":
     solid_implant_UVWps   = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
     Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0],200)
 
-    figure_FoR_profiles(debug)    
-    figure_FoR_voxels("solid_implant",solid_implant,debug)
+    figure_FoR_profiles(verbose >= 2)    
+    figure_FoR_voxels("solid_implant",solid_implant,verbose >= 2)
 
     back_mask  = (Ws<0)
     front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
@@ -462,26 +466,26 @@ if __name__ == "__main__":
     # back_part = voxels*back_mask
    
     front_part = voxels*front_mask
-    figure_FoR_voxels("back_part", voxels*back_mask, debug) 
-    figure_FoR_voxels("front_part",voxels*front_mask, debug) 
+    figure_FoR_voxels("back_part", voxels*back_mask, verbose >= 2) 
+    figure_FoR_voxels("front_part",voxels*front_mask, verbose >= 2) 
 
 
     Cp_zyx = Cp[::-1]*voxel_size
 
     Muvwp = zyx_to_UVWp_transform()
-    print(f"MUvpw = {np.round(Muvwp,2)}")
-    print(f"UVW  = {np.round(UVW,2)}")
-    print(f"UVWp = {np.round(UVWp,2)}")
-    print(f"Cp = {np.round(Cp_zyx,2)}")
-    print(f"cp = {np.round(cp,2)}")
-    print(f"cm = {np.round(cm,2)}")
+    if verbose >= 1: print(f"MUvpw = {np.round(Muvwp,2)}")
+    if verbose >= 1: print(f"UVW  = {np.round(UVW,2)}")
+    if verbose >= 1: print(f"UVWp = {np.round(UVWp,2)}")
+    if verbose >= 1: print(f"Cp = {np.round(Cp_zyx,2)}")
+    if verbose >= 1: print(f"cp = {np.round(cp,2)}")
+    if verbose >= 1: print(f"cm = {np.round(cm,2)}")
 
-    figure_FoR_UVWp(debug)
+    figure_FoR_UVWp(verbose >= 2)
 
-    print(f"Physical Cp = {Cp[::-1]*voxel_size}")
+    if verbose >= 1: print(f"Physical Cp = {Cp[::-1]*voxel_size}")
 
     output_dir = f"{hdf5_root}/hdf5-byte/msb/"
-    print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
+    if verbose >= 1: print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
     update_hdf5(f"{output_dir}/{sample}.h5",
                 group_name="implant-FoR",
                 datasets={"UVW":UVW,
@@ -514,32 +518,32 @@ if __name__ == "__main__":
 
     output_dir = f"{hdf5_root}/masks/{scale}x/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    print(f"Saving implant_solid mask to {output_dir}/{sample}.h5")
+    if verbose >= 1: print(f"Saving implant_solid mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="implant_solid",
                      datasets={"mask":solid_implant},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
-    print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
+    if verbose >= 1: print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="implant_shell",
                      datasets={"mask":implant_shell_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
-    print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
+    if verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="cut_cylinder_air",
                      datasets={"mask":back_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
 
-    print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
+    if verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="cut_cylinder_bone",
                      datasets={"mask":front_mask},
                      attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
 
-    print(f"Computing bone region")
+    if verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 256)
     hist[0] = 0
     peaks, info = signal.find_peaks(hist,height=0.5*hist.max())
@@ -547,7 +551,7 @@ if __name__ == "__main__":
     try:
         p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
         midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
-        print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
+        if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
         
         bone_mask1 = front_part > midpoint                                                                                                                                                                                                                                       
         closing_diameter, opening_diameter = 400, 300           # micrometers                                                                                                                                                                   
@@ -564,10 +568,10 @@ if __name__ == "__main__":
     
         bone_region_mask = largest_cc_of(bone_region_mask)
     except:
-        print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
+        if verbose >= 1: print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
         bone_region_mask = front_mask
     
-        print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
+        if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
         update_hdf5_mask(f"{output_dir}/{sample}.h5",
                          group_name="bone_region",
                          datasets={"mask":bone_region_mask},
