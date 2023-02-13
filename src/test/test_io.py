@@ -3,7 +3,9 @@ Unittests for the I/O pybind kernels.
 '''
 import sys
 sys.path.append(sys.path[0]+"/../lib/cpp")
-import cpu_seq.io as io
+import cpu_seq.io as io_cpu_seq
+import cpu.io as io_cpu
+import gpu.io as io_gpu
 import numpy as np
 import tempfile
 import os
@@ -14,50 +16,52 @@ dtypes_to_test = [np.uint8, np.uint16, np.uint32, np.uint64, np.float32, np.floa
 tmp_folder = tempfile._get_default_tempdir()
 tmp_filename = next(tempfile._get_candidate_names())
 tmp_file = f'{tmp_folder}/{tmp_filename}'
-dim_size = 16
+dim_size = 128
 dim_shape = (dim_size, dim_size, dim_size)
 partial_factor = 4
+impls = [io_cpu_seq] #, io_cpu, io_gpu]
 
 def random(shape, dtype):
     rnds = np.random.random(shape) * 100
     return rnds > .5 if dtype == bool else rnds.astype(dtype)
 
+@pytest.mark.parametrize("impl", impls)
 @pytest.mark.parametrize("dtype", dtypes_to_test)
-def test_dtype(dtype):
+def test_dtype(impl, dtype):
     individual_tmp_file = f'{tmp_file}.{dtype.__name__}'
     if os.path.exists(individual_tmp_file):
         os.remove(individual_tmp_file)
     data = random(dim_shape, dtype)
-    data[0,0,1] = False
     partial = dim_size // partial_factor
 
     # Write out a new file
-    io.write_slice(data, individual_tmp_file, (0,0,0), dim_shape)
+    impl.write_slice(data, individual_tmp_file, (0,0,0), dim_shape)
     assert os.path.getsize(individual_tmp_file) == data.nbytes
 
     # Read back and verify in chunks
-    read_data = np.zeros((partial, dim_size, dim_size), dtype=dtype)
+    read_data = np.empty((partial, dim_size, dim_size), dtype=dtype)
     for i in range(partial_factor):
-        io.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
+        impl.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
         assert np.allclose(data[i*partial:(i+1)*partial], read_data)
 
     # Append another layer
     data = np.append(data, random((partial, dim_size, dim_size), dtype), axis=0)
-    io.write_slice(data[dim_size:], individual_tmp_file, (dim_size,0,0), data.shape)
+    impl.write_slice(data[dim_size:], individual_tmp_file, (dim_size,0,0), data.shape)
     assert os.path.getsize(individual_tmp_file) == data.nbytes
 
     # Read back and verify in chunks
     for i in range(partial_factor+1):
-        io.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
+        impl.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
         assert np.allclose(data[i*partial:(i+1)*partial], read_data)
 
     # Overwrite one of the "middle" chunks
     data[partial:2*partial] = random((partial, dim_size, dim_size), dtype)
-    io.write_slice(data[partial:partial*2], individual_tmp_file, (partial,0,0), data.shape)
+    impl.write_slice(data[partial:partial*2], individual_tmp_file, (partial,0,0), data.shape)
+    assert os.path.getsize(individual_tmp_file) == data.nbytes
 
     # Read back and verify in chunks
     for i in range(partial_factor+1):
-        io.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
+        impl.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
         assert np.allclose(data[i*partial:(i+1)*partial], read_data)
     
     # Write past where the file ends
@@ -76,6 +80,7 @@ def test_dtype(dtype):
     os.remove(individual_tmp_file)
 
 if __name__ == '__main__':
-    for dtype in dtypes_to_test:
-        print (f'Testing {dtype.__name__}')
-        test_dtype(dtype)
+    for impl in impls:
+        for dtype in dtypes_to_test:
+            print (f'Testing {impl.__name__} on {dtype.__name__}')
+            test_dtype(impl, dtype)
