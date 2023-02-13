@@ -160,5 +160,5 @@ PYBIND11_MODULE(geometry, m) {
     m.def("cylinder_projection",  &python_api::cylinder_projection);
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
-    m.def("compute_front_mask", &python_api::compute_front_mask);
+    m.def("compute_front_mask",   &python_api::compute_front_mask);
 }
