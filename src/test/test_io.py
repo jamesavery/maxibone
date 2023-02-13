@@ -59,6 +59,19 @@ def test_dtype(dtype):
     for i in range(partial_factor+1):
         io.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
         assert np.allclose(data[i*partial:(i+1)*partial], read_data)
+    
+    # Write past where the file ends
+    impl.write_slice(data, individual_tmp_file, (data.shape[0]*2,0,0), data.shape)
+    assert os.path.getsize(individual_tmp_file) == 3 * data.nbytes
+
+    # Check that the old data remains, the middle data is zeros, and that the new data is the same
+    read_data = np.empty_like(data)
+    for i in range(3):
+        impl.load_slice(read_data, individual_tmp_file, (i*data.shape[0],0,0), data.shape)
+        if i != 1:
+            assert np.allclose(data, read_data)
+        else:
+            assert np.allclose(np.zeros_like(data), read_data)
 
     os.remove(individual_tmp_file)
 
