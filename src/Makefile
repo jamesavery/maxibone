@@ -41,5 +41,8 @@ $(foreach PLATFORM, $(PLATFORMS), \
 test: all
 	$(PYTHON) -m pytest -n auto test
 
+test_%: test/test_%.py all
+	$(PYTHON) -m pytest -n auto $<
+
 clean:
 	rm -rf $(CLEANUP) __pycache__ test/__pycache__ .pytest_cache lib/cpp/**/*.so
