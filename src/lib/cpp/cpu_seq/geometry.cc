@@ -35,7 +35,7 @@ array<real_t,3> center_of_mass(const input_ndarray<mask_type> voxels) {
     return array<real_t,3>{ rcmx, rcmy, rcmz };
 }
 
-array<real_t,9> inertia_matrix_serial(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
+array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
     real_t
         Ixx = 0, Ixy = 0, Ixz = 0,
                  Iyy = 0, Iyz = 0,
@@ -44,15 +44,24 @@ array<real_t,9> inertia_matrix_serial(const input_ndarray<mask_type> &voxels, co
     ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
 
     print_timestamp("inertia_matrix_serial start");
-    for (int64_t X=0,k=0;X<Nx;X++) {
-        for (int64_t Y=0;Y<Ny;Y++) {
-            for (int64_t Z=0;Z<Nz;Z++,k++) {
-                real_t x = X-cm[0], y = Y-cm[1], z = Z-cm[2];
+
+    int64_t k = 0;
+    for (int64_t X = 0; X < Nx; X++) {
+        for (int64_t Y = 0; Y < Ny; Y++) {
+            for (int64_t Z = 0; Z < Nz; Z++) {
+                mask_type m = voxels.data[k];
+                k++;
                 
-                real_t m = voxels.data[k];
-                Ixx += m*(y*y+z*z);
-                Iyy += m*(x*x+z*z);
-                Izz += m*(x*x+y*y);    
+                // m guards this, and then branches are removed
+                //if (m != 0) 
+                real_t 
+                    x = X - cm[0], 
+                    y = Y - cm[1], 
+                    z = Z - cm[2];
+                
+                Ixx += m * (y*y + z*z);
+                Iyy += m * (x*x + z*z);
+                Izz += m * (x*x + y*y);    
                 Ixy -= m * x*y;
                 Ixz -= m * x*z;
                 Iyz -= m * y*z;
@@ -60,52 +69,13 @@ array<real_t,9> inertia_matrix_serial(const input_ndarray<mask_type> &voxels, co
         }
     }
   
-    print_timestamp("inertia_matrix_serial end");      
+    print_timestamp("inertia_matrix_serial end");
+
     return array<real_t,9> {
         Ixx, Ixy, Ixz,
         Ixy, Iyy, Iyz,
         Ixz, Iyz, Izz
     };
-}
-
-array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
-    // nvc++ doesn't support OpenACC 2.7 array reductions yet, so must name each element.
-    real_t
-        M00 = 0, M01 = 0, M02 = 0,
-                 M11 = 0, M12 = 0,
-                          M22 = 0;
-  
-    size_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    ssize_t image_length = Nx*Ny*Nz;
-
-    print_timestamp("inertia_matrix start");    
-    for (ssize_t block_start = 0; block_start < image_length; block_start += acc_block_size) {
-        const mask_type *buffer = voxels.data + block_start;
-        ssize_t block_length    = min(acc_block_size, image_length-block_start);
-
-        //reduction_loop((+:M00,M01,M02,M11,M12,M22),())
-        for (int64_t k = 0; k < block_length; k++) {    //\if (buffer[k] != 0)
-            int64_t flat_idx = block_start + k;
-            real_t xs[3] = {
-                (flat_idx  / (Ny*Nz))  - cm[0],   // x
-                ((flat_idx / Nz) % Ny) - cm[1],   // y
-                (flat_idx  % Nz)       - cm[2] }; // z
-
-            real_t m = buffer[k];
-            real_t diag = dot(xs,xs);
-            M00 += m*(diag - xs[0] * xs[0]);
-            M11 += m*(diag - xs[1] * xs[1]);
-            M22 += m*(diag - xs[2] * xs[2]);    
-            M01 -= m * xs[0] * xs[1];
-            M02 -= m * xs[0] * xs[2];
-            M12 -= m * xs[1] * xs[2];
-        }
-    }
-    print_timestamp("inertia_matrix end");      
-    return array<real_t,9> {
-        M00, M01, M02,
-        M01, M11, M12,
-        M02, M12, M22 };
 }
 
 void integrate_axes(const input_ndarray<mask_type> &voxels,

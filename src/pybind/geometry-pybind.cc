@@ -5,20 +5,16 @@ namespace python_api {
 array<real_t,3> center_of_mass(const np_maskarray &np_voxels){
     auto voxels_info = np_voxels.request();
 
-    return ::center_of_mass({voxels_info.ptr,voxels_info.shape});
+    return ::center_of_mass({voxels_info.ptr, voxels_info.shape});
 }
-/*
+
 array<real_t,9> inertia_matrix(const np_maskarray &np_voxels, array<real_t,3>& cm){
     auto voxels_info = np_voxels.request();
     
-    return inertia_matrix({voxels_info.ptr,voxels_info.shape}, cm);
+    return ::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
 }
 
-array<real_t,9> inertia_matrix_serial(const np_maskarray &np_voxels, array<real_t,3>& cm){
-    auto voxels_info = np_voxels.request();
-    
-    return inertia_matrix_serial({voxels_info.ptr,voxels_info.shape}, cm);
-}  
+/*
 
 template <typename voxel_type>
 void sample_plane(const np_array<voxel_type> &np_voxels,
@@ -126,8 +122,7 @@ PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
 
     m.def("center_of_mass",       &python_api::center_of_mass);
-    //m.def("inertia_matrix",       &python_api::inertia_matrix);
-    //m.def("inertia_matrix_serial",&python_api::inertia_matrix_serial);
+    m.def("inertia_matrix",       &python_api::inertia_matrix);
     //m.def("integrate_axes",       &python_api::integrate_axes);        
     //m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     //m.def("fill_implant_mask",    &python_api::fill_implant_mask);
