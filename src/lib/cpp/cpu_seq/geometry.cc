@@ -1,55 +1,38 @@
 // TODO: Coordinates are named X,Y,Z in c++, but Z,Y,X in python. Homogenize to X,Y,Z!
-#include <chrono>
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <math.h>
 using namespace std;
 
-#include "datatypes.hh"
-#include "parallel.hh"
+#include "geometry.hh"
 
-#define dot(a,b) (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])
-
-void print_timestamp(string message) {
-    auto now = chrono::system_clock::to_time_t(chrono::system_clock::now());
-    tm local_tm = *localtime(&now);
-    fprintf(stderr,"%s at %02d:%02d:%02d\n", message.c_str(), local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);    
-}
-
-// TODO: Fix OpenACC copies & re-enable GPU
 array<real_t,3> center_of_mass(const input_ndarray<mask_type> voxels) {
-    // nvc++ doesn't support OpenACC 2.7 array reductions yet.  
-    real_t  cmx = 0, cmy = 0, cmz = 0;
-    size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
+    uint64_t cmx = 0, cmy = 0, cmz = 0;
+    size_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
     int64_t image_length = Nx*Ny*Nz;
 
     print_timestamp("center_of_mass start");
-    real_t total_mass = 0;  
-    for (int64_t block_start = 0; block_start < image_length; block_start += acc_block_size) {
 
-        const mask_type *buffer = voxels.data + block_start;
-        ssize_t this_block_length = min(acc_block_size, image_length-block_start);
+    uint64_t total_mass = 0;  
+    for (int64_t k = 0; k < image_length; k++) {
+        mask_type m = voxels.data[k];      
 
-        //#pragma acc parallel loop reduction(+:cmx,cmy,cmz,total_mass) copyin(buffer[:this_block_length])
-        //reduction_loop((+:cmx,cmy,cmz,total_mass),())
-        for (int64_t k = 0; k < this_block_length; k++) {
-            real_t          m = buffer[k];      
+        int64_t x = k / (Ny*Nz);
+        int64_t y = (k / Nz) % Ny;
+        int64_t z = k % Nz;
 
-            int64_t flat_idx = block_start + k;
-            int64_t x = flat_idx / (Ny*Nz);
-            int64_t y = (flat_idx / Nz) % Ny;
-            int64_t z = flat_idx % Nz;
-
-            total_mass += m;
-            cmx += m*x; cmy += m*y; cmz += m*z;
-        }
+        total_mass += m;
+        cmx += m*x; cmy += m*y; cmz += m*z;
     }
-    cmx /= total_mass; cmy /= total_mass; cmz /= total_mass;
+    real_t
+        rcmx = cmx / ((real_t) total_mass),
+        rcmy = cmy / ((real_t) total_mass),
+        rcmz = cmz / ((real_t) total_mass);
   
     print_timestamp("center_of_mass end");  
 
-    return array<real_t,3>{cmx,cmy,cmz};
+    return array<real_t,3>{ rcmx, rcmy, rcmz };
 }
 
 array<real_t,9> inertia_matrix_serial(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
@@ -100,7 +83,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const arr
         const mask_type *buffer = voxels.data + block_start;
         ssize_t block_length    = min(acc_block_size, image_length-block_start);
 
-        reduction_loop((+:M00,M01,M02,M11,M12,M22),())
+        //reduction_loop((+:M00,M01,M02,M11,M12,M22),())
         for (int64_t k = 0; k < block_length; k++) {    //\if (buffer[k] != 0)
             int64_t flat_idx = block_start + k;
             real_t xs[3] = {
@@ -143,7 +126,7 @@ void integrate_axes(const input_ndarray<mask_type> &voxels,
         int block_length = min(acc_block_size,image_length-block_start);
 
         //#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis)
-        parallel_loop((output_data[:Nv*Nw]))
+        //parallel_loop((output_data[:Nv*Nw]))
         for (int64_t k = 0; k < block_length; k++) {
             if (buffer[k] != 0) {
                 int64_t flat_idx = block_start + k;
@@ -157,7 +140,7 @@ void integrate_axes(const input_ndarray<mask_type> &voxels,
                 int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
                 if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
-                    atomic_statement()
+                    //atomic_statement()
                     output_data[i_v*Nw + j_w] += voxel;
                 }
             }
@@ -277,7 +260,7 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
         mask_type *buffer = voxels.data + block_start;
         ssize_t this_block_length = min(acc_block_size, image_length-block_start);
 
-        parallel_loop((buffer[:this_block_length]))
+        //parallel_loop((buffer[:this_block_length]))
         for (int64_t k = 0; k < this_block_length; k++) {
             int64_t flat_idx = block_start + k;
             int64_t x = flat_idx  / (Ny*Nz);
@@ -337,7 +320,7 @@ inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
 
 #define loop_mask_end(mask) }}} 
 
-
+/*
 void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
                float voxel_size,
                const array<float,6> &bbox,
@@ -360,8 +343,7 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
     float     *profile_d       = profile.data;
     
     // First pass computes some bounds -- possibly separate out to avoid repeating
-    loop_mask_start(implant_mask, solid_implant_mask,
-            (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16], bbox[:6]) );
+    //loop_mask_start(implant_mask, solid_implant_mask, (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16], bbox[:6]) );
     if (mask_value) {
         auto [U,V,W,c] = hom_transform(Xs,Muvw);
         
@@ -381,14 +363,14 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
             //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
         }
     }
-    loop_mask_end(implant_mask);
+    //loop_mask_end(implant_mask);
 
     double theta_center = (theta_max+theta_min)/2;
 
     fprintf(stderr,"theta_min, theta_center, theta_max = %g,%g,%g\n", theta_min, theta_center, theta_max);
 
     // Second pass does the actual work
-    loop_mask_start(implant_mask, solid_implant_mask,
+    //loop_mask_start(implant_mask, solid_implant_mask,
             (rsqr_maxs_d[:n_segments], profile_d[:n_segments]) );
     auto [U,V,W,c] = hom_transform(Xs,Muvw);
     float r_sqr = V*V+W*W;
@@ -400,15 +382,15 @@ void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
         solid_mask_value = mask_value | (r_sqr <= r_fraction*rsqr_maxs_d[U_i]);
 
         if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-            atomic_statement()
+            //atomic_statement()
             profile_d[U_i] += solid_mask_value;
         }
     }
     maskout_buffer[k] = solid_mask_value;
     
-    loop_mask_end(implant_mask);
+    //loop_mask_end(implant_mask);
 }
-               
+
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,        
@@ -426,6 +408,7 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
     
     loop_mask_end(solid_implant)
 }
+*/
 
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
              const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
@@ -521,10 +504,10 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                                 th_min = min(theta,th_min);
                                 th_max = max(theta,th_max);          
                                 
-                                atomic_statement()
+                                //atomic_statement()
                                 image_d[theta_i*n_U + U_i] += p;
                                 
-                                atomic_statement()      
+                                //atomic_statement()      
                                 count_d[theta_i*n_U + U_i] += 1;
                             }
                         }

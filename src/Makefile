@@ -6,7 +6,7 @@ CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
 CXXFLAGS += -I$(CPP_FOLDER)/include
 PLATFORMS=cpu_seq cpu gpu
-LIBS=io morphology
+LIBS=io geometry morphology
 TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
 CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(CPP_FOLDER)/$(PLATFORM)/__pycache__)
 
