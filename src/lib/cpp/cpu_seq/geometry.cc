@@ -78,6 +78,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const arr
     };
 }
 
+/* TODO only called in test.py. Postponed for now.
 void integrate_axes(const input_ndarray<mask_type> &voxels,
             const array<real_t,3> &x0,            
             const array<real_t,3> &v_axis,
@@ -90,33 +91,30 @@ void integrate_axes(const input_ndarray<mask_type> &voxels,
     real_t *output_data = output.data;
 
     // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
-  
-    for (ssize_t block_start = 0; block_start < image_length; block_start += acc_block_size) {
-        const mask_type *buffer  = voxels.data + block_start;
-        int block_length = min(acc_block_size,image_length-block_start);
+    int64_t k = 0:
+    for (int64_t X = 0; X < Nx; X++) {
+        for (int64_t Y = 0; Y < Ny; Y++) {
+            for (int64_t Z = 0; Z < Nz; Z++) {
+                if (buffer[k] != 0) {
+                    real_t xs[3] = {
+                        (flat_idx  / (Ny*Nz))  - x0[0],   // x
+                        ((flat_idx / Nz) % Ny) - x0[1],   // y
+                        (flat_idx  % Nz)       - x0[2] }; // z
 
-        //#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis)
-        //parallel_loop((output_data[:Nv*Nw]))
-        for (int64_t k = 0; k < block_length; k++) {
-            if (buffer[k] != 0) {
-                int64_t flat_idx = block_start + k;
-                real_t xs[3] = {
-                    (flat_idx  / (Ny*Nz))  - x0[0],   // x
-                    ((flat_idx / Nz) % Ny) - x0[1],   // y
-                    (flat_idx  % Nz)       - x0[2] }; // z
+                    mask_type voxel = buffer[k];
+                    real_t v = dot(xs, v_axis), w = dot(xs,w_axis);
+                    int64_t i_v = round(v-v_min), j_w = round(w-w_min);
 
-                mask_type voxel = buffer[k];
-                real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
-                int64_t i_v = round(v-v_min), j_w = round(w-w_min);
-
-                if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
-                    //atomic_statement()
-                    output_data[i_v*Nw + j_w] += voxel;
+                    if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
+                        output_data[i_v*Nw + j_w] += voxel;
+                    }
                 }
+                k++;
             }
         }
     }
 }
+*/
 
 bool in_bbox(float U, float V, float W, const std::array<float,6> bbox) {
     const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
@@ -216,6 +214,7 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
     }
 }
 
+/* TODO only called in test.py. Postpone for now. 
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
                const array<real_t,6> &parameter_ranges,
@@ -258,6 +257,7 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
         }
     }
 }
+*/
 
 inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
     vector4 c{{0,0,0,0}};
