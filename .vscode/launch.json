@@ -12,6 +12,15 @@
             "console": "integratedTerminal",
             "args": ["770c_pag"],
             "justMyCode": false
-        }
+        },
+        {
+            "name": "Python: 0500_rescale_cupy_bin",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/processing_steps/0500_rescale_cupy_bin.py",
+            "console": "integratedTerminal",
+            "args": ["770c_pag"],
+            "justMyCode": false
+        },
     ]
 }
