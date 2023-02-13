@@ -38,7 +38,6 @@ def test_morphology(r, m, op, nd):
 
     result = np.empty_like(implant_mask)
     f = getattr(m, f'{op}_3d_sphere')
-    f(implant_mask, r, result)
     fsta = datetime.datetime.now()
     f(implant_mask, r, result)
     fend = datetime.datetime.now()
