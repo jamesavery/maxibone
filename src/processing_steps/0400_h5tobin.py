@@ -3,7 +3,7 @@ import sys, pathlib, h5py, numpy as np
 sys.path.append(sys.path[0]+"/../")
 from config.paths import hdf5_root, binary_root
 from tqdm import tqdm
-from lib.cpp.cpu.io import write_slice
+from lib.cpp.cpu_seq.io import write_slice
 from lib.py.helpers import commandline_args, update_hdf5
 
 slice_all = slice(None)
@@ -65,11 +65,15 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
     for i in tqdm(range(Nvols), desc=f'Loading {sample} from HDF5 and writing binary'):
         subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
-
-        write_slice((subvolume_msb << 8) | subvolume_lsb, output_zstarts[i]*Ny*Nx, outfile)
+        combined = (subvolume_msb << 8) | subvolume_lsb
 
         del subvolume_msb
         del subvolume_lsb
+
+        # TODO For some reason, when 'output_zstarts' is a numpy type, 'combined' gets interpreted as an uint8 array through pybind. It is therefore important that it is converted to a python integer. This should be investigated, as it doesn't make sense that arguments should affect each other in this manner! Especially since it's only the first argument that's templated. Note: it's not due to mixed types in the tuple, as giving it three numpy values also breaks it.
+        write_slice(combined, outfile, (int(output_zstarts[i]), 0, 0), combined.shape)
+
+        del combined
 
     msb_file.close()
     lsb_file.close()

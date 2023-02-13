@@ -34,6 +34,7 @@ void write_contiguous_slice(const T *data,
     }
     file.seekp(offset * sizeof(T), ios::beg);
     file.write((char*) data, size * sizeof(T));
+    file.flush(); // Should have flushed, but just in case
     file.close();
 }
 
