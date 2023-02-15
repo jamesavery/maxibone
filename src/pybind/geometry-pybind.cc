@@ -2,15 +2,15 @@
 
 namespace python_api {
 
-array<real_t,3> center_of_mass(const np_maskarray &np_voxels){
+array<real_t, 3> center_of_mass(const np_maskarray &np_voxels){
     auto voxels_info = np_voxels.request();
 
     return ::center_of_mass({voxels_info.ptr, voxels_info.shape});
 }
 
-array<real_t,9> inertia_matrix(const np_maskarray &np_voxels, array<real_t,3>& cm){
+array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3>& cm){
     auto voxels_info = np_voxels.request();
-    
+
     return ::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
 }
 
@@ -21,19 +21,19 @@ void sample_plane(const np_array<voxel_type> &np_voxels,
           const real_t voxel_size, // In micrometers
           const array<real_t,3> cm,
           const array<real_t,3> u_axis,
-          const array<real_t,3> v_axis,          
+          const array<real_t,3> v_axis,
           const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
           np_array<float> np_plane_samples) {
     auto voxels_info = np_voxels.request();
     auto plane_samples_info  = np_plane_samples.request();
-    
+
     sample_plane<voxel_type>({voxels_info.ptr, voxels_info.shape}, voxel_size,
            cm,u_axis,v_axis,bbox,
            {plane_samples_info.ptr, plane_samples_info.shape});
 }
-  
+
 void integrate_axes(const np_maskarray &np_voxels,
-            const array<real_t,3> &x0,            
+            const array<real_t,3> &x0,
             const array<real_t,3> &v_axis,
             const array<real_t,3> &w_axis,
             const real_t v_min, const real_t w_min,
@@ -52,10 +52,10 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
              const array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
              np_maskarray &np_voxels) {
     auto voxels_info = np_voxels.request();
-    
+
     zero_outside_bbox(principal_axes,
               parameter_ranges,
-              cm, 
+              cm,
               {voxels_info.ptr, voxels_info.shape});
 }
 
@@ -83,12 +83,12 @@ void fill_implant_mask(const np_maskarray implant_mask,
 
 void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
         const float voxel_size,
-        const matrix4x4 &Muvw,        
+        const matrix4x4 &Muvw,
         std::array<float,6> bbox,
         np_array<mask_type> &np_front_mask) {
     auto solid_implant_info = np_solid_implant.request();
     auto front_mask_info    = np_front_mask.request();
-    
+
     ::compute_front_mask({solid_implant_info.ptr, solid_implant_info.shape},
             voxel_size, Muvw, bbox,
             {front_mask_info.ptr, front_mask_info.shape});
@@ -117,13 +117,13 @@ void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance 
 }*/
 
 }
-  
+
 PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
 
     m.def("center_of_mass",       &python_api::center_of_mass);
     m.def("inertia_matrix",       &python_api::inertia_matrix);
-    //m.def("integrate_axes",       &python_api::integrate_axes);        
+    //m.def("integrate_axes",       &python_api::integrate_axes);
     //m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     //m.def("fill_implant_mask",    &python_api::fill_implant_mask);
     //m.def("cylinder_projection",  &python_api::cylinder_projection);

@@ -43,9 +43,9 @@ def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True):
     if should_assert: assert_with_print(baseline, cpu)
 
     gpu, gpu_t = run_with_warmup(gpu_f)
-    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t} times faster than sequential') 
+    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t} times faster than sequential')
     if should_assert: assert_with_print(baseline, gpu)
- 
+
 
 def test_center_of_mass():
     voxels = np.random.randint(0, 256, (n,n,n), np.uint8)
@@ -56,7 +56,7 @@ def test_center_of_mass():
 
     compare_fs('center_of_mass', baseline, cpu, gpu)
 
-   
+
 def test_inertia_matrix():
     voxels = np.random.randint(0, 2, (n,n,n), np.uint8)
     cm = m_gpu.center_of_mass(voxels)
@@ -64,10 +64,10 @@ def test_inertia_matrix():
     baseline = partial(m_cpu_seq.inertia_matrix, voxels, cm)
     cpu = partial(m_cpu.inertia_matrix, voxels, cm)
     gpu = partial(m_gpu.inertia_matrix, voxels, cm)
-    
+
     # TODO assert disabled due to floating point associativity error accumulation
     compare_fs('inertia_matrix', baseline, cpu, gpu, should_assert=False)
-    
+
 if __name__ == '__main__':
     test_center_of_mass()
     test_inertia_matrix()
