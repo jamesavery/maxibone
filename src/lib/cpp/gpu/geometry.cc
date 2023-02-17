@@ -13,61 +13,8 @@ array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return cpu_seq::center_of_mass(mask);
 }
 
-array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
-    // nvc++ doesn't support OpenACC 2.7 array reductions yet, so must name each element.
-    real_t
-        Ixx = 0, Ixy = 0, Ixz = 0,
-                 Iyy = 0, Iyz = 0,
-                          Izz = 0;
-
-    size_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    ssize_t image_length = Nx*Ny*Nz;
-
-    print_timestamp("inertia_matrix start");
-
-    #pragma acc data copy(Ixx, Ixy, Ixz, Iyy, Iyz, Izz)
-    {
-        for (ssize_t block_start = 0; block_start < image_length; block_start += acc_block_size<mask_type>) {
-            const mask_type *buffer = voxels.data + block_start;
-            ssize_t this_block_size = min(acc_block_size<mask_type>, image_length - block_start);
-
-            #pragma acc data copyin(buffer[:this_block_size])
-            {
-                #pragma acc parallel loop reduction(+:Ixx,Iyy,Izz) reduction(-:Ixy,Ixz,Iyz)
-                for (int64_t k = 0; k < this_block_size; k++) {    //\if (buffer[k] != 0)
-                    mask_type m = buffer[k];
-
-                    // m guards this, and GPUs doesn't like branches
-                    //if (m != 0)
-                    int64_t
-                        flat_idx = block_start + k,
-                        X = flat_idx / (Ny * Nz),
-                        Y = ((flat_idx) / Nz) % Ny,
-                        Z = flat_idx % Nz;
-
-                    real_t
-                        x = X - cm[0],
-                        y = Y - cm[1],
-                        z = Z - cm[2];
-
-                    Ixx += m * (y*y + z*z);
-                    Iyy += m * (x*x + z*z);
-                    Izz += m * (x*x + y*y);
-                    Ixy -= m * x*y;
-                    Ixz -= m * x*z;
-                    Iyz -= m * y*z;
-                }
-            }
-        }
-    }
-
-    print_timestamp("inertia_matrix end");
-
-    return array<real_t,9> {
-        Ixx, Ixy, Ixz,
-        Ixy, Iyy, Iyz,
-        Ixz, Iyz, Izz
-    };
+array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
+    return cpu_seq::inertia_matrix(mask, cm);
 }
 
 /* TODO Only called in test.py. Postponed for now.

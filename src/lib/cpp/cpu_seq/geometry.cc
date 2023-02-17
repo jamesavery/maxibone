@@ -18,6 +18,7 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     uint64_t total_mass = 0, cmz = 0, cmy = 0, cmx = 0;
 
     BLOCK_BEGIN(mask, reduction(+:total_mass,cmz,cmy,cmx)); {
+    // TODO James approves; now RUN!
 
         mask_type m = mask_buffer[flat_index];
 
@@ -38,39 +39,35 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return array<real_t, 3>{ rcmz, rcmy, rcmx };
 }
 
-array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm) {
+array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
+    UNPACK_NUMPY(mask);
+
     real_t
         Ixx = 0, Ixy = 0, Ixz = 0,
                  Iyy = 0, Iyz = 0,
                           Izz = 0;
 
-    ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-
     print_timestamp("inertia_matrix_serial start");
 
-    int64_t k = 0;
-    for (int64_t X = 0; X < Nx; X++) {
-        for (int64_t Y = 0; Y < Ny; Y++) {
-            for (int64_t Z = 0; Z < Nz; Z++) {
-                mask_type m = voxels.data[k];
-                k++;
+    BLOCK_BEGIN(mask, reduction(+:Ixx, Iyy, Izz) reduction(-:Ixy,Ixz,Iyz)) {
 
-                // m guards this, and then branches are removed
-                //if (m != 0)
-                real_t
-                    x = X - cm[0],
-                    y = Y - cm[1],
-                    z = Z - cm[2];
+        mask_type m = mask_buffer[flat_index];
 
-                Ixx += m * (y*y + z*z);
-                Iyy += m * (x*x + z*z);
-                Izz += m * (x*x + y*y);
-                Ixy -= m * x*y;
-                Ixz -= m * x*z;
-                Iyz -= m * y*z;
-            }
-        }
-    }
+        // m guards this, and then branches are removed
+        //if (m != 0)
+        real_t
+            X = x - cm[0],
+            Y = y - cm[1],
+            Z = z - cm[2];
+
+        Ixx += m * (Y*Y + Z*Z);
+        Iyy += m * (X*X + Z*Z);
+        Izz += m * (X*X + Y*Y);
+        Ixy -= m * X*Y;
+        Ixz -= m * X*Z;
+        Iyz -= m * Y*Z;
+
+    } BLOCK_END();
 
     print_timestamp("inertia_matrix_serial end");
 
@@ -79,6 +76,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const arr
         Ixy, Iyy, Iyz,
         Ixz, Iyz, Izz
     };
+
 }
 
 }
