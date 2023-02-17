@@ -1,17 +1,30 @@
+#ifdef _OPENACC
+#warning "Using GPU"
+#define NS gpu
+#else
+#ifdef _OPENMP
+#warning "Using OpenMP"
+#define NS cpu_par
+#else
+#warning "Using sequential"
+#define NS cpu_seq
+#endif
+#endif
+
 #include "geometry.cc"
 
 namespace python_api {
 
-array<real_t, 3> center_of_mass(const np_maskarray &np_voxels){
+array<real_t, 3> center_of_mass(const np_maskarray &np_voxels) {
     auto voxels_info = np_voxels.request();
 
-    return ::center_of_mass({voxels_info.ptr, voxels_info.shape});
+    return NS::center_of_mass({voxels_info.ptr, voxels_info.shape});
 }
 
-array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3>& cm){
+array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3> &cm) {
     auto voxels_info = np_voxels.request();
 
-    return ::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
+    return NS::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
 }
 
 /*

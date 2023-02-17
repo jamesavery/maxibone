@@ -1,51 +1,98 @@
 #ifndef boilerplate_h
 #define boilerplate_h
 
-// TODO it seems like vscode doesn't pick this up.
-/// \def for_block_begin(arr)
-/// Inserts boilerplate code for accessing \a arr in a blocked (chunked) manner.
-#define for_block_begin(arr) \
-    for (int64_t block_start = 0; block_start < arr##_length; block_start += acc_block_size<arr##_type>) { \
-        const arr##_type *arr##_buffer = arr.data + block_start; \
-        ssize_t arr##_buffer_length = min(acc_block_size<arr##_type>, arr##_length-block_start); \
-        _Pragma(STR(acc data copyin(arr##_buffer[:arr##_buffer_length]))) \
-        { \
+// Gaze upon the glory of 3-layered macros for building string literals for _Pragma
+#define STRINGIFY(X) #X
+#define TOKEN_COMBINER(X) STRINGIFY(X)
+#define PRAGMA(X) _Pragma(TOKEN_COMBINER(X))
 
-#define for_block_end() } }
+#ifdef _OPENACC
+#define PARALLEL_TERM acc parallel loop
+#else
+#ifdef _OPENMP
+#define PARALLEL_TERM omp parallel for
+#else
+#define PARALLEL_TERM
+#endif
+#endif
 
-#define for_3d_begin(arr) \
-    for (int64_t z = 0; z < arr##_Nz; z++) { \
-        for (int64_t y = 0; y < arr##_Ny; y++) { \
-            for (int64_t x = 0; x < arr##_Nx; x++) { \
-                int64_t flat_index = z*arr##_Ny*arr##_Nx + y*arr##_Nx + x;
+// TODO attempt at docstring; not quite working.
 
-#define for_3d_end() }}}
+/// Inserts boilerplate code for accessing the given parameter, ARR, in a blocked (chunked) manner.
+/// Following this call, the following variables will be exposed:
+///
+///  - `block_start`: the address of the current block.
+///
+/// @param ARR The array that will be accessed.
+#define FOR_BLOCK_BEGIN(ARR) \
+    for (int64_t ARR##_buffer_start = 0; ARR##_buffer_start < ARR##_length; ARR##_buffer_start += acc_block_size<ARR##_type>) { \
+        const ARR##_type *ARR##_buffer = ARR.data + ARR##_buffer_start; \
+        ssize_t ARR##_buffer_length = min(acc_block_size<ARR##_type>, ARR##_length-ARR##_buffer_start); \
+        PRAGMA(acc data copyin(ARR##_buffer[:ARR##_buffer_length])) \
+        {
 
-#define for_flat_begin_1(arr) for_flat_begin(arr, arr)
-#define for_flat_begin_2(arr, global_prefix) \
-    for (int64_t flat_index = 0; flat_index < arr##_length; flat_index++) { \
+#define FOR_BLOCK_END() } }
+
+#define FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM collapse(3) EXTRA_PRAGMA_CLAUSE) \
+    for (int64_t z = 0; z < ARR##_Nz; z++) { \
+        for (int64_t y = 0; y < ARR##_Ny; y++) { \
+            for (int64_t x = 0; x < ARR##_Nx; x++) { \
+
+#define FOR_3D_END() }}}
+
+#define FOR_FLAT_BEGIN(ARR, global_prefix, EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM EXTRA_PRAGMA_CLAUSE) \
+    for (int64_t flat_index = 0; flat_index < ARR##_length; flat_index++) { \
         int64_t \
-            global_prefix##_index = arr##_start + flat_index \
-            z = global_prefix##_index / (arr##_Ny*arr##_Nx), \
-            y = (global_prefix##_index / arr##_Nx) % arr##_Ny, \
-            x = global_prefix##_index % arr##_Nx;
+            global_prefix##_index = ARR##_start + flat_index, \
+            z = global_prefix##_index / (ARR##_Ny * ARR##_Nx), \
+            y = (global_prefix##_index / ARR##_Nx) % ARR##_Ny, \
+            x = global_prefix##_index % ARR##_Nx;
 
-#define for_flat_end() }
+#define FOR_FLAT_END() }
 
-// TODO I'm not sure this'll expand right.
-#define for_flat_block_begin(arr) \
-    for_block_begin(arr) \
-    for_flat_begin_2(arr##_buffer, global)
-
-#define for_flat_block_end() \
-    for_flat_end() \
-    for_block_end()
-
-#define unpack_numpy(arr) \
+#define PUSH_N_DOWN_TO_BUFFER(ARR) \
     ssize_t \
-        arr##_Nz = arr.shape[0], \
-        arr##_Ny = arr.shape[1], \
-        arr##_Nx = arr.shape[2], \
-        arr##_length = arr##_Nz*arr##_Ny*arr##_Nx;
+        ARR##_buffer_Nz = ARR##_Nz, \
+        ARR##_buffer_Ny = ARR##_Ny, \
+        ARR##_buffer_Nx = ARR##_Nx;
+
+#ifdef _OPENACC
+#define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
+    FOR_BLOCK_BEGIN(ARR) \
+    PUSH_N_DOWN_TO_BUFFER(ARR) \
+    FOR_FLAT_BEGIN(ARR##_buffer, global, EXTRA_PRAGMA_CLAUSE)
+
+#define BLOCK_END() \
+    FOR_FLAT_END() \
+    FOR_BLOCK_END()
+#else
+#ifdef _OPENMP // Should also capture OpenACC, which is why it's second.
+#define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
+    const ARR##_type *ARR##_buffer = ARR.data; \
+    FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
+    int64_t flat_index = z*ARR##_Ny*ARR##_Nx + y*ARR##_Nx + x;
+
+#define BLOCK_END() FOR_3D_END()
+#else
+#define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
+    int64_t flat_index = 0; \
+    const ARR##_type *ARR##_buffer = ARR.data; \
+    FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE)
+
+#define BLOCK_END() \
+    flat_index++; \
+    FOR_3D_END()
+
+#endif
+#endif
+
+#define UNPACK_NUMPY(ARR) \
+    ssize_t \
+        ARR##_Nz = ARR.shape[0], \
+        ARR##_Ny = ARR.shape[1], \
+        ARR##_Nx = ARR.shape[2], \
+        ARR##_length = ARR##_Nz*ARR##_Ny*ARR##_Nx;
 
 #endif

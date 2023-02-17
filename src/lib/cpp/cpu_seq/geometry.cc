@@ -3,34 +3,35 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <math.h>
-using namespace std;
 
-#include "geometry.hh"
 #include "boilerplate.hh"
+#include "geometry.hh"
 
-array<real_t, 3> center_of_mass(const input_ndarray<mask_type> voxels) {
-    unpack_numpy(voxels);
+using namespace std;
+namespace cpu_seq {
+
+array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
+    UNPACK_NUMPY(mask);
 
     print_timestamp("center_of_mass start");
 
-    uint64_t cmz = 0, cmy = 0, cmx = 0;
-    uint64_t total_mass = 0;
+    uint64_t total_mass = 0, cmz = 0, cmy = 0, cmx = 0;
 
-    for_3d_begin(voxels);
+    BLOCK_BEGIN(mask, reduction(+:total_mass,cmz,cmy,cmx)); {
 
-    mask_type m = voxels.data[flat_index];
+        mask_type m = mask_buffer[flat_index];
 
-    total_mass += m;
-    cmx += m * x;
-    cmy += m * y;
-    cmz += m * z;
+        total_mass += m;
+        cmz += m * z;
+        cmy += m * y;
+        cmx += m * x;
 
-    for_3d_end();
+    } BLOCK_END();
 
     real_t
-        rcmx = cmx / ((real_t) total_mass),
+        rcmz = cmz / ((real_t) total_mass),
         rcmy = cmy / ((real_t) total_mass),
-        rcmz = cmz / ((real_t) total_mass);
+        rcmx = cmx / ((real_t) total_mass);
 
     print_timestamp("center_of_mass end");
 
@@ -80,6 +81,8 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const arr
     };
 }
 
+}
+
 /* TODO only called in test.py. Postponed for now.
 void integrate_axes(const input_ndarray<mask_type> &voxels,
             const array<real_t,3> &x0,
@@ -116,7 +119,6 @@ void integrate_axes(const input_ndarray<mask_type> &voxels,
         }
     }
 }
-*/
 
 bool in_bbox(float U, float V, float W, const std::array<float,6> bbox) {
     const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
@@ -259,7 +261,6 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
         }
     }
 }
-*/
 
 inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
     vector4 c{{0,0,0,0}};
@@ -380,7 +381,6 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
 
     loop_mask_end(solid_implant)
 }
-*/
 
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
              const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
@@ -492,3 +492,5 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
     printf("theta_min, theta_max = %.2f,%.2f\n",theta_min,theta_max);
     printf("th_min,       th_max = %.2f,%.2f\n",th_min,th_max);
 }
+
+*/
