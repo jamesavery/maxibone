@@ -39,6 +39,23 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return array<real_t, 3>{ rcmz, rcmy, rcmx };
 }
 
+bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
+    const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+
+    bool inside =
+        U >= U_min &&
+        U <= U_max &&
+        V >= V_min &&
+        V <= V_max &&
+        W >= W_min &&
+        W <= W_max;
+
+    // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
+    //      U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
+
+    return inside;
+}
+
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
     UNPACK_NUMPY(mask);
 
@@ -81,52 +98,7 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
 
 }
 
-/* TODO only called in test.py. Postponed for now.
-void integrate_axes(const input_ndarray<mask_type> &voxels,
-            const array<real_t,3> &x0,
-            const array<real_t,3> &v_axis,
-            const array<real_t,3> &w_axis,
-            const real_t v_min, const real_t w_min,
-            output_ndarray<real_t> output) {
-    ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    ssize_t Nv = output.shape[0], Nw = output.shape[1];
-    int64_t image_length = Nx*Ny*Nz;
-    real_t *output_data = output.data;
-
-    // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
-    int64_t k = 0:
-    for (int64_t X = 0; X < Nx; X++) {
-        for (int64_t Y = 0; Y < Ny; Y++) {
-            for (int64_t Z = 0; Z < Nz; Z++) {
-                if (buffer[k] != 0) {
-                    real_t xs[3] = {
-                        (flat_idx  / (Ny*Nz))  - x0[0],   // x
-                        ((flat_idx / Nz) % Ny) - x0[1],   // y
-                        (flat_idx  % Nz)       - x0[2] }; // z
-
-                    mask_type voxel = buffer[k];
-                    real_t v = dot(xs, v_axis), w = dot(xs,w_axis);
-                    int64_t i_v = round(v-v_min), j_w = round(w-w_min);
-
-                    if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
-                        output_data[i_v*Nw + j_w] += voxel;
-                    }
-                }
-                k++;
-            }
-        }
-    }
-}
-
-bool in_bbox(float U, float V, float W, const std::array<float,6> bbox) {
-    const auto& [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
-
-    bool inside = U>=U_min && U<=U_max && V>=V_min && V<=V_max && W>=W_min && W<=W_max;
-
-    // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
-    //      U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
-    return inside;
-}
+/*
 
 template<typename field_type> float resample2x2x2(const field_type *voxels,
                                                   const array<ssize_t,3> &shape,

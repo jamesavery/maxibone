@@ -25,6 +25,8 @@ Computes the center of mass of the given tomography.
 */
 array<real_t,3> center_of_mass(const input_ndarray<mask_type> &voxels);
 
+bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox);
+
 /*
 Computes the inertia matrix of the given tomography based of the given center of mass.
 

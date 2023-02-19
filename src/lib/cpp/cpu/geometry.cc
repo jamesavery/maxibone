@@ -13,6 +13,10 @@ array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return cpu_seq::center_of_mass(mask);
 }
 
+bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
+    return cpu_seq::in_bbox(U, V, W, bbox);
+}
+
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
     return cpu_seq::inertia_matrix(mask, cm);
 }
