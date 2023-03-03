@@ -4,6 +4,7 @@
 #include "io.hh"
 
 using namespace std;
+namespace cpu_seq {
 
 template <typename T>
 void load_contiguous_slice(T *data,
@@ -39,3 +40,4 @@ void write_contiguous_slice(const T *data,
 }
 
 // TODO non-contiguous
+}

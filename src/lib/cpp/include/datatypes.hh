@@ -1,5 +1,19 @@
 #ifndef datatypes_h
 #define datatypes_h
+
+#ifdef _OPENACC
+//#warning "Using GPU"
+#define NS gpu
+#else
+#ifdef _OPENMP
+//#warning "Using OpenMP"
+#define NS cpu_par
+#else
+//#warning "Using sequential"
+#define NS cpu_seq
+#endif
+#endif
+
 #include <array>
 #include <vector>
 #include <pybind11/pybind11.h>

@@ -16,7 +16,7 @@ CPP_FOLDER=lib/cpp
 CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++17 -O3
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
-cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion -Weffc++
+cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion #-Weffc++
 cpu_CXX=$(cpu_seq_CXX)
 cpu_FLAGS=$(cpu_seq_FLAGS) -fopenmp
 
