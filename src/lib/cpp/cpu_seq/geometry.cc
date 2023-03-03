@@ -30,9 +30,9 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     } BLOCK_END();
 
     real_t
-        rcmz = cmz / ((real_t) total_mass),
-        rcmy = cmy / ((real_t) total_mass),
-        rcmx = cmx / ((real_t) total_mass);
+        rcmz = real_t(cmz) / real_t(total_mass),
+        rcmy = real_t(cmy) / real_t(total_mass),
+        rcmx = real_t(cmx) / real_t(total_mass);
 
     print_timestamp("center_of_mass end");
 
@@ -73,9 +73,9 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
         // m guards this, and then branches are removed
         //if (m != 0)
         real_t
-            X = x - cm[0],
-            Y = y - cm[1],
-            Z = z - cm[2];
+            X = real_t(x) - cm[0],
+            Y = real_t(y) - cm[1],
+            Z = real_t(z) - cm[2];
 
         Ixx += m * (Y*Y + Z*Z);
         Iyy += m * (X*X + Z*Z);
@@ -101,8 +101,8 @@ float resample2x2x2(const T             *voxels,
                     const array<float, 3>   &X) {
     auto  [Nz,Ny,Nx] = shape;
 
-    if (!in_bbox(X[0], X[1], X[2], {0.5f, Nx-0.5f, 0.5f, Ny-0.5f, 0.5f, Nz-0.5f})) {
-        uint64_t voxel_index = floor(X[0])*Ny*Nz + floor(X[1])*Ny + floor(X[2]);
+    if (!in_bbox(X[0], X[1], X[2], {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
+        uint64_t voxel_index = uint64_t(floor(X[0]))*Ny*Nz + uint64_t(floor(X[1]))*Ny + uint64_t(floor(X[2]));
         return voxels[voxel_index];
     }
 
@@ -115,8 +115,8 @@ float resample2x2x2(const T             *voxels,
         Xfrac[0][i] = 1-modf(X[i]-0.5f, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
         Xfrac[1][i] =   modf(X[i]+0.5f, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
-        Xint[0][i] = Iminus;
-        Xint[1][i] = Iplus;
+        Xint[0][i] = (int64_t) Iminus;
+        Xint[1][i] = (int64_t) Iplus;
     }
 
     for (int ijk = 0; ijk <= 7; ijk++) {
@@ -162,15 +162,15 @@ void sample_plane(const input_ndarray<T> &voxels,
         nu = plane_samples.shape[0],
         nv = plane_samples.shape[1];
     real_t
-        du = (umax - umin) / nu,
-        dv = (vmax - vmin) / nv;
+        du = (umax - umin) / real_t(nu),
+        dv = (vmax - vmin) / real_t(nv);
 
     //#pragma omp parallel for collapse(2)
     for (ssize_t ui = 0; ui < nu; ui++) {
         for (ssize_t vj = 0; vj < nv; vj++) {
             const real_t
-                u = umin + ui*du,
-                v = vmin + vj*dv;
+                u = umin + real_t(ui)*du,
+                v = vmin + real_t(vj)*dv;
 
             // X,Y,Z in micrometers;  x,y,z in voxel index space
             const real_t
@@ -186,7 +186,7 @@ void sample_plane(const input_ndarray<T> &voxels,
             //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
             T value = 0;
-            std::array<float, 6> local_bbox = {0.5f, voxels_Nx-0.5f, 0.5f, voxels_Ny-0.5f, 0.5f, voxels_Nz-0.5f};
+            std::array<float, 6> local_bbox = {0.5f, float(voxels_Nx)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nz)-0.5f};
             if (in_bbox(x,y,z, local_bbox))
                 value = (T) floor(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
             // else

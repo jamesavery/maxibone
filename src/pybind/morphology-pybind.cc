@@ -16,7 +16,7 @@ void morphology_3d_sphere_wrapper(
         voxels_info = np_voxels.request(),
         result_info = np_result.request();
 
-    int32_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
+    int64_t Nz = voxels_info.shape[0], Ny = voxels_info.shape[1], Nx = voxels_info.shape[2];
     int64_t N[3] = {Nz, Ny, Nx};
     int64_t strides[3] = {Ny*Nx, Nx, 1};
 
