@@ -13,11 +13,12 @@ endif
 
 CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -shared -fPIC -g -std=c++17 -O3
+CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++17 -O3
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
+cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion -Weffc++
 cpu_CXX=$(cpu_seq_CXX)
-cpu_FLAGS=-fopenmp
+cpu_FLAGS=$(cpu_seq_FLAGS) -fopenmp
 
 LIBS=io geometry morphology
 TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
@@ -29,6 +30,8 @@ PLATFORMS += gpu
 gpu_CXX = nvc++
 gpu_FLAGS = -acc=gpu -tp=native -Xcudafe --display_error_number #-Minfo=accel
 gpu_FLAGS += --diag_suppress 1626 # Remove the annoying pybind warning that routine is both inline and noinline
+gpu_FLAGS += --diag_suppress 9 # Remove the warning about nested comments
+gpu_FLAGS += -Wnvlink,-w # Disable nvlink warnings
 else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
