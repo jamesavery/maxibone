@@ -54,9 +54,9 @@
 
 #define PUSH_N_DOWN_TO_BUFFER(ARR) \
     ssize_t \
-        ARR##_buffer_Nz = ARR##_Nz, \
-        ARR##_buffer_Ny = ARR##_Ny, \
-        ARR##_buffer_Nx = ARR##_Nx;
+        __attribute__((unused)) ARR##_buffer_Nz = ARR##_Nz, \
+        __attribute__((unused)) ARR##_buffer_Ny = ARR##_Ny, \
+        __attribute__((unused)) ARR##_buffer_Nx = ARR##_Nx;
 
 #ifdef _OPENACC
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
@@ -90,9 +90,9 @@
 
 #define UNPACK_NUMPY(ARR) \
     ssize_t \
-        ARR##_Nz = ARR.shape[0], \
-        ARR##_Ny = ARR.shape[1], \
-        ARR##_Nx = ARR.shape[2], \
-        ARR##_length = ARR##_Nz*ARR##_Ny*ARR##_Nx;
+        __attribute__((unused)) ARR##_Nz = ARR.shape[0], \
+        __attribute__((unused)) ARR##_Ny = ARR.shape[1], \
+        __attribute__((unused)) ARR##_Nx = ARR.shape[2], \
+        __attribute__((unused)) ARR##_length = ARR##_Nz*ARR##_Ny*ARR##_Nx;
 
 #endif
