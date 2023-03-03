@@ -186,8 +186,8 @@ void sample_plane(const input_ndarray<T> &voxels,
             //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
             T value = 0;
-            std::array<float, 6> bbox = {0.5f, voxels_Nx-0.5f, 0.5f, voxels_Ny-0.5f, 0.5f, voxels_Nz-0.5f};
-            if (in_bbox(x,y,z, bbox))
+            std::array<float, 6> local_bbox = {0.5f, voxels_Nx-0.5f, 0.5f, voxels_Ny-0.5f, 0.5f, voxels_Nz-0.5f};
+            if (in_bbox(x,y,z, local_bbox))
                 value = (T) floor(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
             // else
             //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
