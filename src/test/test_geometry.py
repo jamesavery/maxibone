@@ -41,11 +41,12 @@ def run_with_warmup(f, allocate_result=None):
     '''
     alloc = lambda x: np.zeros(x[0], x[1])
     f() if allocate_result is None else f(alloc(allocate_result))
-    result = alloc(allocate_result)
-    start = datetime.datetime.now()
     if allocate_result is None:
+        start = datetime.datetime.now()
         result = f()
     else:
+        result = alloc(allocate_result)
+        start = datetime.datetime.now()
         f(result)
     end = datetime.datetime.now()
     return result, end - start
@@ -66,20 +67,21 @@ def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-
 def test_center_of_mass():
     voxels = np.random.randint(0, 256, (n,n,n), np.uint8)
 
-    baseline = partial(m_cpu_seq.center_of_mass, voxels)
-    cpu = partial(m_cpu.center_of_mass, voxels)
-    gpu = partial(m_gpu.center_of_mass, voxels)
+    baseline, cpu, gpu = [
+        partial(impl.center_of_mass, voxels)
+        for impl in [m_cpu_seq, m_cpu, m_gpu]
+    ]
 
-    compare_fs('center_of_mass', baseline, cpu, gpu)
-
+    compare_fs('center_of_mass', baseline, cpu, gpu, tolerance=1e-5)
 
 def test_inertia_matrix():
     voxels = np.random.randint(0, 2, (n,n,n), np.uint8)
     cm = m_gpu.center_of_mass(voxels)
 
-    baseline = partial(m_cpu_seq.inertia_matrix, voxels, cm)
-    cpu = partial(m_cpu.inertia_matrix, voxels, cm)
-    gpu = partial(m_gpu.inertia_matrix, voxels, cm)
+    baseline, cpu, gpu = [
+        partial(impl.inertia_matrix, voxels, cm)
+        for impl in [m_cpu_seq, m_cpu, m_gpu]
+    ]
 
     # TODO assert disabled due to floating point associativity error accumulation
     compare_fs('inertia_matrix', baseline, cpu, gpu, should_assert=False)
