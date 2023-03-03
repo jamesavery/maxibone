@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Test geometry",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/test/test_geometry.py",
+            "console": "integratedTerminal",
+            "args": [],
+            "justMyCode": false
+        },
+        {
             "name": "Python: 0400_h5tobin",
             "type": "python",
             "request": "launch",
