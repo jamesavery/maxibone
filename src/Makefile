@@ -1,6 +1,7 @@
 # Define constants and collections
 PYTHON = python3.10
-PYBIND_FLAGS += $(shell $(PYTHON) -m pybind11 --include) -march=native -Wall -shared -fPIC -g -std=c++17 -O3
+PYBIND_FLAGS = $(shell $(PYTHON) -m pybind11 --include)
+CXXFLAGS += $(subst -I,-isystem ,$(PYBIND_FLAGS)) # We don't care about warnings from the python headers
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 
 # Detect OS for OS specific changes
@@ -12,7 +13,7 @@ endif
 
 CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-CXXFLAGS += -I$(CPP_FOLDER)/include
+CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -shared -fPIC -g -std=c++17 -O3
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
 cpu_CXX=$(cpu_seq_CXX)
@@ -26,7 +27,8 @@ CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(CPP_FOLDER)/$(PLATFORM)
 ifneq (, $(shell which nvc++))
 PLATFORMS += gpu
 gpu_CXX = nvc++
-gpu_FLAGS = -acc=gpu -Minfo=accel -tp=native
+gpu_FLAGS = -acc=gpu -tp=native -Xcudafe --display_error_number #-Minfo=accel
+gpu_FLAGS += --diag_suppress 1626 # Remove the annoying pybind warning that routine is both inline and noinline
 else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
@@ -35,7 +37,7 @@ all: $(TARGETS)
 
 define GEN_RULE
 $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(CPP_FOLDER)/$(PLATFORM)/$(LIB).cc $(CPP_FOLDER)/include/*.hh
-	$($(PLATFORM)_CXX) $($(PLATFORM)_FLAGS) $(CXXFLAGS) $(PYBIND_FLAGS) -I$(CPP_FOLDER)/$(PLATFORM) $$< -o $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)
+	$($(PLATFORM)_CXX) $($(PLATFORM)_FLAGS) $(CXXFLAGS) -I$(CPP_FOLDER)/$(PLATFORM) $$< -o $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)
 endef
 
 $(foreach PLATFORM, $(PLATFORMS), \

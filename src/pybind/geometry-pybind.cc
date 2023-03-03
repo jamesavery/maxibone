@@ -1,12 +1,12 @@
 #ifdef _OPENACC
-#warning "Using GPU"
+//#warning "Using GPU"
 #define NS gpu
 #else
 #ifdef _OPENMP
-#warning "Using OpenMP"
+//#warning "Using OpenMP"
 #define NS cpu_par
 #else
-#warning "Using sequential"
+//#warning "Using sequential"
 #define NS cpu_seq
 #endif
 #endif
