@@ -86,6 +86,29 @@ def test_inertia_matrix():
     # TODO assert disabled due to floating point associativity error accumulation
     compare_fs('inertia_matrix', baseline, cpu, gpu, should_assert=False)
 
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+def test_sample_plane(dtype):
+    # TODO something that isn't just random data?
+    n = 128
+    voxels = np.random.randint(0, np.iinfo(dtype).max, (n,n,n), dtype)
+    voxel_size = 42
+    cm = m_cpu.center_of_mass(voxels)
+    im = np.array(m_cpu.inertia_matrix(voxels, cm)).reshape((3,3))
+    ls,E  = np.linalg.eigh(im)
+    E[:,0] *= -1
+    ix = np.argsort(np.abs(ls))
+    ls, E = ls[ix], E[:,ix]
+    UVW = E.T
+    _, v_vec, w_vec = UVW
+    cpu_seq, cpu, gpu = [
+        partial(impl.sample_plane, voxels, voxel_size, cm, v_vec, w_vec, [0, 1024, 0, 1024])
+        for impl in [m_cpu_seq, m_cpu, m_gpu]
+    ]
+
+    # TODO the function is unstable, even when they're all calling the sequential implementation, t least when comparing gcc against nvcc, but it differs at most with 1. Hence the higher tolerance for this test. Can be tested with something like for i in range(10000):
+    compare_fs('sample_plane', cpu_seq, cpu, gpu, True, 1.1, ((800,800), np.float32))
+
 if __name__ == '__main__':
     test_center_of_mass()
     test_inertia_matrix()
+    test_sample_plane(np.uint8)
