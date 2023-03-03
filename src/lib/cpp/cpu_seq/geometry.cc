@@ -93,41 +93,38 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
         Ixy, Iyy, Iyz,
         Ixz, Iyz, Izz
     };
-
 }
 
-}
+template <typename T>
+float resample2x2x2(const T             *voxels,
+                    const array<ssize_t, 3> &shape,
+                    const array<float, 3>   &X) {
+    auto  [Nz,Ny,Nx] = shape;
 
-/*
-
-template<typename field_type> float resample2x2x2(const field_type *voxels,
-                                                  const array<ssize_t,3> &shape,
-                                                  const array<float,3>   &X) {
-    auto  [Nx,Ny,Nz] = shape;    // Eller omvendt?
-    if (!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})) {
-        uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);
+    if (!in_bbox(X[0], X[1], X[2], {0.5f, Nx-0.5f, 0.5f, Ny-0.5f, 0.5f, Nz-0.5f})) {
+        uint64_t voxel_index = floor(X[0])*Ny*Nz + floor(X[1])*Ny + floor(X[2]);
         return voxels[voxel_index];
     }
+
     float   Xfrac[2][3]; // {Xminus[3], Xplus[3]}
-    int64_t Xint[2][3];     // {Iminus[3], Iplus[3]}
+    int64_t Xint[2][3];  // {Iminus[3], Iplus[3]}
     float   value = 0;
 
     for (int i = 0; i < 3; i++) {
-        double Iminus, Iplus;
-        Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-        Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+        float Iminus, Iplus;
+        Xfrac[0][i] = 1-modf(X[i]-0.5f, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+        Xfrac[1][i] =   modf(X[i]+0.5f, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
         Xint[0][i] = Iminus;
         Xint[1][i] = Iplus;
     }
-
 
     for (int ijk = 0; ijk <= 7; ijk++) {
         float  weight = 1;
         int64_t IJK[3] = {0,0,0};
 
         for (int axis = 0; axis < 3; axis++) { // x-1/2 or x+1/2
-            int pm = (ijk>>axis) & 1;
+            int pm    = (ijk >> axis) & 1;
             IJK[axis] = Xint[pm][axis];
             weight   *= Xfrac[pm][axis];
         }
@@ -144,28 +141,36 @@ template<typename field_type> float resample2x2x2(const field_type *voxels,
         uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
         assert(I>=0 && J>=0 && K>=0);
         assert(I<Nx && J<Ny && K<Nz);
-        field_type voxel = voxels[voxel_index];
+        float voxel = (float) voxels[voxel_index];
         value += voxel*weight;
     }
+
     return value;
 }
 
-template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type> &voxels,
-                         const real_t voxel_size, // In micrometers
-                         const array<real_t,3> cm,
-                         const array<real_t,3> u_axis,
-                         const array<real_t,3> v_axis,
-                         const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
-                         output_ndarray<real_t> plane_samples) {
+template <typename T>
+void sample_plane(const input_ndarray<T> &voxels,
+                  const real_t voxel_size, // In micrometers
+                  const array<real_t, 3> cm,
+                  const array<real_t, 3> u_axis,
+                  const array<real_t, 3> v_axis,
+                  const array<real_t, 4> bbox,    // [umin,umax,vmin,vmax] in micrometers
+                  output_ndarray<real_t> plane_samples) {
     const auto& [umin,umax,vmin,vmax] = bbox; // In micrometers
-    ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    ssize_t nu = plane_samples.shape[0], nv = plane_samples.shape[1];
-    real_t  du = (umax-umin)/nu, dv = (vmax-vmin)/nv;
+    UNPACK_NUMPY(voxels);
+    ssize_t
+        nu = plane_samples.shape[0],
+        nv = plane_samples.shape[1];
+    real_t
+        du = (umax - umin) / nu,
+        dv = (vmax - vmin) / nv;
 
-    #pragma omp parallel for collapse(2)
-    for (ssize_t ui=0;ui<nu;ui++) {
-        for (ssize_t vj=0;vj<nv;vj++) {
-            const real_t u = umin + ui*du, v = vmin + vj*dv;
+    //#pragma omp parallel for collapse(2)
+    for (ssize_t ui = 0; ui < nu; ui++) {
+        for (ssize_t vj = 0; vj < nv; vj++) {
+            const real_t
+                u = umin + ui*du,
+                v = vmin + vj*dv;
 
             // X,Y,Z in micrometers;  x,y,z in voxel index space
             const real_t
@@ -173,13 +178,17 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
                 Y = cm[1] + u*u_axis[1] + v*v_axis[1],
                 Z = cm[2] + u*u_axis[2] + v*v_axis[2];
 
-            const real_t x = X/voxel_size, y = Y/voxel_size, z = Z/voxel_size;
+            const real_t
+                x = X / voxel_size,
+                y = Y / voxel_size,
+                z = Z / voxel_size;
 
             //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
-            voxel_type value = 0;
-            if (in_bbox(x,y,z,{0.5,Nx-0.5, 0.5,Ny-0.5, 0.5,Nz-0.5}))
-                value = resample2x2x2<voxel_type>(voxels.data,{Nx,Ny,Nz},{x,y,z});
+            T value = 0;
+            std::array<float, 6> bbox = {0.5f, voxels_Nx-0.5f, 0.5f, voxels_Ny-0.5f, 0.5f, voxels_Nz-0.5f};
+            if (in_bbox(x,y,z, bbox))
+                value = (T) floor(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
             // else
             //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
 
@@ -188,6 +197,9 @@ template <typename voxel_type> void sample_plane(const input_ndarray<voxel_type>
     }
 }
 
+}
+
+/*
 /* TODO only called in test.py. Postpone for now.
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,

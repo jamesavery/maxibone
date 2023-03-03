@@ -2,7 +2,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
+from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, sample_plane
 from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter

@@ -36,6 +36,20 @@ Computes the inertia matrix of the given tomography based of the given center of
 */
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm);
 
+template <typename T>
+float resample2x2x2(const T *voxels,
+                    const array<ssize_t,3> &shape,
+                    const array<float,3> &X);
+
+template <typename T>
+void sample_plane(const input_ndarray<T> &voxels,
+                  const real_t voxel_size, // In micrometers
+                  const array<real_t, 3> cm,
+                  const array<real_t, 3> u_axis,
+                  const array<real_t, 3> v_axis,
+                  const array<real_t, 4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
+                  output_ndarray<real_t> plane_samples);
+
 }
 
 #endif

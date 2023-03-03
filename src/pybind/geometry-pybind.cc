@@ -27,24 +27,28 @@ array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3> 
     return NS::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
 }
 
-/*
-
-template <typename voxel_type>
-void sample_plane(const np_array<voxel_type> &np_voxels,
+template <typename T>
+void sample_plane(const np_array<T> &np_voxels,
           const real_t voxel_size, // In micrometers
           const array<real_t,3> cm,
           const array<real_t,3> u_axis,
           const array<real_t,3> v_axis,
           const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
-          np_array<float> np_plane_samples) {
+          np_array<real_t> np_plane_samples) {
     auto voxels_info = np_voxels.request();
     auto plane_samples_info  = np_plane_samples.request();
 
-    sample_plane<voxel_type>({voxels_info.ptr, voxels_info.shape}, voxel_size,
+    NS::sample_plane<T>({voxels_info.ptr, voxels_info.shape}, voxel_size,
            cm,u_axis,v_axis,bbox,
            {plane_samples_info.ptr, plane_samples_info.shape});
 }
 
+real_t resample2x2x2(const np_array<uint8_t> &np_voxels) {
+    auto voxels_info = np_voxels.request();
+    return 0.0f;
+}
+
+/*
 void integrate_axes(const np_maskarray &np_voxels,
             const array<real_t,3> &x0,
             const array<real_t,3> &v_axis,
@@ -140,7 +144,7 @@ PYBIND11_MODULE(geometry, m) {
     //m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     //m.def("fill_implant_mask",    &python_api::fill_implant_mask);
     //m.def("cylinder_projection",  &python_api::cylinder_projection);
-    //m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
-    //m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
+    m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
+    m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
     //m.def("compute_front_mask",   &python_api::compute_front_mask);
 }
