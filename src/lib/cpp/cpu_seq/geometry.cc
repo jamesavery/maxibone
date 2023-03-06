@@ -165,7 +165,11 @@ void sample_plane(const input_ndarray<T> &voxels,
         du = (umax - umin) / real_t(nu),
         dv = (vmax - vmin) / real_t(nv);
 
-    //#pragma omp parallel for collapse(2)
+    real_t *dat = plane_samples.data;
+
+    #pragma acc data copyin(voxels, voxels.data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx) create(dat[:nu*nv]) copyout(dat[:nu*nv])
+    {
+    PRAGMA(PARALLEL_TERM collapse(2))
     for (ssize_t ui = 0; ui < nu; ui++) {
         for (ssize_t vj = 0; vj < nv; vj++) {
             const real_t
@@ -188,12 +192,13 @@ void sample_plane(const input_ndarray<T> &voxels,
             T value = 0;
             std::array<float, 6> local_bbox = {0.5f, float(voxels_Nx)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nz)-0.5f};
             if (in_bbox(x,y,z, local_bbox))
-                value = (T) floor(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
+                value = (T) round(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
             // else
             //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
 
-            plane_samples.data[ui*nv + vj] = value;
+            dat[ui*nv + vj] = value;
         }
+    }
     }
 }
 
