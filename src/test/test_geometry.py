@@ -39,12 +39,16 @@ def run_with_warmup(f, allocate_result=None):
 
     @param allocate_result Defines whether the memory for the result should be allocated before running. If it should, it should be a tuple of the shape and the dtype of the array. None otherwise.
     '''
-    alloc = lambda x: np.zeros(x[0], x[1])
-    f() if allocate_result is None else f(alloc(allocate_result))
     if allocate_result is None:
+        f()
         start = datetime.datetime.now()
         result = f()
     else:
+        if type(allocate_result) is tuple:
+            alloc = lambda x: np.zeros(x[0], x[1])
+        else:
+            alloc = lambda x: np.copy(x)
+        f(alloc(allocate_result))
         result = alloc(allocate_result)
         start = datetime.datetime.now()
         f(result)
@@ -52,7 +56,7 @@ def run_with_warmup(f, allocate_result=None):
     return result, end - start
 
 def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-7,
-               allocate_result: tuple[tuple[int],np.dtype]=None):
+               allocate_result: tuple[tuple[int],np.dtype] | np.ndarray=None):
     baseline, baseline_t = run_with_warmup(baseline_f, allocate_result)
     print (f'({func}) Sequential ran in {baseline_t}')
 
@@ -132,7 +136,6 @@ def test_integrate_axes():
     compare_fs('integrate_axes', cpu_seq, cpu, gpu, True, 1e-7, ((int(vmax-vmin+2),int(wmax-wmin+2)), float))
 
 def axis_parameter_bounds(shape, center, axis):
-    d     = len(axis)
     signs = np.sign(axis)
 
     # (0,0,..,0) corner and furthest corner of grid, relative to center
@@ -145,8 +148,78 @@ def axis_parameter_bounds(shape, center, axis):
 
     return (np.dot(xmin,axis), np.dot(xmax,axis)), (xmin,xmax)
 
+def integrate_axes(img, cm, v_axis, w_axis):
+    (vmin,vmax), (vxmin,vxmax) = axis_parameter_bounds(img.shape, cm, v_axis)
+    (wmin,wmax), (wxmin,wxmax) = axis_parameter_bounds(img.shape, cm, w_axis)
+
+    integral = np.zeros((int(vmax-vmin+2),int(wmax-wmin+2)), dtype=float)
+    m_cpu.integrate_axes(img,cm,v_axis, w_axis,vmin, wmin, integral)
+
+    return integral
+
+def bounding_volume(voxels,voxelsize=1.85):
+    cm = np.array(m_cpu.center_of_mass(voxels))
+    M  = np.array(m_cpu.inertia_matrix(voxels,cm)).reshape(3,3)
+
+    lam,E = np.linalg.eigh(M)
+    ix = np.argsort(np.abs(lam))
+    lam,E = np.array(lam)[ix], np.array(E)[:,ix]
+
+    u_axis, v_axis, w_axis = E[:,0], E[:,1], E[:,2]
+    (vmin,vmax), _ = axis_parameter_bounds(voxels.shape, cm, v_axis)
+
+    int_vw = integrate_axes(voxels, cm, v_axis, w_axis)
+    int_uw = integrate_axes(voxels, cm, u_axis, w_axis)
+    int_uv = integrate_axes(voxels, cm, u_axis, v_axis)
+    int_u  = np.sum(int_uv,axis=1)
+    int_v  = np.sum(int_uv,axis=0)
+    int_w  = np.sum(int_uw,axis=0)
+
+    lengths = np.array([np.sum(int_u>0), np.sum(int_v>0), np.sum(int_w>0)])
+    ix = np.argsort(lengths)[::-1]
+    print("lengths: ",lengths, ", ix: ",ix)
+
+    (umin,umax), _ = axis_parameter_bounds(voxels.shape, cm, u_axis)
+    (vmin,vmax), _ = axis_parameter_bounds(voxels.shape, cm, v_axis)
+    (wmin,wmax), _ = axis_parameter_bounds(voxels.shape, cm, w_axis)
+
+    u_prefix, u_postfix = np.sum(int_u[0:int(np.ceil(abs(umin)))]>0), np.sum(int_u[int(np.floor(abs(umin))):]>0)
+    v_prefix, v_postfix = np.sum(int_v[0:int(np.ceil(abs(vmin)))]>0), np.sum(int_v[int(np.floor(abs(vmin))):]>0)
+    w_prefix, w_postfix = np.sum(int_w[0:int(np.ceil(abs(wmin)))]>0), np.sum(int_w[int(np.floor(abs(wmin))):]>0)
+
+
+    return {
+        'principal_axes':np.array([u_axis,v_axis,w_axis]),
+        'principal_axes_ranges':np.array([[-u_prefix*voxelsize,u_postfix*voxelsize],
+                                          [-v_prefix*voxelsize,v_postfix*voxelsize],
+                                          [-w_prefix*voxelsize,w_postfix*voxelsize]]),
+        'centre_of_mass':cm*voxelsize
+    }
+
+def test_zero_outside_bbox():
+    n = 128
+    dtype = np.uint8
+    voxels = np.random.randint(0, np.iinfo(dtype).max, (n,n,n), dtype)
+    voxelsize = 1.85
+    coarse_scale = 6
+    fine_scale = 2
+    mmtofi = 1 / (voxelsize * fine_scale) # Conversion factor from micrometers to index
+
+    implant_bound = bounding_volume(voxels, voxelsize*coarse_scale)
+    uvw_axes   = implant_bound["principal_axes"]
+    uvw_ranges = implant_bound["principal_axes_ranges"] * mmtofi
+    cm         = implant_bound["centre_of_mass"] * mmtofi
+
+    cpu_seq, cpu, gpu = [
+        partial(impl.zero_outside_bbox, uvw_axes.flatten(), uvw_ranges.flatten(), cm)
+        for impl in [m_cpu_seq, m_cpu, m_gpu]
+    ]
+
+    compare_fs('zero_outside_bbox', cpu_seq, cpu, gpu, True, 1e-7, voxels)
+
 if __name__ == '__main__':
     test_center_of_mass()
     test_inertia_matrix()
     test_sample_plane(np.uint8)
     test_integrate_axes()
+    test_zero_outside_bbox()
