@@ -108,7 +108,45 @@ def test_sample_plane(dtype):
     # TODO the function is unstable, even when they're all calling the sequential implementation, t least when comparing gcc against nvcc, but it differs at most with 1. Hence the higher tolerance for this test. Can be tested with something like for i in range(10000):
     compare_fs('sample_plane', cpu_seq, cpu, gpu, True, 1.1, ((64,64), np.float32))
 
+def test_integrate_axes():
+    n = 128
+    dtype = np.uint8
+    voxels = np.random.randint(0, np.iinfo(dtype).max, (n,n,n), dtype)
+    cm = m_cpu.center_of_mass(voxels)
+    M  = np.array(m_cpu.inertia_matrix(voxels, cm)).reshape(3,3)
+
+    lam, E = np.linalg.eigh(M)
+    ix = np.argsort(np.abs(lam))
+    lam, E = np.array(lam)[ix], np.array(E)[:,ix]
+
+    v_axis, w_axis = E[:,1], E[:,2]
+
+    (vmin,vmax), _ = axis_parameter_bounds(voxels.shape, cm, v_axis)
+    (wmin,wmax), _ = axis_parameter_bounds(voxels.shape, cm, w_axis)
+
+    cpu_seq, cpu, gpu = [
+        partial(impl.integrate_axes, voxels, cm, v_axis, w_axis, vmin, wmin)
+        for impl in [m_cpu_seq, m_cpu, m_gpu]
+    ]
+
+    compare_fs('integrate_axes', cpu_seq, cpu, gpu, True, 1e-7, ((int(vmax-vmin+2),int(wmax-wmin+2)), float))
+
+def axis_parameter_bounds(shape, center, axis):
+    d     = len(axis)
+    signs = np.sign(axis)
+
+    # (0,0,..,0) corner and furthest corner of grid, relative to center
+#    print(center)
+    x0 = -np.array(center)
+    x1 = np.array(shape)[::-1]-center # Data has z,y,x-order, but we keep x,y,z in geometry calc
+
+    xmin = (signs==1)*x0 + (signs==-1)*x1 # minimizes dot(x,axis)
+    xmax = (signs==1)*x1 + (signs==-1)*x0 # maximizes dot(x,axis)
+
+    return (np.dot(xmin,axis), np.dot(xmax,axis)), (xmin,xmax)
+
 if __name__ == '__main__':
     test_center_of_mass()
     test_inertia_matrix()
     test_sample_plane(np.uint8)
+    test_integrate_axes()
