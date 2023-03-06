@@ -57,7 +57,6 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
               {voxels_info.ptr, voxels_info.shape});
 }
 
-/*
 void fill_implant_mask(const np_maskarray implant_mask,
                float voxel_size,
                const array<float,6> &bbox,
@@ -72,7 +71,7 @@ void fill_implant_mask(const np_maskarray implant_mask,
         rsqr_info          = rsqr_maxs.request(),
         profile_info       =  profile.request();
 
-    return fill_implant_mask({implant_info.ptr,       implant_info.shape},
+    return NS::fill_implant_mask({implant_info.ptr,       implant_info.shape},
                  voxel_size, bbox, r_fraction, Muvw,
                  {solid_implant_info.ptr, solid_implant_info.shape},
                  {rsqr_info.ptr,          rsqr_info.shape},
@@ -80,6 +79,7 @@ void fill_implant_mask(const np_maskarray implant_mask,
                  );
 }
 
+/*
 void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,
@@ -124,7 +124,7 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix",       &python_api::inertia_matrix);
     m.def("integrate_axes",       &python_api::integrate_axes);
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
-    //m.def("fill_implant_mask",    &python_api::fill_implant_mask);
+    m.def("fill_implant_mask",    &python_api::fill_implant_mask);
     //m.def("cylinder_projection",  &python_api::cylinder_projection);
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>);

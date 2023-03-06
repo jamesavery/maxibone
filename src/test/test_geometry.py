@@ -217,9 +217,44 @@ def test_zero_outside_bbox():
 
     compare_fs('zero_outside_bbox', cpu_seq, cpu, gpu, True, 1e-7, voxels)
 
+def test_fill_implant_mask():
+    n = 128
+    dtype = np.uint8
+    implant = np.random.randint(0, np.iinfo(dtype).max, (n,n,n), dtype)
+    # Values hardcoded from running 770c_pag on processing_steps/0800_implant_data.py
+    voxel_size = 3.75
+    bbox_flat = (-3041.39336716053, 2955.146870664342, -1743.0321403974565, 1744.4435665884819, 367.6267143127782, 1764.022543822563)
+    rsqr_fraction = 0.7
+    Muvwp_flat = (-0.9969205263686536, -0.07827989472162836, 0.004660706729396567, 3351.6367031993477, -0.004165804965960026, -0.006484313676985426, -0.9999702066630287, 3287.1018168847136, -0.07830654571765466, 0.996894476384658, -0.006138149566672908, -1739.8123507003322, 0.0, 0.0, 0.0, 1.0)
+    n_bins = 1024
+
+    solid_implant_mask = np.zeros(implant.shape, np.uint8)
+    rsqr_maxs = np.zeros((n_bins, ), np.uint8)
+    profile = np.zeros((n_bins, ), np.uint8)
+
+    impls = [m_cpu_seq, m_cpu, m_gpu]
+    result_solid_implant_mask = [solid_implant_mask.copy() for _ in impls]
+    result_rsqr_maxs = [rsqr_maxs.copy() for _ in impls]
+    result_profile = [profile.copy() for _ in impls]
+    cpu_seq, cpu, gpu = [
+        partial(impl.fill_implant_mask, implant, voxel_size, bbox_flat, rsqr_fraction, Muvwp_flat, solid_implant_mask, rsqr_maxs, profile)
+        for i, impl in enumerate(impls)
+    ]
+
+    compare_fs('test_fill_implant_mask', cpu_seq, cpu, gpu, False)
+
+    assert_with_print(result_solid_implant_mask[0], result_solid_implant_mask[1], 1e-7, "cpu_seq vs cpu")
+    assert_with_print(result_solid_implant_mask[0], result_solid_implant_mask[2], 1e-7, "cpu_seq vs gpu")
+    assert_with_print(result_rsqr_maxs[0], result_rsqr_maxs[1], 1e-7, "cpu_seq vs cpu")
+    assert_with_print(result_rsqr_maxs[0], result_rsqr_maxs[2], 1e-7, "cpu_seq vs gpu")
+    assert_with_print(result_profile[0], result_profile[1], 1e-7, "cpu_seq vs cpu")
+    assert_with_print(result_profile[0], result_profile[2], 1e-7, "cpu_seq vs gpu")
+
+
 if __name__ == '__main__':
     test_center_of_mass()
     test_inertia_matrix()
     test_sample_plane(np.uint8)
     test_integrate_axes()
     test_zero_outside_bbox()
+    test_fill_implant_mask()
