@@ -19,7 +19,7 @@ tmp_file = f'{tmp_folder}/{tmp_filename}'
 dim_size = 128
 dim_shape = (dim_size, dim_size, dim_size)
 partial_factor = 4
-impls = [io_cpu_seq] #, io_cpu, io_gpu]
+impls = [io_cpu_seq, io_cpu, io_gpu]
 
 def random(shape, dtype):
     rnds = np.random.random(shape) * 100
@@ -63,7 +63,7 @@ def test_dtype(impl, dtype):
     for i in range(partial_factor+1):
         impl.load_slice(read_data, individual_tmp_file, (i*partial,0,0), read_data.shape)
         assert np.allclose(data[i*partial:(i+1)*partial], read_data)
-    
+
     # Write past where the file ends
     impl.write_slice(data, individual_tmp_file, (data.shape[0]*2,0,0), data.shape)
     assert os.path.getsize(individual_tmp_file) == 3 * data.nbytes
