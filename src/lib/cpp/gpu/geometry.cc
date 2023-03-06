@@ -48,46 +48,11 @@ void sample_plane(const input_ndarray<T> &voxels,
     return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples);
 }
 
-/* TODO Only called in test.py. Postponed for now.
-void integrate_axes(const input_ndarray<mask_type> &voxels,
-            const array<real_t,3> &x0,
-            const array<real_t,3> &v_axis,
-            const array<real_t,3> &w_axis,
-            const real_t v_min, const real_t w_min,
-            output_ndarray<real_t> output) {
-    ssize_t Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    ssize_t Nv = output.shape[0], Nw = output.shape[1];
-    int64_t image_length = Nx*Ny*Nz;
-    real_t *output_data = output.data;
-
-    // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
-
-    for (ssize_t block_start = 0; block_start < image_length; block_start += acc_block_size) {
-        const mask_type *buffer  = voxels.data + block_start;
-        int block_length = min(acc_block_size,image_length-block_start);
-
-        //#pragma acc parallel loop copy(output_data[:Nv*Nw]) copyin(buffer[:block_length], x0, v_axis, w_axis)
-        //parallel_loop((output_data[:Nv*Nw]))
-        for (int64_t k = 0; k < block_length; k++) {
-            if (buffer[k] != 0) {
-                int64_t flat_idx = block_start + k;
-                real_t xs[3] = {
-                    (flat_idx  / (Ny*Nz))  - x0[0],   // x
-                    ((flat_idx / Nz) % Ny) - x0[1],   // y
-                    (flat_idx  % Nz)       - x0[2] }; // z
-
-                mask_type voxel = buffer[k];
-                real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
-                int64_t i_v = round(v-v_min), j_w = round(w-w_min);
-
-                if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
-                    //atomic_statement()
-                    output_data[i_v*Nw + j_w] += voxel;
-                }
-            }
-        }
-    }
+void zero_outside_bbox(const array<real_t,9> &principal_axes,
+                       const array<real_t,6> &parameter_ranges,
+                       const array<real_t,3> &cm,
+                       output_ndarray<mask_type> voxels) {
+    return cpu_seq::zero_outside_bbox(principal_axes, parameter_ranges, cm, voxels);
 }
-*/
 
 }

@@ -238,53 +238,45 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
     }
 }
 
-}
-
-/*
-// TODO only called in test.py. Postpone for now.
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
                const array<real_t,6> &parameter_ranges,
                const array<real_t,3> &cm,
                output_ndarray<mask_type> voxels) {
-    size_t  Nx = voxels.shape[0], Ny = voxels.shape[1], Nz = voxels.shape[2];
-    int64_t image_length = Nx*Ny*Nz;
 
-    printf("(Nx,Ny,Nz) = (%ld,%ld,%ld), image_length = %ld",Nx,Ny,Nz, image_length);
+    UNPACK_NUMPY(voxels)
 
-    for (int64_t block_start = 0; block_start < image_length; block_start += acc_block_size) {
-        mask_type *buffer = voxels.data + block_start;
-        ssize_t this_block_length = min(acc_block_size, image_length-block_start);
+    BLOCK_BEGIN(voxels, ) {
 
-        //parallel_loop((buffer[:this_block_length]))
-        for (int64_t k = 0; k < this_block_length; k++) {
-            int64_t flat_idx = block_start + k;
-            int64_t x = flat_idx  / (Ny*Nz);
-            int64_t y = (flat_idx / Nz) % Ny;
-            int64_t z = flat_idx  % Nz;
-            // Boilerplate until here. TODO: macroize or lambda out!
+        real_t xs[3] = {
+            real_t(x) - cm[0],
+            real_t(y) - cm[1],
+            real_t(z) - cm[2]};
+        real_t params[3] = { 0, 0, 0 };
 
-            real_t xs[3] = {x-cm[0], y-cm[1], z-cm[2]};
+        for (int uvw = 0; uvw < 3; uvw++)
+            for (int xyz = 0; xyz < 3; xyz++)
+                params[uvw] += xs[xyz] * principal_axes[uvw*3 + xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
 
-            real_t params[3] = {0,0,0};
+        bool p = false;
 
-            for (int uvw = 0; uvw < 3; uvw++)
-                for (int xyz = 0; xyz < 3; xyz++)
-                    params[uvw] += xs[xyz] * principal_axes[uvw*3+xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
-
-            bool p = false;
-
-            for (int uvw = 0; uvw < 3; uvw++) {
-                real_t param_min = parameter_ranges[uvw*2], param_max = parameter_ranges[uvw*2+1];
-                p |= (params[uvw] < param_min) | (params[uvw] > param_max);
-            }
-
-            if (p) buffer[k] = 0;
-
+        for (int uvw = 0; uvw < 3; uvw++) {
+            real_t
+                param_min = parameter_ranges[uvw*2],
+                param_max = parameter_ranges[uvw*2 + 1];
+            p |= (params[uvw] < param_min) | (params[uvw] > param_max);
         }
-    }
+
+        if (p)
+            voxels_buffer[flat_index] = 0;
+
+    BLOCK_END() }
+
 }
 
+}
+
+/*
 inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
     vector4 c{{0,0,0,0}};
 

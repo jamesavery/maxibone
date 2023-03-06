@@ -49,4 +49,11 @@ void sample_plane(const input_ndarray<T> &voxels,
     return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples);
 }
 
+void zero_outside_bbox(const array<real_t,9> &principal_axes,
+                       const array<real_t,6> &parameter_ranges,
+                       const array<real_t,3> &cm,
+                       output_ndarray<mask_type> voxels) {
+    return cpu_seq::zero_outside_bbox(principal_axes, parameter_ranges, cm, voxels);
+}
+
 }

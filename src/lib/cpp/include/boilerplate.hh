@@ -32,9 +32,9 @@
 /// @param ARR The array that will be accessed.
 #define FOR_BLOCK_BEGIN(ARR) \
     for (int64_t ARR##_buffer_start = 0; ARR##_buffer_start < ARR##_length; ARR##_buffer_start += acc_block_size<ARR##_type>) { \
-        const ARR##_type *ARR##_buffer = ARR.data + ARR##_buffer_start; \
+        ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data + ARR##_buffer_start; \
         ssize_t ARR##_buffer_length = min(acc_block_size<ARR##_type>, ARR##_length-ARR##_buffer_start); \
-        PRAGMA(acc data copyin(ARR##_buffer[:ARR##_buffer_length])) \
+        PRAGMA(acc data copy(ARR##_buffer[:ARR##_buffer_length])) \
         {
 
 #define FOR_BLOCK_END() } }
@@ -76,7 +76,7 @@
 #else
 #ifdef _OPENMP // Should also capture OpenACC, which is why it's second.
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
-    const ARR##_type *ARR##_buffer = ARR.data; \
+    ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data; \
     FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     int64_t flat_index = z*ARR##_Ny*ARR##_Nx + y*ARR##_Nx + x;
 
@@ -84,7 +84,7 @@
 #else
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     int64_t flat_index = 0; \
-    const ARR##_type *ARR##_buffer = ARR.data; \
+    ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data; \
     FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE)
 
 #define BLOCK_END() \
