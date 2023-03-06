@@ -5,7 +5,7 @@
 #include "../cpu_seq/io.cc"
 
 using namespace std;
-namespace cpu {
+namespace cpu_par {
 
 template <typename T>
 void load_contiguous_slice(T *data,

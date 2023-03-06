@@ -4,7 +4,6 @@
 using namespace std;
 namespace py = pybind11;
 
-#include "datatypes.hh"
 #include "io.cc"
 
 namespace python_api {
