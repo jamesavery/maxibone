@@ -21,6 +21,15 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
     return cpu_seq::inertia_matrix(mask, cm);
 }
 
+void integrate_axes(const input_ndarray<mask_type> &mask,
+		    const array<real_t,3> &x0,
+		    const array<real_t,3> &v_axis,
+		    const array<real_t,3> &w_axis,
+		    const real_t v_min, const real_t w_min,
+		    output_ndarray<real_t> output) {
+    return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
+}
+
 template <typename T>
 float resample2x2x2(const T        *voxels,
                     const array<ssize_t, 3> &shape,

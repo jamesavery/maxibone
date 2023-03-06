@@ -30,12 +30,11 @@ void sample_plane(const np_array<T> &np_voxels,
            {plane_samples_info.ptr, plane_samples_info.shape});
 }
 
-real_t resample2x2x2(const np_array<uint8_t> &np_voxels) {
+/*real_t resample2x2x2(const np_array<uint8_t> &np_voxels) {
     auto voxels_info = np_voxels.request();
     return 0.0f;
-}
+}*/
 
-/*
 void integrate_axes(const np_maskarray &np_voxels,
             const array<real_t,3> &x0,
             const array<real_t,3> &v_axis,
@@ -45,12 +44,13 @@ void integrate_axes(const np_maskarray &np_voxels,
     auto voxels_info = np_voxels.request();
     auto output_info  = output.request();
 
-    integrate_axes({voxels_info.ptr, voxels_info.shape},
+    NS::integrate_axes({voxels_info.ptr, voxels_info.shape},
              x0,v_axis,w_axis,
              v_min, w_min,
              {output_info.ptr, output_info.shape});
 }
 
+/*
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
              const array<real_t,6> &parameter_ranges,
              const array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
@@ -127,7 +127,7 @@ PYBIND11_MODULE(geometry, m) {
 
     m.def("center_of_mass",       &python_api::center_of_mass);
     m.def("inertia_matrix",       &python_api::inertia_matrix);
-    //m.def("integrate_axes",       &python_api::integrate_axes);
+    m.def("integrate_axes",       &python_api::integrate_axes);
     //m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     //m.def("fill_implant_mask",    &python_api::fill_implant_mask);
     //m.def("cylinder_projection",  &python_api::cylinder_projection);

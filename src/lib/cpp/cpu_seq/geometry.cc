@@ -202,6 +202,42 @@ void sample_plane(const input_ndarray<T> &voxels,
     }
 }
 
+void integrate_axes(const input_ndarray<mask_type> &mask,
+		    const array<real_t,3> &x0,
+		    const array<real_t,3> &v_axis,
+		    const array<real_t,3> &w_axis,
+		    const real_t v_min, const real_t w_min,
+		    output_ndarray<real_t> output) {
+    UNPACK_NUMPY(mask);
+    ssize_t Nv = output.shape[0], Nw = output.shape[1];
+    real_t *output_data = output.data;
+
+    // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
+    #pragma acc data create(output_data[:Nv*Nw]) copyout(output_data[:Nv*Nw])
+    {
+    BLOCK_BEGIN(mask, ) {
+
+        mask_type voxel = mask_buffer[flat_index];
+        if (voxel != 0) {
+            real_t xs[3] = {
+                real_t(x) - x0[0],
+                real_t(y) - x0[1],
+                real_t(z) - x0[2]
+            };
+
+            real_t v = dot(xs,v_axis), w = dot(xs,w_axis);
+            int64_t i_v = int64_t(round(v-v_min)), j_w = int64_t(round(w-w_min));
+
+            if(i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw){
+                ATOMIC()
+                output_data[i_v*Nw + j_w] += voxel;
+            }
+        }
+
+    BLOCK_END() }
+    }
+}
+
 }
 
 /*

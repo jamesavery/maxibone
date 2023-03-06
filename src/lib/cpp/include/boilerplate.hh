@@ -16,6 +16,12 @@
 #endif
 #endif
 
+#ifdef _OPENACC
+#define ATOMIC() PRAGMA(acc atomic)
+#else
+#define ATOMIC() PRAGMA(omp atomic)
+#endif
+
 // TODO attempt at docstring; not quite working.
 
 /// Inserts boilerplate code for accessing the given parameter, ARR, in a blocked (chunked) manner.
