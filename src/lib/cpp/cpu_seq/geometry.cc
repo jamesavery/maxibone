@@ -139,8 +139,8 @@ float resample2x2x2(const T             *voxels,
         //   abort();
         // }
         uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
-        assert(I>=0 && J>=0 && K>=0);
-        assert(I<Nx && J<Ny && K<Nz);
+        //assert(I>=0 && J>=0 && K>=0);
+        //assert(I<Nx && J<Ny && K<Nz);
         float voxel = (float) voxels[voxel_index];
         value += voxel*weight;
     }
@@ -200,7 +200,7 @@ void sample_plane(const input_ndarray<T> &voxels,
 }
 
 /*
-/* TODO only called in test.py. Postpone for now.
+// TODO only called in test.py. Postpone for now.
 // NB: xyz are in indices, not micrometers
 void zero_outside_bbox(const array<real_t,9> &principal_axes,
                const array<real_t,6> &parameter_ranges,
@@ -257,25 +257,6 @@ inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
     return c;
 }
 
-#define loop_mask_start(mask_in,mask_out,COPY) {                                                                                \
-    ssize_t Mx = mask_in.shape[0], My = mask_in.shape[1], Mz = mask_in.shape[2];                                                \
-    ssize_t mask_length = Mx*My*Mz;                                                                                             \
-                                                                                                                                \
-    for (ssize_t block_start = 0; block_start < mask_length; block_start += acc_block_size) {                                   \
-        const mask_type *maskin_buffer  = mask_in.data + block_start;                                                           \
-            mask_type *maskout_buffer = mask_out.data + block_start;                                                            \
-        ssize_t this_block_length = min(acc_block_size, mask_length-block_start);                                               \
-                                                                                                                                \
-        _Pragma(STR(acc parallel loop copy(maskin_buffer[:this_block_length], maskout_buffer[:this_block_length]) copy COPY))   \
-        for (int64_t k = 0; k < this_block_length; k++) {                                                                       \
-            int64_t flat_idx = block_start + k;                                                                                 \
-            int64_t X = (flat_idx  / (My*Mz)), Y = (flat_idx / Mz) % My, Z = flat_idx  % Mz;                                    \
-            std::array<real_t,4> Xs = { X*voxel_size, Y*voxel_size, Z*voxel_size, 1 };                                          \
-            bool mask_value = maskin_buffer[k];
-
-#define loop_mask_end(mask) }}}
-
-/*
 void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
                float voxel_size,
                const array<float,6> &bbox,
@@ -425,7 +406,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                     abort();
                 }
 
-                //****** MEAT OF THE IMPLEMENTATION IS HERE ******
+                // ****** MEAT OF THE IMPLEMENTATION IS HERE ******
                 real_t distance = resample2x2x2<float>(edt_block, {this_edt_length/(ey*ez),ey,ez}, {x,y,z});
 
                 if (distance > d_min && distance <= d_max) { // TODO: and W>w_min

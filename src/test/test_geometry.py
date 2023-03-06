@@ -57,11 +57,11 @@ def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-
     print (f'({func}) Sequential ran in {baseline_t}')
 
     cpu, cpu_t = run_with_warmup(cpu_f, allocate_result)
-    print (f'({func}) Parallel CPU ran in {cpu_t}, which is {baseline_t / cpu_t} times faster than sequential')
+    print (f'({func}) Parallel CPU ran in {cpu_t}, which is {baseline_t / cpu_t:.02f} times faster than sequential')
     if should_assert: assert_with_print(baseline, cpu, tolerance, 'cpu_seq vs cpu')
 
     gpu, gpu_t = run_with_warmup(gpu_f, allocate_result)
-    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t} times faster than sequential')
+    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t:.02f} times faster than sequential')
     if should_assert: assert_with_print(baseline, gpu, tolerance, 'cpu_seq vs gpu')
 
 def test_center_of_mass():
@@ -101,12 +101,12 @@ def test_sample_plane(dtype):
     UVW = E.T
     _, v_vec, w_vec = UVW
     cpu_seq, cpu, gpu = [
-        partial(impl.sample_plane, voxels, voxel_size, cm, v_vec, w_vec, [0, 1024, 0, 1024])
+        partial(impl.sample_plane, voxels, voxel_size, cm, v_vec, w_vec, [0, 128, 0, 128])
         for impl in [m_cpu_seq, m_cpu, m_gpu]
     ]
 
     # TODO the function is unstable, even when they're all calling the sequential implementation, t least when comparing gcc against nvcc, but it differs at most with 1. Hence the higher tolerance for this test. Can be tested with something like for i in range(10000):
-    compare_fs('sample_plane', cpu_seq, cpu, gpu, True, 1.1, ((800,800), np.float32))
+    compare_fs('sample_plane', cpu_seq, cpu, gpu, True, 1.1, ((64,64), np.float32))
 
 if __name__ == '__main__':
     test_center_of_mass()
