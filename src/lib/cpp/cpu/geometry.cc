@@ -14,8 +14,15 @@ array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return cpu_seq::center_of_mass(mask);
 }
 
-bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
-    return cpu_seq::in_bbox(U, V, W, bbox);
+void fill_implant_mask(const input_ndarray<mask_type> mask,
+               float voxel_size,
+               const array<float,6> &bbox,
+               float r_fraction,
+               const matrix4x4 &Muvw,
+               output_ndarray<mask_type> solid_implant_mask,
+               output_ndarray<float> rsqr_maxs,
+               output_ndarray<float> profile) {
+    return cpu_seq::fill_implant_mask(mask, voxel_size, bbox, r_fraction, Muvw, solid_implant_mask, rsqr_maxs, profile);
 }
 
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {

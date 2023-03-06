@@ -9,10 +9,40 @@ using namespace std;
 
 #define dot(a,b) (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])
 
-void print_timestamp(string message) {
+inline void print_timestamp(string message) {
     auto now = chrono::system_clock::to_time_t(chrono::system_clock::now());
     tm local_tm = *localtime(&now);
     fprintf(stderr,"%s at %02d:%02d:%02d\n", message.c_str(), local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
+}
+
+inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
+    vector4 c{{ 0, 0, 0, 0 }};
+
+    for (int i = 0; i < 4; i++) {
+        real_t sum = 0;
+        #pragma simd parallel for reduction(+:sum)
+        for (int j = 0; j < 4; j++)
+            sum += M[i*4 + j] * x[j];
+        c[i] = sum;
+    }
+    return c;
+}
+
+inline bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
+    const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+
+    bool inside =
+        U >= U_min &&
+        U <= U_max &&
+        V >= V_min &&
+        V <= V_max &&
+        W >= W_min &&
+        W <= W_max;
+
+    // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
+    //      U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
+
+    return inside;
 }
 
 namespace NS {
@@ -25,7 +55,14 @@ Computes the center of mass of the given tomography.
 */
 array<real_t,3> center_of_mass(const input_ndarray<mask_type> &voxels);
 
-bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox);
+void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
+               float voxel_size,
+               const array<float,6> &bbox,
+               float r_fraction,
+               const matrix4x4 &Muvw,
+               output_ndarray<mask_type> solid_implant_mask,
+               output_ndarray<float> rsqr_maxs,
+               output_ndarray<float> profile);
 
 /*
 Computes the inertia matrix of the given tomography based of the given center of mass.

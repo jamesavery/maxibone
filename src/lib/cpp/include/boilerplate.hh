@@ -77,6 +77,7 @@
 #ifdef _OPENMP // Should also capture OpenACC, which is why it's second.
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data; \
+    __attribute__((unused)) int64_t ARR##_buffer_start = 0; \
     FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     int64_t flat_index = z*ARR##_Ny*ARR##_Nx + y*ARR##_Nx + x;
 
@@ -85,6 +86,7 @@
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     int64_t flat_index = 0; \
     ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data; \
+    __attribute__((unused)) int64_t ARR##_buffer_start = 0; \
     FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE)
 
 #define BLOCK_END() \

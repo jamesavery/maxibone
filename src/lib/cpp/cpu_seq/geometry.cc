@@ -39,21 +39,93 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return array<real_t, 3>{ rcmz, rcmy, rcmx };
 }
 
-bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
-    const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+void fill_implant_mask(const input_ndarray<mask_type> mask,
+               float voxel_size,
+               const array<float,6> &bbox,
+               float r_fraction,
+               const matrix4x4 &Muvw,
+               output_ndarray<mask_type> solid_implant_mask,
+               output_ndarray<float> rsqr_maxs,
+               output_ndarray<float> profile) {
+    UNPACK_NUMPY(mask)
 
-    bool inside =
-        U >= U_min &&
-        U <= U_max &&
-        V >= V_min &&
-        V <= V_max &&
-        W >= W_min &&
-        W <= W_max;
+    real_t theta_min = real_t(M_PI), theta_max = real_t(-M_PI);
+    ssize_t n_segments = rsqr_maxs.shape[0];
+    const auto [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
+    float     *rsqr_maxs_d     = rsqr_maxs.data;
+    float     *profile_d       = profile.data;
 
-    // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
-    //      U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
 
-    return inside;
+    //BLOCK_BEGIN(mask, ) {
+    #pragma omp parallel for collapse(3)
+    for (int64_t z = 0; z < mask_Nz; z++) { for (int64_t y = 0; y < mask_Ny; y++) { for (int64_t x = 0; x < mask_Nx; x++) {
+        //mask_type *solid_mask_buffer = solid_implant_mask.data + mask_buffer_start;
+
+        mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
+        std::array<real_t, 4> Xs = {
+            real_t(x) * voxel_size,
+            real_t(y) * voxel_size,
+            real_t(z) * voxel_size,
+            1 };
+
+        if (mask_value) {
+            auto [U,V,W,c] = hom_transform(Xs, Muvw);
+
+            real_t r_sqr = V*V+W*W;
+            real_t theta = atan2(V,W);
+
+            int U_i = int(floor((U-U_min)*real_t(n_segments-1)/(U_max-U_min)));
+
+        //    if (U_i >= 0 && U_i < n_segments) {
+            if ( in_bbox(U,V,W,bbox) ) {
+                rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
+                theta_min = min(theta_min, theta);
+                theta_max = max(theta_max, theta);
+            //      W_min     = min(W_min,     W);
+            } else {
+                // Otherwise we've calculated it wrong!
+                //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
+            }
+        }
+
+    //FOR_3D_END() }
+    }}}
+
+    double theta_center = (theta_max+theta_min)/2;
+
+    //FOR_3D_BEGIN(mask, ) {
+    #pragma omp parallel for collapse(3)
+    for (int64_t z = 0; z < mask_Nz; z++) { for (int64_t y = 0; y < mask_Ny; y++) { for (int64_t x = 0; x < mask_Nx; x++) {
+        std::array<real_t, 4> Xs = {
+            real_t(x) * voxel_size,
+            real_t(y) * voxel_size,
+            real_t(z) * voxel_size,
+            1 };
+        int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
+        mask_type mask_value = mask.data[flat_index];
+
+        // Second pass does the actual work
+        auto [U,V,W,c] = hom_transform(Xs,Muvw);
+        float r_sqr = V*V+W*W;
+        float theta = atan2(V,W);
+        int U_i = int(floor((U-U_min)*real_t(n_segments-1)/(U_max-U_min)));
+
+        bool solid_mask_value = false;
+        if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
+            solid_mask_value = mask_value | (r_sqr <= r_fraction*rsqr_maxs_d[U_i]);
+
+            if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
+                ATOMIC()
+                profile_d[U_i] += solid_mask_value;
+            }
+        }
+
+        solid_implant_mask.data[flat_index] = solid_mask_value;
+
+    //BLOCK_END() }
+    //FOR_3D_END() }
+    }}}
+
 }
 
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
@@ -277,89 +349,6 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
 }
 
 /*
-inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
-    vector4 c{{0,0,0,0}};
-
-    for (int i = 0; i < 4; i++) {
-        real_t sum = 0;
-        #pragma simd parallel for reduction(+:sum)
-        for (int j=0;j<4;j++)
-            sum += M[i*4+j]*x[j];
-        c[i] = sum;
-    }
-    return c;
-}
-
-void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
-               float voxel_size,
-               const array<float,6> &bbox,
-               float r_fraction,
-               const matrix4x4 &Muvw,
-               output_ndarray<mask_type> solid_implant_mask,
-               output_ndarray<float> rsqr_maxs,
-               output_ndarray<float> profile) {
-    real_t theta_min = M_PI, theta_max = -M_PI;
-    ssize_t n_segments = rsqr_maxs.shape[0];
-    const auto [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
-
-    printf("implant_mask.shape = %ld,%ld,%ld\n",implant_mask.shape[0],implant_mask.shape[1],implant_mask.shape[2]);
-    printf("solid_implant_mask.shape = %ld,%ld,%ld\n",solid_implant_mask.shape[0],solid_implant_mask.shape[1],solid_implant_mask.shape[2]);
-
-    fprintf(stderr,"voxel_size = %g, U_min = %g, U_max = %g, r_frac = %g, n_segments = %ld\n",
-        voxel_size, U_min, U_max, r_fraction, n_segments);
-
-    float     *rsqr_maxs_d     = rsqr_maxs.data;
-    float     *profile_d       = profile.data;
-
-    // First pass computes some bounds -- possibly separate out to avoid repeating
-    //loop_mask_start(implant_mask, solid_implant_mask, (maskin_buffer[:this_block_length], rsqr_maxs_d[:n_segments], Muvw[:16], bbox[:6]) );
-    if (mask_value) {
-        auto [U,V,W,c] = hom_transform(Xs,Muvw);
-
-        real_t r_sqr = V*V+W*W;
-        real_t theta = atan2(V,W);
-
-        int U_i = floor((U-U_min)*(n_segments-1)/(U_max-U_min));
-
-        //    if (U_i >= 0 && U_i < n_segments) {
-        if ( in_bbox(U,V,W,bbox) ) {
-            rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-            theta_min = min(theta_min, theta);
-            theta_max = max(theta_max, theta);
-            //      W_min     = min(W_min,     W);
-        } else {
-            // Otherwise we've calculated it wrong!
-            //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
-        }
-    }
-    //loop_mask_end(implant_mask);
-
-    double theta_center = (theta_max+theta_min)/2;
-
-    fprintf(stderr,"theta_min, theta_center, theta_max = %g,%g,%g\n", theta_min, theta_center, theta_max);
-
-    // Second pass does the actual work
-    //loop_mask_start(implant_mask, solid_implant_mask,
-            (rsqr_maxs_d[:n_segments], profile_d[:n_segments]) );
-    auto [U,V,W,c] = hom_transform(Xs,Muvw);
-    float r_sqr = V*V+W*W;
-    float theta = atan2(V,W);
-    int U_i = floor((U-U_min)*(n_segments-1)/(U_max-U_min));
-
-    bool solid_mask_value = false;
-    if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
-        solid_mask_value = mask_value | (r_sqr <= r_fraction*rsqr_maxs_d[U_i]);
-
-        if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-            //atomic_statement()
-            profile_d[U_i] += solid_mask_value;
-        }
-    }
-    maskout_buffer[k] = solid_mask_value;
-
-    //loop_mask_end(implant_mask);
-}
-
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,
