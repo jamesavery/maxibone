@@ -2,14 +2,13 @@ import h5py, sys, os.path, pathlib, numpy as np, scipy.ndimage as ndi, tqdm, mat
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
-from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, integrate_axes, sample_plane
+from lib.py.helpers import commandline_args, update_hdf5_mask
 from lib.cpp.cpu.io import load_slice
 
 NA = np.newaxis
 
 sample, scale, chunk_size, verbose = commandline_args({"sample" : "<required>",
-                                                       "scale" : 8, 
+                                                       "scale" : 8,
                                                        "chunk_size" : 256,
                                                        "verbose" : 1})
 
@@ -45,8 +44,8 @@ for z in tqdm.tqdm(range(0,nz,chunk_size),"Loading and thresholding voxels"):
     load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16",
                (z,0,0), (nz,ny,nx))
     noisy_implant[z:z+chunk_length] = voxel_chunk[:chunk_length] >= implant_threshold_u16
-    
-                                                  
+
+
 if verbose >= 1: print(f"Computing connected components")
 label, n_features = ndi.label(noisy_implant)
 if verbose >= 1: print(f"Counting component volumes")
