@@ -215,10 +215,9 @@ def test_zero_outside_bbox():
     fine_scale = 2
     mmtofi = 1 / (voxelsize * fine_scale) # Conversion factor from micrometers to index
 
-    implant_bound = bounding_volume(voxels, voxelsize*coarse_scale)
-    uvw_axes   = implant_bound["principal_axes"]
-    uvw_ranges = implant_bound["principal_axes_ranges"] * mmtofi
-    cm         = implant_bound["centre_of_mass"] * mmtofi
+    uvw_axes = np.array([[1,0,0],[0,1,0],[0,0,1]], np.float32)
+    uvw_ranges = np.array([-16,16]*3, np.float32)
+    cm = np.array(m_cpu.center_of_mass(voxels))
 
     cpu_seq, cpu, gpu = [
         partial(impl.zero_outside_bbox, uvw_axes.flatten(), uvw_ranges.flatten(), cm)

@@ -322,6 +322,8 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
 
     UNPACK_NUMPY(voxels)
 
+    #pragma acc data copyin(principal_axes, parameter_ranges, cm)
+    {
     BLOCK_BEGIN(voxels, ) {
 
         real_t xs[3] = {
@@ -347,7 +349,7 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
             voxels_buffer[flat_index] = 0;
 
     BLOCK_END() }
-
+    }
 }
 
 }
