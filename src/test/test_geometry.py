@@ -125,6 +125,9 @@ def test_integrate_axes():
 
     v_axis, w_axis = E[:,1], E[:,2]
 
+    # TODO de her kan også bruges til test:
+    v_axis, w_axis = np.array([1,0,0], np.float32), np.array([0,1,0], np.float32)
+
     (vmin,vmax), _ = axis_parameter_bounds(voxels.shape, cm, v_axis)
     (wmin,wmax), _ = axis_parameter_bounds(voxels.shape, cm, w_axis)
 
@@ -132,8 +135,15 @@ def test_integrate_axes():
         partial(impl.integrate_axes, voxels, cm, v_axis, w_axis, vmin, wmin)
         for impl in [m_cpu_seq, m_cpu, m_gpu]
     ]
+    #$void integrate_axes(const np_maskarray &np_voxels,
+    #$            const array<real_t,3> &x0,
+    #$            const array<real_t,3> &v_axis,
+    #$            const array<real_t,3> &w_axis,
+    #$            const real_t v_min,
+    #             const real_t w_min,
+    #$            np_realarray output) {
 
-    compare_fs('integrate_axes', cpu_seq, cpu, gpu, True, 1e-7, ((int(vmax-vmin+2),int(wmax-wmin+2)), float))
+    compare_fs('integrate_axes', cpu_seq, cpu, gpu, True, 1e-7, ((int(vmax-vmin+2),int(wmax-wmin+2)), np.uint64))
 
 def axis_parameter_bounds(shape, center, axis):
     signs = np.sign(axis)

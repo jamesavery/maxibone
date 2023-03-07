@@ -34,7 +34,7 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const array<real_t,3> &v_axis,
 		    const array<real_t,3> &w_axis,
 		    const real_t v_min, const real_t w_min,
-		    output_ndarray<real_t> output) {
+		    output_ndarray<uint64_t> output) {
     return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
 }
 

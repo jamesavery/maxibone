@@ -29,8 +29,8 @@ typedef float gauss_type;
 typedef float real_t;
 
 namespace py = pybind11;
-template <typename voxel_type>
-using np_array = py::array_t<voxel_type, py::array::c_style | py::array::forcecast>;
+template <typename T>
+using np_array = py::array_t<T, py::array::c_style | py::array::forcecast>;
 
 typedef py::array_t<mask_type, py::array::c_style | py::array::forcecast> np_maskarray;
 typedef py::array_t<real_t,    py::array::c_style | py::array::forcecast> np_realarray;

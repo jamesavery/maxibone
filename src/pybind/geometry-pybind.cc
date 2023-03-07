@@ -21,7 +21,7 @@ void sample_plane(const np_array<T> &np_voxels,
           const array<real_t,3> u_axis,
           const array<real_t,3> v_axis,
           const array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
-          np_array<real_t> np_plane_samples) {
+          np_array<real_t> &np_plane_samples) {
     auto voxels_info = np_voxels.request();
     auto plane_samples_info  = np_plane_samples.request();
 
@@ -35,9 +35,9 @@ void integrate_axes(const np_maskarray &np_voxels,
             const array<real_t,3> &v_axis,
             const array<real_t,3> &w_axis,
             const real_t v_min, const real_t w_min,
-            np_realarray &output) {
+            np_array<uint64_t> &output) {
     auto voxels_info = np_voxels.request();
-    auto output_info  = output.request();
+    auto output_info = output.request();
 
     NS::integrate_axes({voxels_info.ptr, voxels_info.shape},
              x0,v_axis,w_axis,
