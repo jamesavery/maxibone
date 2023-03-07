@@ -16,8 +16,12 @@ import pytest
 #n = 2344 # ~12 GB, used for testing whether blocked works.
 n = 128
 
+def assert_interesting_result(result):
+    checksum = result.sum() if type(result) is np.ndarray else sum(result)
+    assert (checksum < 0 or checksum > 0) # Sanity check that there's an actual result to compare to.
+
 def assert_with_print(a, b, tolerance=1e-7, names=None):
-    na, nb = np.array(a), np.array(b)
+    na, nb = np.array(a, dtype=np.float64), np.array(b, dtype=np.float64)
     nabs = np.abs(na - nb)
     all_close = np.alltrue(nabs < tolerance)
     if not all_close:
@@ -25,6 +29,8 @@ def assert_with_print(a, b, tolerance=1e-7, names=None):
         print ('b', nb)
         print ('absolute error (AE) (abs(a-b))', nabs)
         print ('AE sum', np.sum(nabs))
+        suma, sumb = na.sum(), nb.sum()
+        print ('checksums', suma, sumb, np.abs(suma - sumb), suma / sumb)
         diffs = np.argwhere(nabs > tolerance)
         print (f'differing on {diffs.shape} elements')
         for i in diffs[:5]: # Only print 5 first
@@ -59,6 +65,7 @@ def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-
                allocate_result: tuple[tuple[int],np.dtype] | np.ndarray=None):
     baseline, baseline_t = run_with_warmup(baseline_f, allocate_result)
     print (f'({func}) Sequential ran in {baseline_t}')
+    if should_assert: assert_interesting_result(baseline)
 
     cpu, cpu_t = run_with_warmup(cpu_f, allocate_result)
     print (f'({func}) Parallel CPU ran in {cpu_t}, which is {baseline_t / cpu_t:.02f} times faster than sequential')
@@ -89,6 +96,8 @@ def test_inertia_matrix():
 
     # TODO assert disabled due to floating point associativity error accumulation
     compare_fs('inertia_matrix', baseline, cpu, gpu, should_assert=False)
+
+    assert_interesting_result(baseline())
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
 def test_sample_plane(dtype):
