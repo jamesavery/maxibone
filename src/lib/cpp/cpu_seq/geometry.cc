@@ -285,7 +285,7 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
     uint64_t *output_data = output.data;
 
     // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
-    #pragma acc data create(output_data[:Nv*Nw]) copyout(output_data[:Nv*Nw])
+    #pragma acc data copy(output_data[:Nv*Nw]) copyin(x0, v_axis, w_axis, v_min, w_min)
     {
     BLOCK_BEGIN(mask, ) {
 
