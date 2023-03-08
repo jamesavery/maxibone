@@ -79,7 +79,6 @@ void fill_implant_mask(const np_maskarray implant_mask,
                  );
 }
 
-/*
 void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,
@@ -88,11 +87,12 @@ void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
     auto solid_implant_info = np_solid_implant.request();
     auto front_mask_info    = np_front_mask.request();
 
-    ::compute_front_mask({solid_implant_info.ptr, solid_implant_info.shape},
+    return NS::compute_front_mask({solid_implant_info.ptr, solid_implant_info.shape},
             voxel_size, Muvw, bbox,
             {front_mask_info.ptr, front_mask_info.shape});
 }
 
+/*
 void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
                const np_bytearray     &np_Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
                float Cs_voxel_size,           // Voxel size for Cs
@@ -128,5 +128,5 @@ PYBIND11_MODULE(geometry, m) {
     //m.def("cylinder_projection",  &python_api::cylinder_projection);
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
-    //m.def("compute_front_mask",   &python_api::compute_front_mask);
+    m.def("compute_front_mask",   &python_api::compute_front_mask);
 }

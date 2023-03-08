@@ -27,6 +27,8 @@ typedef mask_type voxels_type;
 typedef uint16_t field_type;
 typedef float gauss_type;
 typedef float real_t;
+typedef mask_type solid_implant_type;
+typedef mask_type front_mask_type;
 
 namespace py = pybind11;
 template <typename T>

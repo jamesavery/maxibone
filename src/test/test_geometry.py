@@ -278,6 +278,35 @@ def test_fill_implant_mask():
     assert_with_print(result_profile[0], result_profile[1], 1e-7, "cpu_seq vs cpu")
     assert_with_print(result_profile[0], result_profile[2], 1e-7, "cpu_seq vs gpu")
 
+def test_compute_front_mask():
+    n = 128
+    dtype = np.uint8
+    implant = np.random.randint(0, 2, (n,n,n), dtype)
+    voxel_size = 1
+    bbox_flat = np.array([-16,16] * 3, np.float32)
+    rsqr_fraction = 1#0.7
+    Muvwp_flat = np.array([
+       1, 0, 0, 64,
+       0, 1, 0, 64,
+       0, 0, 1, 64,
+       0, 0, 0, 1
+    ], np.float32)
+    n_bins = 1024
+
+    solid_implant_mask = np.zeros(implant.shape, np.uint8)
+    rsqr_maxs = np.zeros((n_bins, ), np.float32)
+    profile = np.zeros((n_bins, ), np.float32)
+
+    m_cpu.fill_implant_mask(implant, voxel_size, bbox_flat, rsqr_fraction, Muvwp_flat, solid_implant_mask, rsqr_maxs, profile)
+
+    impls = [m_cpu_seq, m_cpu, m_gpu]
+
+    cpu_seq, cpu, gpu = [
+        partial(impl.compute_front_mask, solid_implant_mask, voxel_size, Muvwp_flat, bbox_flat)
+        for i, impl in enumerate(impls)
+    ]
+
+    compare_fs('test_compute_front_mask', cpu_seq, cpu, gpu, True, 1e-7, (solid_implant_mask.shape, solid_implant_mask.dtype))
 
 if __name__ == '__main__':
     np.random.seed(42)
@@ -287,3 +316,4 @@ if __name__ == '__main__':
     test_integrate_axes()
     test_zero_outside_bbox()
     test_fill_implant_mask()
+    test_compute_front_mask()

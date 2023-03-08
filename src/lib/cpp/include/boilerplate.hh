@@ -39,6 +39,16 @@
 
 #define FOR_BLOCK_END() } }
 
+#define FOR_BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT) \
+    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<ARR_IN##_type> / 2) { \
+        ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data + ARR_IN##_buffer_start; \
+        ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data + ARR_IN##_buffer_start; \
+        ssize_t ARR_IN##_buffer_length = min(acc_block_size<ARR_IN##_type>, ARR_IN##_length - ARR_IN##_buffer_start); \
+        PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copy(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
+        {
+
+#define FOR_BLOCK_END_WITH_OUTPUT() } }
+
 #define FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     PRAGMA(PARALLEL_TERM collapse(3) EXTRA_PRAGMA_CLAUSE) \
     for (int64_t z = 0; z < ARR##_Nz; z++) { \
@@ -73,6 +83,15 @@
 #define BLOCK_END() \
     FOR_FLAT_END() \
     FOR_BLOCK_END()
+
+#define BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT, EXTRA_PRAGMA_CLAUSE) \
+    FOR_BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT) \
+    PUSH_N_DOWN_TO_BUFFER(ARR_IN) \
+    FOR_FLAT_BEGIN(ARR_IN##_buffer, global, EXTRA_PRAGMA_CLAUSE)
+
+#define BLOCK_END_WITH_OUTPUT() \
+    FOR_FLAT_END() \
+    FOR_BLOCK_END_WITH_OUTPUT()
 #else
 #ifdef _OPENMP // Should also capture OpenACC, which is why it's second.
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
@@ -82,6 +101,16 @@
     int64_t flat_index = z*ARR##_Ny*ARR##_Nx + y*ARR##_Nx + x;
 
 #define BLOCK_END() FOR_3D_END()
+
+#define BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT, EXTRA_PRAGMA_CLAUSE) \
+    ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data; \
+    ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data; \
+    __attribute__((unused)) int64_t ARR_IN##_buffer_start = 0; \
+    FOR_3D_BEGIN(ARR_IN, EXTRA_PRAGMA_CLAUSE) \
+    int64_t flat_index = z*ARR_IN##_Ny*ARR_IN##_Nx + y*ARR_IN##_Nx + x;
+
+#define BLOCK_END_WITH_OUTPUT() FOR_3D_END()
+
 #else
 #define BLOCK_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
     int64_t flat_index = 0; \
@@ -90,6 +119,17 @@
     FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE)
 
 #define BLOCK_END() \
+    flat_index++; \
+    FOR_3D_END()
+
+#define BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT, EXTRA_PRAGMA_CLAUSE) \
+    int64_t flat_index = 0; \
+    ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data; \
+    ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data; \
+    __attribute__((unused)) int64_t ARR_IN##_buffer_start = 0; \
+    FOR_3D_BEGIN(ARR_IN, EXTRA_PRAGMA_CLAUSE)
+
+#define BLOCK_END_WITH_OUTPUT() \
     flat_index++; \
     FOR_3D_END()
 

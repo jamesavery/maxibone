@@ -39,6 +39,33 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return array<real_t, 3>{ rcmz, rcmy, rcmx };
 }
 
+void compute_front_mask(const input_ndarray<mask_type> solid_implant,
+        const float voxel_size,
+        const matrix4x4 &Muvw,
+        std::array<float,6> bbox,
+        output_ndarray<mask_type> front_mask) {
+    const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+    UNPACK_NUMPY(solid_implant)
+
+    BLOCK_BEGIN_WITH_OUTPUT(solid_implant, front_mask, ) {
+
+        std::array<real_t, 4> Xs = {
+            real_t(x) * voxel_size,
+            real_t(y) * voxel_size,
+            real_t(z) * voxel_size,
+            1 };
+        mask_type mask_value = solid_implant_buffer[flat_index];
+
+        if (mask_value) {
+            front_mask_buffer[flat_index] = 0;
+        } else {
+            auto [U,V,W,c] = hom_transform(Xs, Muvw);
+            front_mask_buffer[flat_index] = W > W_min;
+        }
+
+    BLOCK_END_WITH_OUTPUT() }
+}
+
 void fill_implant_mask(const input_ndarray<mask_type> mask,
                float voxel_size,
                const array<float,6> &bbox,
@@ -60,32 +87,32 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
     for (int64_t z = 0; z < mask_Nz; z++) {
         for (int64_t y = 0; y < mask_Ny; y++) {
             for (int64_t x = 0; x < mask_Nx; x++) {
-        mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
-        std::array<real_t, 4> Xs = {
-            real_t(x) * voxel_size,
-            real_t(y) * voxel_size,
-            real_t(z) * voxel_size,
-            1 };
+                mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
+                std::array<real_t, 4> Xs = {
+                    real_t(x) * voxel_size,
+                    real_t(y) * voxel_size,
+                    real_t(z) * voxel_size,
+                    1 };
 
-        if (mask_value) {
-            auto [U,V,W,c] = hom_transform(Xs, Muvw);
+                if (mask_value) {
+                    auto [U,V,W,c] = hom_transform(Xs, Muvw);
 
                     real_t r_sqr = V*V + W*W;
                     real_t theta = atan2(V, W);
 
                     int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-        //    if (U_i >= 0 && U_i < n_segments) {
+                //    if (U_i >= 0 && U_i < n_segments) {
                     if ( in_bbox(U, V, W, bbox) ) {
-                rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-                theta_min = min(theta_min, theta);
-                theta_max = max(theta_max, theta);
-            //      W_min     = min(W_min,     W);
-            } else {
-                // Otherwise we've calculated it wrong!
-                //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
-            }
-        }
+                        rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
+                        theta_min = min(theta_min, theta);
+                        theta_max = max(theta_max, theta);
+                    //      W_min     = min(W_min,     W);
+                    } else {
+                        // Otherwise we've calculated it wrong!
+                        //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
+                    }
+                }
             }
         }
     }
@@ -96,30 +123,30 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
     for (int64_t z = 0; z < mask_Nz; z++) {
         for (int64_t y = 0; y < mask_Ny; y++) {
             for (int64_t x = 0; x < mask_Nx; x++) {
-        std::array<real_t, 4> Xs = {
-            real_t(x) * voxel_size,
-            real_t(y) * voxel_size,
-            real_t(z) * voxel_size,
-            1 };
-        int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
-        mask_type mask_value = mask.data[flat_index];
+                std::array<real_t, 4> Xs = {
+                    real_t(x) * voxel_size,
+                    real_t(y) * voxel_size,
+                    real_t(z) * voxel_size,
+                    1 };
+                int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
+                mask_type mask_value = mask.data[flat_index];
 
-        // Second pass does the actual work
+                // Second pass does the actual work
                 auto [U,V,W,c] = hom_transform(Xs, Muvw);
                 float r_sqr = V*V + W*W;
                 float theta = atan2(V, W);
                 int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-        bool solid_mask_value = false;
-        if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
+                bool solid_mask_value = false;
+                if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
                     solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
 
-            if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-                profile_d[U_i] += solid_mask_value;
-            }
-        }
+                    if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
+                        profile_d[U_i] += solid_mask_value;
+                    }
+                }
 
-        solid_implant_mask.data[flat_index] = solid_mask_value;
+                solid_implant_mask.data[flat_index] = solid_mask_value;
             }
         }
     }
@@ -321,55 +348,37 @@ void zero_outside_bbox(const array<real_t,9> &principal_axes,
 
     #pragma acc data copyin(principal_axes, parameter_ranges, cm)
     {
-    BLOCK_BEGIN(voxels, ) {
+        BLOCK_BEGIN(voxels, ) {
 
-        real_t xs[3] = {
-            real_t(x) - cm[0],
-            real_t(y) - cm[1],
-            real_t(z) - cm[2]};
-        real_t params[3] = { 0, 0, 0 };
+            real_t xs[3] = {
+                real_t(x) - cm[0],
+                real_t(y) - cm[1],
+                real_t(z) - cm[2]};
+            real_t params[3] = { 0, 0, 0 };
 
-        for (int uvw = 0; uvw < 3; uvw++)
-            for (int xyz = 0; xyz < 3; xyz++)
-                params[uvw] += xs[xyz] * principal_axes[uvw*3 + xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
+            for (int uvw = 0; uvw < 3; uvw++)
+                for (int xyz = 0; xyz < 3; xyz++)
+                    params[uvw] += xs[xyz] * principal_axes[uvw*3 + xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
 
-        bool p = false;
+            bool p = false;
 
-        for (int uvw = 0; uvw < 3; uvw++) {
-            real_t
-                param_min = parameter_ranges[uvw*2],
-                param_max = parameter_ranges[uvw*2 + 1];
-            p |= (params[uvw] < param_min) | (params[uvw] > param_max);
-        }
+            for (int uvw = 0; uvw < 3; uvw++) {
+                real_t
+                    param_min = parameter_ranges[uvw*2],
+                    param_max = parameter_ranges[uvw*2 + 1];
+                p |= (params[uvw] < param_min) | (params[uvw] > param_max);
+            }
 
-        if (p)
-            voxels_buffer[flat_index] = 0;
+            if (p)
+                voxels_buffer[flat_index] = 0;
 
-    BLOCK_END() }
+        BLOCK_END() }
     }
 }
 
 }
 
 /*
-void compute_front_mask(const input_ndarray<mask_type> solid_implant,
-        const float voxel_size,
-        const matrix4x4 &Muvw,
-        std::array<float,6> bbox,
-        output_ndarray<mask_type> front_mask) {
-    const auto [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
-
-    loop_mask_start(solid_implant, front_mask, () );
-
-    if (!mask_value) {
-        auto [U,V,W,c] = hom_transform(Xs,Muvw);
-        maskout_buffer[k] = W>W_min;
-    } else
-        maskout_buffer[k] = 0;
-
-    loop_mask_end(solid_implant)
-}
-
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
              const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
              float voxel_size,           // Voxel size for Cs
