@@ -20,7 +20,6 @@ inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
 
     for (int i = 0; i < 4; i++) {
         real_t sum = 0;
-        #pragma simd parallel for reduction(+:sum)
         for (int j = 0; j < 4; j++)
             sum += M[i*4 + j] * x[j];
         c[i] = sum;
