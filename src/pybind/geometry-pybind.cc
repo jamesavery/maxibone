@@ -92,7 +92,6 @@ void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
             {front_mask_info.ptr, front_mask_info.shape});
 }
 
-/*
 void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
                const np_bytearray     &np_Cs,  // Material classification images (probability per voxel, 0..1 -> 0..255)
                float Cs_voxel_size,           // Voxel size for Cs
@@ -108,12 +107,12 @@ void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance 
     auto images_info = np_images.request();
     auto counts_info = np_counts.request();
 
-    ::cylinder_projection({edt_info.ptr,edt_info.shape},
+    NS::cylinder_projection({edt_info.ptr,edt_info.shape},
               {Cs_info.ptr, Cs_info.shape},
               Cs_voxel_size,d_min,d_max,theta_min,theta_max,bbox,Muvw,
               {images_info.ptr, images_info.shape},
               {counts_info.ptr, counts_info.shape});
-}*/
+}
 
 }
 
@@ -125,7 +124,7 @@ PYBIND11_MODULE(geometry, m) {
     m.def("integrate_axes",       &python_api::integrate_axes);
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
     m.def("fill_implant_mask",    &python_api::fill_implant_mask);
-    //m.def("cylinder_projection",  &python_api::cylinder_projection);
+    m.def("cylinder_projection",  &python_api::cylinder_projection);
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
     m.def("compute_front_mask",   &python_api::compute_front_mask);

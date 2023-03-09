@@ -10,6 +10,7 @@ sys.path.append(sys.path[0]+'/../')
 from config.paths import hdf5_root
 
 import datetime
+import edt
 from functools import partial
 import h5py
 import numpy as np
@@ -307,6 +308,18 @@ def test_compute_front_mask():
     ]
 
     compare_fs('test_compute_front_mask', cpu_seq, cpu, gpu, True, 1e-7, (solid_implant_mask.shape, solid_implant_mask.dtype))
+
+# TODO postponed because it's not used until after segment_from_distributions, i.e. in the last analysis phase.
+#def test_cylinder_projection():
+#    n = 128
+#    implant_mask = np.zeros((n,n,n), np.uint8)
+#    implant_mask[:,n//2-4:n//2+4,n//2-4:n//2+4] = 1
+#    edt_field = edt.edt(~implant_mask, parallel=16)
+#
+#    m_cpu_seq.cylinder_projection(edt_field, Cs, Cs_voxel_size,
+#                    d_min, d_max, theta_min, theta_max,
+#                    tuple(bbox.flatten()), tuple(Muvwp.flatten()),
+#                    images, counts)
 
 if __name__ == '__main__':
     np.random.seed(42)

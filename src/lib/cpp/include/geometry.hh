@@ -44,6 +44,59 @@ inline bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox)
     return inside;
 }
 
+template <typename T>
+float resample2x2x2(const T             *voxels,
+                    const array<ssize_t, 3> &shape,
+                    const array<float, 3>   &X) {
+    auto  [Nz,Ny,Nx] = shape;
+
+    if (!in_bbox(X[0], X[1], X[2], {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
+        uint64_t voxel_index = uint64_t(floor(X[0]))*Ny*Nz + uint64_t(floor(X[1]))*Ny + uint64_t(floor(X[2]));
+        return voxels[voxel_index];
+    }
+
+    float   Xfrac[2][3]; // {Xminus[3], Xplus[3]}
+    int64_t Xint[2][3];  // {Iminus[3], Iplus[3]}
+    float   value = 0;
+
+    for (int i = 0; i < 3; i++) {
+        float Iminus, Iplus;
+        Xfrac[0][i] = 1-modf(X[i]-0.5f, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+        Xfrac[1][i] =   modf(X[i]+0.5f, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+
+        Xint[0][i] = (int64_t) Iminus;
+        Xint[1][i] = (int64_t) Iplus;
+    }
+
+    for (int ijk = 0; ijk <= 7; ijk++) {
+        float  weight = 1;
+        int64_t IJK[3] = {0,0,0};
+
+        for (int axis = 0; axis < 3; axis++) { // x-1/2 or x+1/2
+            int pm    = (ijk >> axis) & 1;
+            IJK[axis] = Xint[pm][axis];
+            weight   *= Xfrac[pm][axis];
+        }
+
+        auto [I,J,K] = IJK;
+        // if (I<0 || J<0 || K<0) {
+        //   printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
+        //   abort();
+        // }
+        // if (I>=int(Nx) || J>=int(Ny) || K>=int(Nz)) {
+        //   printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
+        //   abort();
+        // }
+        uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
+        //assert(I>=0 && J>=0 && K>=0);
+        //assert(I<Nx && J<Ny && K<Nz);
+        float voxel = (float) voxels[voxel_index];
+        value += voxel*weight;
+    }
+
+    return value;
+}
+
 namespace NS {
 
 /*
@@ -59,6 +112,17 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         const matrix4x4 &Muvw,
         std::array<float,6> bbox,
         output_ndarray<mask_type> front_mask);
+
+void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
+             const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
+             float voxel_size,           // Voxel size for Cs
+             float d_min, float d_max,       // Distance shell to map to cylinder
+             float theta_min, float theta_max, // Angle range (wrt cylinder center)
+             std::array<float,6> bbox,
+             const matrix4x4 &Muvw,           // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
+             output_ndarray<float>    image,  // Probability-weighted volume of (class,theta,U)-voxels
+             output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
+             );
 
 void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
                float voxel_size,
@@ -84,11 +148,6 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const array<real_t,3> &w_axis,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<uint64_t> output);
-
-template <typename T>
-float resample2x2x2(const T *voxels,
-                    const array<ssize_t,3> &shape,
-                    const array<float,3> &X);
 
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,

@@ -21,6 +21,19 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
     return cpu_seq::compute_front_mask(solid_implant, voxel_size, Muvw, bbox, front_mask);
 }
 
+void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
+             const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
+             float voxel_size,           // Voxel size for Cs
+             float d_min, float d_max,       // Distance shell to map to cylinder
+             float theta_min, float theta_max, // Angle range (wrt cylinder center)
+             std::array<float,6> bbox,
+             const matrix4x4 &Muvw,           // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
+             output_ndarray<float>    image,  // Probability-weighted volume of (class,theta,U)-voxels
+             output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
+             ){
+    return cpu_seq::cylinder_projection(edt, C, voxel_size, d_min, d_max, theta_min, theta_max, bbox, Muvw, image, count);
+}
+
 void fill_implant_mask(const input_ndarray<mask_type> mask,
                float voxel_size,
                const array<float,6> &bbox,
@@ -142,13 +155,6 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<uint64_t> output) {
     return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
-}
-
-template <typename T>
-float resample2x2x2(const T        *voxels,
-                    const array<ssize_t, 3> &shape,
-                    const array<float, 3>   &X) {
-    return cpu_seq::resample2x2x2(voxels, shape, X);
 }
 
 template <typename T>
