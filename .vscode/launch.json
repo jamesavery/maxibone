@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: pre-cleanup/cylinder_surface2",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/pre-cleanup-src/analysis/cylinder_surface2.py",
+            "console": "integratedTerminal",
+            "args": ["770c_pag"],
+            "justMyCode": false
+        },
+        {
             "name": "Python: Test geometry",
             "type": "python",
             "request": "launch",
@@ -27,6 +36,15 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/processing_steps/0500_rescale_cupy_bin.py",
+            "console": "integratedTerminal",
+            "args": ["770c_pag"],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: 0800_implant_data",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/processing_steps/0800_implant_data.py",
             "console": "integratedTerminal",
             "args": ["770c_pag"],
             "justMyCode": false
