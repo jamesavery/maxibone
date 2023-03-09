@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import os, sys, h5py, numpy as np, pathlib, tqdm, vedo, matplotlib.pyplot as plt, edt, vedo.pointcloud as pc, scipy.ndimage as ndi
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(sys.path[0]+"/../../src")
 from config.paths import *
-from helper_functions import *
-from pybind_kernels.geometry import cylinder_projection
+from lib.py.helpers import commandline_args
+from lib.cpp.cpu_seq.geometry import cylinder_projection
 NA = np.newaxis
 
 
@@ -25,10 +25,10 @@ def homogeneous_transform(xs, M):
 
 def np_save(path,data):
     output_dir = os.path.dirname(path)
-    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)        
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     np.save(path,data)
 
-    
+
 # Requires: implant-FoR
 #           soft-tissue/bone segmentation + blood analysis
 #           EDT-field
@@ -55,18 +55,18 @@ except Exception as e:
     print(f"Cant't read implant frame-of-reference: {e}")
     print(f"Make sure you have run segment-implant-cc.py and implant-FoR.py for {sample} at scale {mask_scale}x")
     sys.exit(-1)
-    
+
 try:
     blood_mask    = h5mask["blood/mask"][:]
     solid_implant = h5mask["implant_solid/mask"][:]
-    h5mask.close()    
+    h5mask.close()
 except Exception as e:
     print(f"Cant't read masks: {e}")
     print("Make sure you have run compute_histograms.py, generate_xx_probabilities.py, segment_from_distributions,\n"+
           "and segment-blood-cc.py")
     sys.exit(-1)
 
-    
+
 P0_binfile            = f"{binary_root}/segmented/P0/{segment_scale}x/{sample}.uint16"
 P1_binfile            = f"{binary_root}/segmented/P1/{segment_scale}x/{sample}.uint16"
 edt_binfile           = f"{binary_root}/fields/implant-edt/{mask_scale}x/{sample}.uint16"
@@ -92,4 +92,4 @@ cylinder_projection(edt_field, Cs, Cs_voxel_size,
                     d_min, d_max, theta_min, theta_max,
                     tuple(bbox.flatten()), tuple(Muvwp.flatten()),
                     images, counts)
-                    
+
