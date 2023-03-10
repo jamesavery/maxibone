@@ -1,2 +1,6 @@
 0100 - Haven't checked. Requires ERDA to be set up properly.
 0200 - Runs!
+0300 - Verified!
+0400 - Runs!
+0500 - Runs!
+0600 - Runs!
