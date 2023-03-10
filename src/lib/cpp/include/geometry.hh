@@ -48,7 +48,7 @@ template <typename T>
 float resample2x2x2(const T             *voxels,
                     const array<ssize_t, 3> &shape,
                     const array<float, 3>   &X) {
-    auto  [Nz,Ny,Nx] = shape;
+    auto  [Nx,Ny,Nz] = shape;
 
     if (!in_bbox(X[0], X[1], X[2], {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
         uint64_t voxel_index = uint64_t(floor(X[0]))*Ny*Nz + uint64_t(floor(X[1]))*Ny + uint64_t(floor(X[2]));

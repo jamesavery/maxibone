@@ -36,7 +36,7 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
 
     print_timestamp("center_of_mass end");
 
-    return array<real_t, 3>{ rcmz, rcmy, rcmx };
+    return array<real_t, 3>{ rcmx, rcmy, rcmz };
 }
 
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,

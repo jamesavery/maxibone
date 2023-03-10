@@ -9,10 +9,12 @@ import gpu.geometry as m_gpu
 sys.path.append(sys.path[0]+'/../')
 from config.paths import hdf5_root
 
+import argparse
 import datetime
 import edt
 from functools import partial
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -43,6 +45,27 @@ def assert_with_print(a, b, tolerance=1e-7, names=None):
             print (names)
     assert all_close
 
+def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-7,
+               allocate_result: tuple[tuple[int],np.dtype] | np.ndarray=None):
+    baseline, baseline_t = run_with_warmup(baseline_f, allocate_result)
+    print (f'({func}) Sequential ran in {baseline_t}')
+    if should_assert: assert_interesting_result(baseline)
+
+    cpu, cpu_t = run_with_warmup(cpu_f, allocate_result)
+    print (f'({func}) Parallel CPU ran in {cpu_t}, which is {baseline_t / cpu_t:.02f} times faster than sequential')
+    if should_assert: assert_with_print(baseline, cpu, tolerance, 'cpu_seq vs cpu')
+
+    gpu, gpu_t = run_with_warmup(gpu_f, allocate_result)
+    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t:.02f} times faster than sequential')
+    if should_assert: assert_with_print(baseline, gpu, tolerance, 'cpu_seq vs gpu')
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Unit tests for the geometry C++ functions.")
+
+    parser.add_argument('tests', nargs='*', help='Which test(s) to run. It can be either the name, or the index of the test.')
+
+    return parser.parse_args()
+
 def run_with_warmup(f, allocate_result=None):
     '''
     Runs the given function and returns the result and how long time it took to run.
@@ -64,20 +87,6 @@ def run_with_warmup(f, allocate_result=None):
         f(result)
     end = datetime.datetime.now()
     return result, end - start
-
-def compare_fs(func, baseline_f, cpu_f, gpu_f, should_assert=True, tolerance=1e-7,
-               allocate_result: tuple[tuple[int],np.dtype] | np.ndarray=None):
-    baseline, baseline_t = run_with_warmup(baseline_f, allocate_result)
-    print (f'({func}) Sequential ran in {baseline_t}')
-    if should_assert: assert_interesting_result(baseline)
-
-    cpu, cpu_t = run_with_warmup(cpu_f, allocate_result)
-    print (f'({func}) Parallel CPU ran in {cpu_t}, which is {baseline_t / cpu_t:.02f} times faster than sequential')
-    if should_assert: assert_with_print(baseline, cpu, tolerance, 'cpu_seq vs cpu')
-
-    gpu, gpu_t = run_with_warmup(gpu_f, allocate_result)
-    print (f'({func}) GPU ran in {gpu_t}, which is {baseline_t / gpu_t:.02f} times faster than sequential')
-    if should_assert: assert_with_print(baseline, gpu, tolerance, 'cpu_seq vs gpu')
 
 def test_center_of_mass():
     voxels = np.random.randint(0, 256, (n,n,n), np.uint8)
@@ -104,7 +113,7 @@ def test_inertia_matrix():
     assert_interesting_result(baseline())
 
 @pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
-def test_sample_plane(dtype):
+def test_sample_plane(dtype, debug=False):
     # TODO something that isn't just random data?
     n = 128
     voxels = np.random.randint(0, np.iinfo(dtype).max, (n,n,n), dtype)
@@ -124,6 +133,21 @@ def test_sample_plane(dtype):
 
     # TODO the function is unstable, even when they're all calling the sequential implementation, t least when comparing gcc against nvcc, but it differs at most with 1. Hence the higher tolerance for this test. Can be tested with something like for i in range(10000):
     compare_fs('sample_plane', cpu_seq, cpu, gpu, True, 1.1, ((64,64), np.float32))
+
+    if debug:
+        voxels = np.zeros((n,n,n), dtype)
+        voxels[:, n//2-5:n//2+5, n//2-5:n//2-2] = 1
+        voxels[:, n//2-5:n//2+5, n//2+2:n//2+5] = 1
+        voxel_size = 1
+        cm = m_cpu.center_of_mass(voxels)
+        # TODO plan vektorne er z y x, ikke x y z!! Trace hvorfor!
+        v_vec = np.array([0,0,1], np.float32)
+        w_vec = np.array([0,1,0], np.float32)
+        bbox = [-n//2, n//2, -n//2, n//2]
+        result = np.zeros((n, n), np.float32)
+        m_cpu_seq.sample_plane(voxels, voxel_size, cm, v_vec, w_vec, bbox, result)
+        plt.imshow(result)
+        plt.savefig('pis.png')
 
 def test_integrate_axes():
     n = 128
@@ -323,10 +347,31 @@ def test_compute_front_mask():
 
 if __name__ == '__main__':
     np.random.seed(42)
-    test_center_of_mass()
-    test_inertia_matrix()
-    test_sample_plane(np.uint8)
-    test_integrate_axes()
-    test_zero_outside_bbox()
-    test_fill_implant_mask()
-    test_compute_front_mask()
+    args = parse_args()
+
+    if len(args.tests) == 0:
+        test_center_of_mass()
+        test_inertia_matrix()
+        test_sample_plane(np.uint8)
+        test_integrate_axes()
+        test_zero_outside_bbox()
+        test_fill_implant_mask()
+        test_compute_front_mask()
+    else:
+        for test in args.tests:
+            if test == '1' or test == 'center_of_mass':
+                test_center_of_mass()
+            elif test == '2' or test == 'inertia_matrix':
+                test_inertia_matrix()
+            elif test == '3' or test == 'sample_plane':
+                test_sample_plane(np.uint8, debug=True)
+            elif test == '4' or test == 'integrate_axes':
+                test_integrate_axes()
+            elif test == '5' or test == 'zero_outside_bbox':
+                test_zero_outside_bbox()
+            elif test == '6' or test == 'fill_implant_mask':
+                test_fill_implant_mask()
+            elif test == '7' or test == 'compute_front_mask':
+                test_compute_front_mask()
+            else:
+                print (f'WARNING: skipping unknown test: "{test}"')
