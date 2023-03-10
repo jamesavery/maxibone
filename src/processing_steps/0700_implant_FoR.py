@@ -2,7 +2,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, sample_plane
+from lib.cpp.cpu.geometry import center_of_mass, inertia_matrix, sample_plane
 from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
@@ -15,16 +15,16 @@ verbose = 1
 
 # Hvor skal disse hen?
 def circle_center(p0,p1,p2):
-    m1, m2               = (p0+p1)/2, (p0+p2)/2   # Midpoints 
+    m1, m2               = (p0+p1)/2, (p0+p2)/2   # Midpoints
     (dx1,dy1), (dx2,dy2) = (p1-p0), (p2-p0)       # Slopes of connecting lines
     n1, n2               = np.array([dy1,-dx1]).T, np.array([dy2,-dx2]).T # Normals perpendicular to connecting lines
-    
+
     A       = np.array([n1,-n2]).T   # Solve m1 + t1*n1 == m2 + t2*n2   <=> t1*n1 - t2*n2 = m2-m1
-    
+
     (t1,t2) = la.solve(A, m2-m1)
 
     c1, c2 = m1+t1*n1, m2+t2*n2  # Center of circle!
-    
+
     assert(np.allclose(c1,c2))
 
     return c1
@@ -55,7 +55,6 @@ def open_3d(image, r):
 
     return I1[r:-r,r:-r,r:-r].astype(image.dtype)
 
-
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
     if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
@@ -66,8 +65,6 @@ def coordinate_image(shape):
     if verbose >= 1: print(f"Done")
     return zyxs
 
-
-
 def proj(u,v):                  # Project u onto v
     return (np.dot(u,v)/np.dot(v,v))*v
 
@@ -77,7 +74,6 @@ def gramschmidt(u,v,w):
 
     return np.array([u/la.norm(u), vp/la.norm(v), wp/la.norm(w)])
 
-
 def highest_peaks(data,n,height=0.7):
     peaks, info = signal.find_peaks(data,height=height*data.max())
     return peaks[np.argsort(info['peak_heights'])][:n]
@@ -85,7 +81,7 @@ def highest_peaks(data,n,height=0.7):
 def largest_cc_of(mask):
     label, n_features = ndi.label(mask)
     bincnts           = np.bincount(label[label>0],minlength=n_features+1)
-    
+
     largest_cc_ix   = np.argmax(bincnts)
     return (label==largest_cc_ix)
 
@@ -110,24 +106,23 @@ def homogeneous_transform(xs, M):
     if verbose >= 1: print(hxs.shape, M.shape)
     return hxs @ M.T
 
-
 def zyx_to_UVWp_transform():
     Tcm   = hom_translate(-cm*voxel_size)
     Muvw  = hom_linear(UVW)
     TW0   = hom_translate((0,0,-w0*voxel_size))
     Tcp   = hom_translate(-cp)
-    Muvwp = hom_linear(UVWp)    
+    Muvwp = hom_linear(UVWp)
 
     return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
 
 vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.))}
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
-    
+
 def figure_FoR_UVW(debug=True):
-    vol = vedo.Volume(implant,alpha=[0,0,0.05,0.2])
+    vol = vedo.Volume(implant, alpha=[0,0,0.05,0.2])
     u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
     v_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
-    w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)    
+    w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)
 
     for axis in vaxis.keys():
         pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
@@ -147,35 +142,34 @@ def figure_FoR_UVW(debug=True):
             'viewup':-vaxis[axis]
         })
 
-
-# TODO: Fix lengths (voxel_size times...)        
+# TODO: Fix lengths (voxel_size times...)
 def figure_FoR_UVWp(debug=True):
-    implant_uvwps = homogeneous_transform(implant_zyxs*voxel_size,Muvwp)
-    pts = pc.Points(implant_uvwps)
-    
+    implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
+    pts = pc.Points(implant_uvwps[:,:3])
+
     u_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[0]/ls[2])*100*np.array([0,0,1]),c='r',s=0.7)
     v_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
-    w_arrow = vedo.Arrow([0,0,0],100*w_vec[::-1],c='b',s=0.7)    
+    w_arrow = vedo.Arrow([0,0,0],100*w_vec[::-1],c='b',s=0.7)
 
-    pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)        
+    pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
     for axis in vaxis.keys():
         pl.show([pts,u_arrow,v_arrow,w_arrow],camera={
             'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
             'focalPoint': (nz/2,ny/2,nx/2),
             'viewup':-vaxis[axis]
         })
-        
+
         pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
 
     if debug:
-        vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)        
-        
+        vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)
+
 def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     from matplotlib.patches import Circle
     from matplotlib.lines import Line2D
-    
+
     [U_min,U_max,V_min,V_max,W_min,W_max] = implant_bbox
-    
+
     sample = np.zeros((800,800),dtype=np.float32)
     sample_bbox = (-2905.,2905,-1000,4810.)
     sample_plane(voxels,voxel_size,
@@ -194,7 +188,7 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     p2 = np.array((V_max,W_min))
 
     m1, m2 = (p0+p1)/2, (p0+p2)/2
-    
+
     ax.add_patch(Circle((0,0), radius*1.01, ec='black',fc=circle_color))
     ax.add_patch(Circle(p1, radius/40, fc='purple'))
     ax.add_patch(Circle(p2, radius/40, fc='purple'))
@@ -206,8 +200,8 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     ax.add_line(Line2D([p0[0],p2[0]],[p0[1],p2[1]],c='red'))
 
     ax.add_line(Line2D([m1[0]*1.05,0],[m1[1]*1.05,0],c='green'))
-    ax.add_line(Line2D([m2[0]*1.05,0],[m2[1]*1.05,0],c='green'))        
-    
+    ax.add_line(Line2D([m2[0]*1.05,0],[m2[1]*1.05,0],c='green'))
+
     fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300)
 
     if debug:
@@ -218,84 +212,80 @@ def figure_FoR_profiles(debug):
     ax1 = fig1.add_subplot(111)
     ax1.plot((Up_bins[1:]+Up_bins[:-1])/2, Up_integrals);
     fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png")
-    
+
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
     ax2.plot((theta_bins[1:]+theta_bins[:-1])/2, theta_integrals)
-    fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png")        
-    
+    fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png")
+
     if debug:
         plt.show()
 
-    
-        
-        
-def figure_FoR_cylinder(debug=True): 
+def figure_FoR_cylinder(debug=True):
 #    center_line = vedo.Arrow(C1,C2)
     center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
     cylinder = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels,height=implant_length_voxels, axis=(C2-C1),alpha=0.3)
-    
+
     Up_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_length*u_prime), c='r')
     Vp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*v_prime), c='g')
     Wp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*w_prime), c='b')
 
     vol = vedo.Volume(implant,alpha=[0,0,0.05,0.1])
 
-        
-    pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)        
+    pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
     for axis in vaxis.keys():
         pl.show([vol,center_line,Vp_arrow,Wp_arrow,cylinder],camera={
             'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
             'focalPoint': (nz/2,ny/2,nx/2),
             'viewup':-vaxis[axis]
         })
-    
-        pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")    
-    
+
+        pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
+
     if debug:
         vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
 
 def figure_FoR_voxels(name,voxels,debug=True):
     vol = vedo.Volume(voxels,alpha=[0,0,0.05,0.1])
 
-    pl  = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)    
+    pl  = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
     for axis in vaxis.keys():
         pl.show([vol],camera={
             'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
             'focalPoint': (nz/2,ny/2,nx/2),
             'viewup':-vaxis[axis]
-        })        
+        })
         pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
 
     if debug:
         vedo.show([vol],interactive=True)
 
-    
-
-
-        
 if __name__ == "__main__":
     sample, scale, verbose = commandline_args({"sample" : "<required>",
                                                "scale" : 8,
                                                "verbose" : 1})
-    
+
     if(scale<8):
         if verbose >= 1: print(f"Selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
         #sys.exit(-1)
 
     ## STEP 0: LOAD MASKS, VOXELS, AND METADATA
     image_output_dir = f"{hdf5_root}/processed/implant-FoR/{sample}/"
-    if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")    
+    if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
-    
+
     if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
-    implant      = implant_file["implant/mask"][:]
+    implant      = implant_file["implant/mask"][:].astype(np.uint8)
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
     implant_file.close()
-    
+
     if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
+
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png')
+    plt.imshow(voxels[:,voxels.shape[0]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png')
+    plt.imshow(voxels[:,:,voxels.shape[0]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png')
 
     nz,ny,nx = implant.shape
 
@@ -303,7 +293,7 @@ if __name__ == "__main__":
     ## STEP1A: DIAGONALIZE MOMENT OF INTERTIA MATRIX TO GET PRINCIPAL AXES
     cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
     if verbose >= 1: print(f"Center of mass is: {cm}")
-    IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)  
+    IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)
     ls,E  = la.eigh(IM)
 
     ## STEP 1B: PRINCIPAL AXES ARE ONLY DEFINED UP TO A SIGN.
@@ -318,7 +308,7 @@ if __name__ == "__main__":
         E[:,0] *= -1
     if sample == "770_pag":
         E[:,2] *= -1
-    
+
     ix = np.argsort(np.abs(ls));
     ls, E = ls[ix], E[:,ix]
     UVW = E.T
@@ -335,7 +325,7 @@ if __name__ == "__main__":
     w0  = implant_uvws[:,2].min();  # In {scale}x voxel units
     w0v = np.array([0,0,w0])        # w-shift to get to center of implant back-plane
 
-    
+
     ## 2B: Transform to backplane-centered coordinates in physical units
     implant_UVWs = (implant_uvws - w0v)*voxel_size     # Physical U,V,W-coordinates, relative to implant back-plane center, in micrometers
     implant_Us,implant_Vs,implant_Ws = implant_UVWs.T  # Implant point coordinates
@@ -349,7 +339,7 @@ if __name__ == "__main__":
     for i in tqdm.tqdm(range(len(U_bins)-1),"Cylinder centres as fn of U"):
         # Everything is in micrometers
         U0,U1 = U_bins[i], U_bins[i+1]
-        
+
         slab = implant_UVWs[(implant_Us>=U0) & (implant_Us<=U1)]
         slab_Us, slab_Vs, slab_Ws = slab.T
 
@@ -360,17 +350,16 @@ if __name__ == "__main__":
         p1 = np.array([V0,0])
         p2 = np.array([V1,0])
 
-        # Will be way faster to 
+        # Will be way faster to
         c = circle_center(p0,p1,p2)     # circle center in VW-coordinates
         Cs[i] = np.array([(U0+U1)/2, c[0], c[1]])
-        Rs[i] = la.norm(p0-c)        
-        
+        Rs[i] = la.norm(p0-c)
 
-    ## 2D: Best circle centers along U forms a helix, due to the winding screw threads. To get the best cylinder, 
+    ## 2D: Best circle centers along U forms a helix, due to the winding screw threads. To get the best cylinder,
     ##     we solve for direction vector u_prime so C(U) = C0 + U*u_prime + e(U) with minimal least square residual error e(U)
     ##     where C0 is the mean of the segment circle centers.
-    # 
-    # U*u_prime = C(U) - C0  
+    #
+    # U*u_prime = C(U) - C0
     #
     # Cs: (N,3)
     # U: N -> (N,3)
@@ -378,10 +367,10 @@ if __name__ == "__main__":
     C0 = np.mean(Cs,axis=0)
     u_prime, _,_,_ = la.lstsq(Ub, Cs-C0)
     u_prime = u_prime[0]
-    
+
     UVWp = gramschmidt(u_prime,np.array([0,1,0]),np.array([0,0,1]))
     u_prime, v_prime, w_prime = UVWp # U',V',W' in U,V,W coordinates
-    
+
     c1 = C0 + implant_Us.min()*u_prime
     c2 = C0 + implant_Us.max()*u_prime
     cp = (c1+c2)/2
@@ -393,30 +382,28 @@ if __name__ == "__main__":
 
     C1, C2, Cp = UVW2xyz(c1), UVW2xyz(c2), UVW2xyz(cp)
 
-
-    
     implant_length = (implant_Us.max()-implant_Us.min())
     implant_radius = Rs.max()
 
     implant_length_voxels = implant_length/voxel_size
     implant_radius_voxels = implant_radius/voxel_size
-    
+
     figure_FoR_cylinder(verbose >= 2)
 
     ### 3: In the cylinder coordinates, find radii and angle ranges to fill in the "holes" in the implant and make it solid
     ###    (More robust than closing operations, as we don't want to effect the screw threads).
 
     ## 3A: Transform to implant cylinder coordinates
-    implant_UVWps = (implant_UVWs - cp) @ UVWp # We now transform to fully screw aligned coordinates with screw center origin    
+    implant_UVWps = (implant_UVWs - cp) @ UVWp # We now transform to fully screw aligned coordinates with screw center origin
     implant_Ups, implant_Vps, implant_Wps = implant_UVWps.T
 
-    Up_min, Up_max = implant_Ups.min(), implant_Ups.max()    
+    Up_min, Up_max = implant_Ups.min(), implant_Ups.max()
     Vp_min, Vp_max = implant_Vps.min(), implant_Vps.max()
     Wp_min, Wp_max = implant_Wps.min(), implant_Wps.max()
 
     #TODO: Local circle figure (instead of showing global fit on local slice, which isn't snug)
     bbox_uvwp = [Up_min,Up_max,Vp_min,Vp_max,Wp_min,Wp_max]
-    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,verbose >= 2)    
+    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,verbose >= 2)
 
     ## 3B: Profile of radii and angles
     implant_thetas = np.arctan2(implant_Vps,implant_Wps)
@@ -441,8 +428,8 @@ if __name__ == "__main__":
     zyxs = coordinate_image(implant.shape)
     uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
     UVWs = (uvws - w0v) * voxel_size        # Micrometer scale relative to backplane-center
-    Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # UVW physical image coordinates 
-        
+    Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # UVW physical image coordinates
+
     UVWps = (UVWs - cp) @ UVWp                # relative to center-of-implant-before-sawing-in-half
     Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical image coordinates
     thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
@@ -457,18 +444,17 @@ if __name__ == "__main__":
     solid_implant_UVWps   = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
     Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0],200)
 
-    figure_FoR_profiles(verbose >= 2)    
+    figure_FoR_profiles(verbose >= 2)
     figure_FoR_voxels("solid_implant",solid_implant,verbose >= 2)
 
     back_mask  = (Ws<0)
     front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
 
     # back_part = voxels*back_mask
-   
-    front_part = voxels*front_mask
-    figure_FoR_voxels("back_part", voxels*back_mask, verbose >= 2) 
-    figure_FoR_voxels("front_part",voxels*front_mask, verbose >= 2) 
 
+    front_part = voxels*front_mask
+    figure_FoR_voxels("back_part", voxels*back_mask, verbose >= 2)
+    figure_FoR_voxels("front_part",voxels*front_mask, verbose >= 2)
 
     Cp_zyx = Cp[::-1]*voxel_size
 
@@ -489,10 +475,10 @@ if __name__ == "__main__":
     update_hdf5(f"{output_dir}/{sample}.h5",
                 group_name="implant-FoR",
                 datasets={"UVW":UVW,
-                          "UVWp": UVWp,                      
-                          "center_of_mass":cm*voxel_size, 
+                          "UVWp": UVWp,
+                          "center_of_mass":cm*voxel_size,
                           "center_of_cylinder_UVW": cp,
-                          "UVWp_transform": Muvwp,                      
+                          "UVWp_transform": Muvwp,
                           "center_of_cylinder_zyx": Cp_zyx, # Cp is in scaled voxel xyz
                           "bounding_box_UVWp": np.array([[implant_Ups.min(),implant_Ups.max()],
                                                          [implant_Vps.min(),implant_Vps.max()],
@@ -502,7 +488,7 @@ if __name__ == "__main__":
                           "theta_range": np.array([theta_from, theta_to])
                 },
                 attributes={"backplane_W_shift":w0*voxel_size,
-                            "implant_radius": implant_radius                        
+                            "implant_radius": implant_radius
                 },
                 dimensions={
                     "center_of_mass":"zyx micrometers",
@@ -514,7 +500,6 @@ if __name__ == "__main__":
                 },
                 chunk_shape=None
         )
-
 
     output_dir = f"{hdf5_root}/masks/{scale}x/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -542,40 +527,35 @@ if __name__ == "__main__":
                      datasets={"mask":front_mask},
                      attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
 
-
     if verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 256)
     hist[0] = 0
     peaks, info = signal.find_peaks(hist,height=0.5*hist.max())
-        
+
     try:
         p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
         midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
         if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
-        
-        bone_mask1 = front_part > midpoint                                                                                                                                                                                                                                       
-        closing_diameter, opening_diameter = 400, 300           # micrometers                                                                                                                                                                   
+
+        bone_mask1 = front_part > midpoint
+        closing_diameter, opening_diameter = 400, 300           # micrometers
         closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-        
+
         for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
             bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
-            
+
         for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
             bone_region_mask &= ~solid_implant #~open_3d(implant_shell_mask, opening_voxels)
             bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
-            
-    
+
         bone_region_mask = largest_cc_of(bone_region_mask)
     except:
         if verbose >= 1: print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
         bone_region_mask = front_mask
-    
+
         if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
         update_hdf5_mask(f"{output_dir}/{sample}.h5",
                          group_name="bone_region",
                          datasets={"mask":bone_region_mask},
                          attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
-
-
-
