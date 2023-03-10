@@ -2,8 +2,8 @@
 # Read metadata and data from raw tomograms from ESRF.
 # (C) James Avery for the MAXIBONE project, 2018
 import numpy as np;
-import bohrium as bh;
-#import numpy as bh;
+#import bohrium as bh;
+import numpy as bh;
 #import jax.numpy as jp
 import numpy.ma as ma;
 import sys,re,os,tqdm;
@@ -13,7 +13,7 @@ import sys,re,os,tqdm;
 
 def esrf_edf_metadata(filename):
     meta = {};
-    header_length = 1024;            
+    header_length = 1024;
     with open(filename,"r",encoding="latin-1") as f:
         header = f.read(header_length);
 
@@ -22,19 +22,19 @@ def esrf_edf_metadata(filename):
             kv = re.split("[=;]",l);
             if(len(kv)>=2):
                 meta[kv[0].strip()] = kv[1].strip();
-            
+
         assert meta["ByteOrder"] == "LowByteFirst";
 
         if(meta["DataType"] == "UnsignedShort"):
             meta["NumpyType"] = np.uint16;
         if(meta["DataType"] == "Float"):
-            meta["NumpyType"] = np.float32;            
-        
+            meta["NumpyType"] = np.float32;
+
         return meta;
-    
+
 def esrf_edf_to_npy(filename):
     meta = esrf_edf_metadata(filename);
-    header_length = 1024;        
+    header_length = 1024;
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -71,8 +71,8 @@ def esrf_full_tomogram(info):
 
 def esrf_edf_to_bh(filename):
     meta = esrf_edf_metadata(filename);
-    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));    
-    header_length = 1024;        
+    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));
+    header_length = 1024;
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -107,8 +107,8 @@ def esrf_edfrange_to_bh(info,region):
 
 def esrf_edf_to_jp(filename):
     meta = esrf_edf_metadata(filename);
-    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));    
-    header_length = 1024;        
+    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));
+    header_length = 1024;
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -145,7 +145,7 @@ def esrf_read_xml(filename):
     fields = ["subvolume_name","sizex","sizey","sizez","originx","originy","originz","voxelsize","valmin","valmax","byte_order","s1","s2","S1","S2"];
     fieldstrings = ["\<{}\>(.*)\<\/{}\>".format(f,f) for f in fields];
     res = [re.compile(s,re.IGNORECASE) for s in fieldstrings];
-    xmlmeta = {};    
+    xmlmeta = {};
     with open(filename,"r") as file:
         for l in file.readlines():
             for i in range(len(fields)):
@@ -156,7 +156,7 @@ def esrf_read_xml(filename):
         xmlmeta["subvolume_name"]=xmlmeta["subvolume_name"].replace("%04d","{:04d}");
         xmlmeta["filename"]=filename;
         xmlmeta["dirname"]=os.path.dirname(filename);
-    
+
     # Change printf template to python3 format template
     return xmlmeta;
 
@@ -165,27 +165,27 @@ def readfile(filename):
     with open(filename,'r') as f:
         return f.readlines()
 
-        
+
 # def frame_histogram(frame,i,bin_edges):
-# #    print("Calculating histogram for frame",i)        
+# #    print("Calculating histogram for frame",i)
 #     count =  np.histogram(frame.compressed(),bins=bin_edges)[0];
 # #    print("Completed histogram for frame",i)
 #     return count
 
 # #To get a total histogram, simply do np.sum(count,axis=0)
 # def progressive_histogram(xml,nbins=2048,bin_edges=np.array([]),num_cores=4):
-    
+
 #     if(len(bin_edges)==0):
 #         bin_edges = np.linspace(float(xml["valmin"]), float(xml["valmax"]), nbins + 1);
 #         nbins = len(bin_edges)-1;
 
 
 #     nz     = int(xml["sizez"]);
-#     print("sizez = ",nz)    
+#     print("sizez = ",nz)
 #     meta,frame  = esrf_edf_n_to_npy(xml,0);
 #     frames = np.ma.empty((4*num_cores, frame.shape[0], frame.shape[1]));
 #     counts = np.empty((nz,nbins),dtype=int);
-    
+
 #     for i in range(0,nz,4*num_cores):
 #         chunk_length = min(4*num_cores,nz-i);
 #         for j in range(chunk_length):
@@ -193,6 +193,6 @@ def readfile(filename):
 #             _, frames[j] = esrf_edf_n_to_npy(xml,i+j);
 #         counts[i:i+chunk_length] = np.array(Parallel(n_jobs=num_cores)(delayed(frame_histogram)(frames[j],i+j,bin_edges)
 #                                                                       for j in range(chunk_length)));
-        
+
 #     return counts, bin_edges;
-        
+
