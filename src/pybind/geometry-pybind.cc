@@ -119,13 +119,13 @@ void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance 
 PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
 
-    m.def("center_of_mass",       &python_api::center_of_mass);
-    m.def("inertia_matrix",       &python_api::inertia_matrix);
-    m.def("integrate_axes",       &python_api::integrate_axes);
-    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox);
-    m.def("fill_implant_mask",    &python_api::fill_implant_mask);
-    m.def("cylinder_projection",  &python_api::cylinder_projection);
-    m.def("sample_plane",         &python_api::sample_plane<uint16_t>);
-    m.def("sample_plane",         &python_api::sample_plane<uint8_t>);
-    m.def("compute_front_mask",   &python_api::compute_front_mask);
+    m.def("center_of_mass",       &python_api::center_of_mass, py::arg("np_voxels"));
+    m.def("inertia_matrix",       &python_api::inertia_matrix, py::arg("np_voxels"), py::arg("cm"));
+    m.def("integrate_axes",       &python_api::integrate_axes, py::arg("np_voxels"), py::arg("x0"), py::arg("v_axis"), py::arg("w_axis"), py::arg("v_min"), py::arg("w_min"), py::arg("output").noconvert());
+    m.def("zero_outside_bbox",    &python_api::zero_outside_bbox, py::arg("principal_axes"), py::arg("parameter_ranges"), py::arg("cm"), py::arg("np_voxels").noconvert());
+    m.def("fill_implant_mask",    &python_api::fill_implant_mask, py::arg("implant_mask"), py::arg("voxel_size"), py::arg("bbox"), py::arg("r_fraction"), py::arg("Muvw"), py::arg("solid_implant_mask").noconvert(), py::arg("rsqr_maxs").noconvert(), py::arg("profile").noconvert());
+    m.def("cylinder_projection",  &python_api::cylinder_projection, py::arg("np_edt"), py::arg("np_Cs"), py::arg("Cs_voxel_size"), py::arg("d_min"), py::arg("d_max"), py::arg("theta_min"), py::arg("theta_max"), py::arg("bbox"), py::arg("Muvw"), py::arg("np_images").noconvert(), py::arg("np_counts").noconvert());
+    m.def("sample_plane",         &python_api::sample_plane<uint16_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());
+    m.def("sample_plane",         &python_api::sample_plane<uint8_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());
+    m.def("compute_front_mask",   &python_api::compute_front_mask, py::arg("np_solid_implant"), py::arg("voxel_size"), py::arg("Muvw"), py::arg("bbox"), py::arg("np_front_mask").noconvert());
 }
