@@ -28,6 +28,6 @@ void morphology_3d_sphere_wrapper(
 
 PYBIND11_MODULE(morphology, m) {
     m.doc() = "Morphology operations."; // optional module docstring
-    m.def("dilate_3d_sphere", &morphology_3d_sphere_wrapper<std::bit_or<mask_type>, false>);
-    m.def("erode_3d_sphere", &morphology_3d_sphere_wrapper<std::bit_and<mask_type>, true>);
+    m.def("dilate_3d_sphere", &morphology_3d_sphere_wrapper<std::bit_or<mask_type>, false>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
+    m.def("erode_3d_sphere", &morphology_3d_sphere_wrapper<std::bit_and<mask_type>, true>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
 }
