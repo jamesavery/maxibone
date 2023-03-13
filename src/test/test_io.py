@@ -32,6 +32,9 @@ def test_dtype(impl, dtype):
     if os.path.exists(individual_tmp_file):
         os.remove(individual_tmp_file)
     data = random(dim_shape, dtype)
+
+    assert (len(np.unique(data)) > 1) # Assert interesting data
+
     partial = dim_size // partial_factor
 
     # Write out a new file
