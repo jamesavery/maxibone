@@ -13,9 +13,9 @@ mempool.free_all_blocks()
 pinned_mempool.free_all_blocks()
 
 if __name__ == "__main__":
-    sample, image, chunk_size, dtype, verbose = commandline_args({"sample" : "<required>", 
+    sample, image, chunk_size, dtype, verbose = commandline_args({"sample" : "<required>",
                                                                   "image" :  "voxels",
-                                                                  "chunk_size" : 32*2, 
+                                                                  "chunk_size" : 32*2,
                                                                   "dtype" : "uint16",
                                                                   "verbose" : 1})
 
@@ -29,13 +29,13 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"Input metadata from {input_meta}")
     if verbose >= 1: print(f"Input flat binary {dtype} data from {input_bin}")
     if verbose >= 1: print(f"Output flat binary {dtype} data to {output_root}/[1,2,4,8,16,32]x/{sample}.{dtype}")
-    
+
     meta_h5    = h5py.File(input_meta, 'r')
     full_Nz, Ny, Nx = meta_h5['voxels'].shape
     shifts     = meta_h5['volume_matching_shifts'][:] # TODO: Do this in a neater way
     Nz         = full_Nz - np.sum(shifts)
-    meta_h5.close()    
-    
+    meta_h5.close()
+
     if verbose >= 1: print(f"Downscaling from 1x {(Nz,Ny,Nx)} to 2x {(Nz//2,Ny//2,Nx//2)}")
     if(chunk_size % 32):
         if verbose >= 1: print(f"Chunk size {chunk_size} is invalid: must be divisible by 32.")
@@ -49,12 +49,12 @@ if __name__ == "__main__":
     voxels4x  = np.empty((Nz//4,Ny//4,Nx//4),dtype=T)
     voxels8x  = np.empty((Nz//8,Ny//8,Nx//8),dtype=T)
     voxels16x = np.empty((Nz//16,Ny//16,Nx//16),dtype=T)
-    voxels32x = np.empty((Nz//32,Ny//32,Nx//32),dtype=T)            
-    voxels    = [voxels2x,voxels4x,voxels8x,voxels16x,voxels32x];    
-    
+    voxels32x = np.empty((Nz//32,Ny//32,Nx//32),dtype=T)
+    voxels    = [voxels2x,voxels4x,voxels8x,voxels16x,voxels32x];
+
     for z in tqdm.tqdm(range(0,Nz,chunk_size),f"{sample}: Reading and scaling {chunk_size}-layer chunks"):
         zend  = min(z+chunk_size, Nz)
-        chunk_items = (zend-z) * Ny * Nx 
+        chunk_items = (zend-z) * Ny * Nx
         # # CHECK: Is a simple fread faster than numpy fromfile?
         # voxels1x_np = np.empty((zend-z,Ny,Nx),dtype=T);
         # load_slice(voxels1x_np,input_bin,(z,0,0),voxels1x_np.shape)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         except:
             if verbose >= 1: print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
             sys.exit(-1)
-            
+
 #        if verbose >= 1: print(f"Used GPU memory: {mempool.used_bytes()//1000000}MB out of {mempool.total_bytes()/1000000}MB. {pinned_mempool.n_free_blocks()} free pinned blocks.")
         voxels2x_chunk = downsample2x(voxels1x_chunk)
         del voxels1x_chunk
@@ -91,11 +91,11 @@ if __name__ == "__main__":
         del voxels8x_chunk
         del voxels16x_chunk
         del voxels32x_chunk
-        
+
     if verbose >= 1: print(f"Allocating {(Nz//2,Ny//2,Nx//2)}={Nz//2*Ny//2*Nx//2} {dtype} for voxels2x on GPU")
-    
+
     for i in tqdm.tqdm(range(len(scales)),f"{sample}: Downscaling to all smaller scales: {scales[2:]}"):
         output_dir = f"{output_root}/{scales[i]}x/"
-        pathlib.Path(f"{output_dir}").mkdir(parents=True, exist_ok=True)            
+        pathlib.Path(f"{output_dir}").mkdir(parents=True, exist_ok=True)
         if verbose >= 1: print(f"Writing out scale {scales[i]}x {(voxels[i].shape)} to {output_dir}/{sample}.uint16")
         voxels[i].tofile(f"{output_dir}/{sample}.uint16")

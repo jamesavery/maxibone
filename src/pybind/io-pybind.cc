@@ -18,17 +18,7 @@ void load_slice(py::array_t<T> &np_data, const string filename,
     auto [oz, oy, ox] = offset;
     uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
 
-    cout <<
-        Nz << " " << Ny << " " << Nx << " " <<
-        oz << " " << oy << " " << ox << " " <<
-        flat_offset << endl;
-
     NS::load_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
-
-    T checksum = (T) 0;
-    for (int64_t i = 0; i < data_info.size; i++)
-        checksum += data[i];
-    cout << checksum << " " << sizeof(T) << endl;
 }
 
 template <typename T>
@@ -41,6 +31,7 @@ void write_slice(const py::array_t<T> &np_data,
     auto [Nz, Ny, Nx] = shape;
     auto [oz, oy, ox] = offset;
     uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
+
     NS::write_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
 }
 
