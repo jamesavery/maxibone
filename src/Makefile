@@ -50,6 +50,8 @@ $(foreach PLATFORM, $(PLATFORMS), \
 	) \
 )
 
+# TODO lightweight openacc profiling can be done with the environment variable NV_ACC_TIME=1 !!!
+
 test: all
 	$(PYTHON) -m pytest -n auto test
 
