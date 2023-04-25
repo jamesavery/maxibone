@@ -5,7 +5,6 @@ CMakeCache.txt
 CMakeFiles
 CMakeScripts
 Testing
-Makefile
 cmake_install.cmake
 install_manifest.txt
 compile_commands.json
@@ -16,3 +15,12 @@ src/meow/meow_triggers/*
 src/meow/runner_data/*
 src/meow/runner_output/*
 src/meow/runner_processing/*
+
+# Compiled files
+*.so
+*.so.dSYM
+a.out
+cudafe
+
+# Ignore the $BONE_DATA symlinks, as they're only there for convinience in vscode
+data_*

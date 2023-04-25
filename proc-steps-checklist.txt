@@ -1,0 +1,6 @@
+0100 - Haven't checked. Requires ERDA to be set up properly.
+0200 - Verified!
+0300 - Verified!
+0400 - Verified!
+0500 - Verified!
+0600 - Verified!
