@@ -140,7 +140,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                     n_shell ++;
 
                     //        printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n",distance,U,V,W);
-                    if (in_bbox(U,V,W,bbox)) {
+                    if (in_bbox({{U,V,W}},bbox)) {
                         real_t theta    = atan2(V,W);
 
                         if (theta >= theta_min && theta <= theta_max) {
@@ -218,7 +218,7 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
                     int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                 //    if (U_i >= 0 && U_i < n_segments) {
-                    if ( in_bbox(U, V, W, bbox) ) {
+                    if ( in_bbox({{U, V, W}}, bbox) ) {
                         rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
                         theta_min = min(theta_min, theta);
                         theta_max = max(theta_max, theta);
@@ -388,8 +388,8 @@ void sample_plane(const input_ndarray<T> &voxels,
             //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
             T value = 0;
-            std::array<float, 6> local_bbox = {0.5f, float(voxels_Nx)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nz)-0.5f};
-            if (in_bbox(x,y,z, local_bbox))
+            std::array<float, 6> local_bbox = {0.5f, float(voxels_Nx)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nz)-0.5f}; 
+            if (in_bbox({{x,y,z}}, local_bbox))
                 value = (T) round(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
             // else
             //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);

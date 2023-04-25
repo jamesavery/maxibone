@@ -82,7 +82,7 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
 
                             int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-                            if ( in_bbox(U,V,W,bbox) ) {
+                            if ( in_bbox({{U,V,W}},bbox) ) {
                                 //#pragma acc atomic update
                                 rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
                                 theta_min = min(theta_min, theta);
