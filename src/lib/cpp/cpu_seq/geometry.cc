@@ -18,7 +18,6 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     uint64_t total_mass = 0, cmz = 0, cmy = 0, cmx = 0;
 
     BLOCK_BEGIN(mask, reduction(+:total_mass,cmz,cmy,cmx)); {
-    // TODO James approves; now RUN!
 
         mask_type m = mask_buffer[flat_index];
 
@@ -85,9 +84,9 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
     const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
 
     real_t
-        edz = edt_Nz / real_t(C_Nz),
-        edy = edt_Ny / real_t(C_Ny),
-        edx = edt_Nx / real_t(C_Nx);
+        //edz = real_t(edt_Nz) / real_t(C_Nz),
+        edy = real_t(edt_Ny) / real_t(C_Ny),
+        edx = real_t(edt_Nx) / real_t(C_Nx);
 
     //printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
     //printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
@@ -125,9 +124,9 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                 // Index into local block
                 const int64_t Xl = (k  / (C_Ny*C_Nz)), Yl = (k / C_Nz) % C_Ny, Zl = k  % C_Nz;
                 // Index into local edt block. Note EDT has 1-slice padding top+bottom
-                const float  x = (Xl+1)*edx, y = Yl*edy, z = Zl*edy;
+                const float  x = float(Xl+1)*edx, y = float(Yl)*edy, z = float(Zl)*edy;
 
-                if (x > block_height) {
+                if (x > float(block_height)) {
                     printf("Block number k=%ld.\nX,Y,Z=%ld,%ld,%ld\nXl,Yl,Zl=%ld,%ld,%ld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
                     abort();
                 }
@@ -136,7 +135,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                 real_t distance = resample2x2x2<float>(edt_block, {this_edt_length/(edt_Ny*edt_Nz),edt_Ny,edt_Nz}, {x,y,z});
 
                 if (distance > d_min && distance <= d_max) { // TODO: and W>w_min
-                    array<real_t,4> Xs = {X*voxel_size, Y*voxel_size, Z*voxel_size, 1};
+                    array<real_t,4> Xs = {real_t(X)*voxel_size, real_t(Y)*voxel_size, real_t(Z)*voxel_size, 1};
                     auto [U,V,W,c] = hom_transform(Xs,Muvw);
                     n_shell ++;
 
@@ -147,10 +146,10 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                         if (theta >= theta_min && theta <= theta_max) {
                             n_shell_bbox++;
 
-                            ssize_t theta_i = floor( (theta-theta_min) * (n_theta-1)/(theta_max-theta_min) );
-                            ssize_t U_i     = floor( (U    -    U_min) * (n_U    -1)/(    U_max-    U_min) );
+                            ssize_t theta_i = ssize_t(floor( (theta-theta_min) * real_t(n_theta-1)/(theta_max-theta_min) ));
+                            ssize_t U_i     = ssize_t(floor( (U    -    U_min) * real_t(n_U    -1)/(    U_max-    U_min) ));
 
-                            real_t p = C_buffer[k]/255.;
+                            real_t p = real_t(C_buffer[k])/255.f;
 
                             assert(theta >= theta_min);
                             assert(theta <= theta_max);
@@ -307,6 +306,46 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
     };
 }
 
+void integrate_axes(const input_ndarray<mask_type> &mask,
+		    const array<real_t,3> &x0,
+		    const array<real_t,3> &v_axis,
+		    const array<real_t,3> &w_axis,
+		    const real_t v_min, const real_t w_min,
+		    output_ndarray<uint64_t> output) {
+    UNPACK_NUMPY(mask);
+    ssize_t Nv = output.shape[0], Nw = output.shape[1];
+    uint64_t *output_data = output.data;
+
+    // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
+    #pragma acc data copy(output_data[:Nv*Nw]) copyin(x0, v_axis, w_axis, v_min, w_min)
+    {
+    BLOCK_BEGIN(mask, ) {
+
+        mask_type voxel = mask_buffer[flat_index];
+        if (voxel != 0) {
+            real_t xs[3] = {
+                real_t(x) - x0[0],
+                real_t(y) - x0[1],
+                real_t(z) - x0[2]
+            };
+
+            real_t
+                v = dot(xs, v_axis),
+                w = dot(xs, w_axis);
+            int64_t
+                i_v = int64_t(round(v - v_min)),
+                j_w = int64_t(round(w - w_min));
+
+            if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
+                ATOMIC()
+                output_data[i_v*Nw + j_w] += voxel;
+            }
+        }
+
+    BLOCK_END() }
+    }
+}
+
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,
                   const real_t voxel_size, // In micrometers
@@ -358,46 +397,6 @@ void sample_plane(const input_ndarray<T> &voxels,
             dat[ui*nv + vj] = value;
         }
     }
-    }
-}
-
-void integrate_axes(const input_ndarray<mask_type> &mask,
-		    const array<real_t,3> &x0,
-		    const array<real_t,3> &v_axis,
-		    const array<real_t,3> &w_axis,
-		    const real_t v_min, const real_t w_min,
-		    output_ndarray<uint64_t> output) {
-    UNPACK_NUMPY(mask);
-    ssize_t Nv = output.shape[0], Nw = output.shape[1];
-    uint64_t *output_data = output.data;
-
-    // TODO: Check v_axis & w_axis projections to certify bounds and get rid of runtime check
-    #pragma acc data copy(output_data[:Nv*Nw]) copyin(x0, v_axis, w_axis, v_min, w_min)
-    {
-    BLOCK_BEGIN(mask, ) {
-
-        mask_type voxel = mask_buffer[flat_index];
-        if (voxel != 0) {
-            real_t xs[3] = {
-                real_t(x) - x0[0],
-                real_t(y) - x0[1],
-                real_t(z) - x0[2]
-            };
-
-            real_t
-                v = dot(xs, v_axis),
-                w = dot(xs, w_axis);
-            int64_t
-                i_v = int64_t(round(v - v_min)),
-                j_w = int64_t(round(w - w_min));
-
-            if (i_v >= 0 && j_w >= 0 && i_v < Nv && j_w < Nw) {
-                ATOMIC()
-                output_data[i_v*Nw + j_w] += voxel;
-            }
-        }
-
-    BLOCK_END() }
     }
 }
 
