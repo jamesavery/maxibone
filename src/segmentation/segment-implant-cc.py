@@ -35,8 +35,8 @@ voxel_chunk   = np.empty((chunk_size,ny,nx),dtype=np.uint16)
 for z in tqdm.tqdm(range(0,nz,chunk_size),"Loading and thresholding voxels"):
     chunk_length = min(chunk_size,nz-z)
     load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16",
-               (chunk_length,0,0), (nz,ny,nx))
-    noisy_implant[z:z+chunk_length] = voxel_chunk[:chunk_length]
+               (z,0,0), (nz,ny,nx))
+    noisy_implant[z:z+chunk_length] = (voxel_chunk[:chunk_length] > implant_threshold_u16)
     
                                                   
 print(f"Computing connected components")
