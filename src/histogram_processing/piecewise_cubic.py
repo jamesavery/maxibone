@@ -1,4 +1,6 @@
 from numpy import array, linspace, sin, empty, zeros, linalg, random, pad, concatenate
+import numpy as np
+import numpy.linalg as la
 # Scheme:
 #  Fit an N-segment piecewise cubic polynomial to a set of points with linear least squares with
 #  two exact conditions:
@@ -68,14 +70,17 @@ def mxrow_df(x,borders):
         row[-2:]          = [2*(x-Xleft), 3*((x-Xleft)**2)]
         return row 
     
+# TODO:
+#  - THE COEFFICIENT DERIVATIVE SHOULD BE CONSTRUCTED FROM THE MATRIX?
+#
 
 # We can now put these together to construct the matrix and RHS row by row:
 def piecewisecubic_matrix(xs,ys, Xs): 
     M = len(xs)                 # M data points 
     N = len(Xs)-1               # N segments, i.e. N+1 borders 
     
-    A = empty((M,2*(N+1)),dtype=float)
-    b = empty((M,1),dtype=float)
+    A = zeros((M,2*(N+1)),dtype=float)
+    b = zeros((M,1),dtype=float)
 
     n = 0                        # Start in first region
     Xleft, Xright = Xs[0], Xs[1] 
@@ -92,17 +97,37 @@ def piecewisecubic_matrix(xs,ys, Xs):
 
     return A,b
 
+
+
+
+
 # A function that takes an N-segment piecewise cubic polynomial
 # produced by fit_piecewisecubic() and evaluates it on an arbitrary
 # set of coordinates xs (not necessarily the same as the data points
 # it was fitted to):
-def piecewisecubic(pc,all_xs):
+def piecewisecubic(pc,all_xs,extrapolation="cubic"):
     coefs, Xs = pc          # Polynomial coefficients A1,B1,C1,D1,C2,D2,C3,D3,... and borders
+    all_xs = all_xs.astype(float)
     N = len(Xs)-1           # N segments have N+1 borders: |seg1|seg2|...|segN|
 
     ys = []                 # List of function values for segments
-    A,B = coefs[:2]         # A and B coefficients are only defined for 0-segment
+    A,B = coefs[:2]         # A and B coefficients are only stored for 0-segment
 
+    # Process points outside the domain, left side
+    Xmin = Xs[0]
+    C,D = coefs[2:4]
+    xs_left_of_domain = all_xs[all_xs < Xmin]
+    xs = xs_left_of_domain - Xmin
+
+    if extrapolation=="cubic":
+        ys += [A + B*xs + C*(xs**2) + D*(xs**3)]
+    if extrapolation=="linear":
+        # evaluate dy/dx at domain edge Xs.min()
+        ys   += [A + B*xs]      # A is value at Xmin, B is slope at Xmin
+    if extrapolation=="constant":
+        ys += [np.ones(xs_left_of_domain.shape)*A] # A is value at Xmin
+
+    # Process points inside domain
     for n in range(N):
         C, D          = coefs[(2+2*n):(2+2*n+2)] # 
         
@@ -118,6 +143,19 @@ def piecewisecubic(pc,all_xs):
         X = Xright-Xleft
         A = A + B*X + C*(X**2) + D*(X**3)   # A_{n+1} = f_n (X_{n+1})
         B =     B   + C*2*X    + D*3*(X**2) # B_{n+1} = f'_n(X_{n+1})
+
+
+    # Process points outside the domain, right side
+    Xmax = Xs[-1]
+    xs_right_of_domain = all_xs[all_xs >= Xmax]
+    xs = xs_right_of_domain - Xmax
+    
+    if extrapolation=="cubic":
+        ys += [A + B*xs + C*(xs**2) + D*(xs**3)]  
+    if extrapolation=="linear":
+        ys   += [A + B*xs]
+    if extrapolation=="constant":
+        ys += [np.ones(xs_right_of_domain.shape)*A]
         
     return concatenate(ys)
 
@@ -125,13 +163,28 @@ def piecewisecubic(pc,all_xs):
 
 # ...and a function to construct the overdetermined linear system of 
 # equations and find the least squares optimal approximate solution:
-def fit_piecewisecubic(xs,ys, Xs):
+def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
     A, b = piecewisecubic_matrix(xs,ys,Xs)
 
-    coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
+    if regularization_beta>0:
+        m,n = A.shape
+        I   = np.eye(n,n)[3:]
+        I[:,5:]   -= np.eye(n-3,n-3)[:,:-2]
+        I[:-2,7:] -= np.eye(n-5,n-5)[:,:-2]        
+        print(I)
+        Ap  = np.vstack([A,regularization_beta*I])
+        bp  = np.concatenate([b,np.zeros((n-3,1))])
+        print(f"{regularization_beta} {m,n} {A.shape}, {I.shape}, {Ap.shape}, b:{b.shape}, bp:{bp.shape}")        
+        coefs, residuals, rank, sing = linalg.lstsq(Ap,bp,rcond=None)
+    else:
+        coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
+        
+    return (coefs.reshape(-1),Xs)
 
-    return (coefs,Xs)
+def smooth_fun(xs,ys,n_segments,regularization_beta=0):
+    borders = linspace(xs.min(), xs.max()+1,n_segments)    
 
+    return fit_piecewisecubic(xs,ys,borders,regularization_beta)
 
 if __name__ == "__main__":
     # A test:
@@ -156,7 +209,7 @@ if __name__ == "__main__":
     # plt.show()
 
 
-    f = np.load("output_curve_values.npy")
+    f = np.load("test_data/output_curve_values.npy")
 
     vals = f[7,:,1].T
     mask = vals>0
@@ -169,9 +222,16 @@ if __name__ == "__main__":
     coefs, residuals, rank, sing = linalg.lstsq(A,b,rcond=None)
     
     pc = coefs, borders
-    
-    Ys = piecewisecubic(pc,xs)
 
-    plt.plot(xs,ys)
-    plt.plot(xs,Ys)
+    xs_len = xs.max()-xs.min()
+    new_xs = np.linspace(xs.min()-xs_len/2,xs.max()+xs_len/2,100)
+    
+    Ys1 = piecewisecubic(pc,new_xs) # Cubic extrapolation is default
+    Ys2 = piecewisecubic(pc,new_xs,extrapolation="linear") 
+    Ys3 = piecewisecubic(pc,new_xs,extrapolation="constant") 
+
+    plt.plot(xs,ys,c='black',linewidth=2.5)
+    plt.plot(new_xs,Ys1,c='r')
+    plt.plot(new_xs,Ys2,c='g')
+    plt.plot(new_xs,Ys3,c='b')    
     plt.show()

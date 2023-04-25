@@ -58,9 +58,7 @@ def esrf_edfrange_to_npy(info,region):
 
     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
     image = np.zeros(shape,dtype=np.float32);
-    for z in range(z_start,z_end):
-        if (z % 10 == 0):
-            print(z);
+    for z in tqdm.tqdm(range(z_start,z_end),leave=False):
         (meta,data) = esrf_edf_n_to_npy(info,z);
         image[z-z_start] = data[y_start:y_end,x_start:x_end];
 

@@ -4,6 +4,7 @@ sys.path.append(sys.path[0]+"/../")
 import pybind_kernels.histograms as histograms
 from config.paths import hdf5_root, binary_root, commandline_args
 from tqdm import tqdm
+from helper_functions import update_hdf5
 
 slice_all = slice(None)
 
@@ -68,6 +69,15 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
 
         del subvolume_msb
         del subvolume_lsb
+
+    msb_file.close()
+    lsb_file.close()
+
+    update_hdf5(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5',
+                group_name="volume_matched",
+                datasets={"shape": np.array([np.sum(nzs), Ny, Nx]),
+                          "subvolume_starts": output_zstarts,
+                          "subvolume_ends": output_zends})
     
         
 if __name__ == "__main__":

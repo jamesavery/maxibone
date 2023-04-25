@@ -5,7 +5,7 @@ import cupy  as cp
 #import numpy as cp
 from resample import downsample2x, downsample3x
 from config.paths import commandline_args, hdf5_root, binary_root
-from pybind_kernels.histograms import load_slice # Rename and place under io_modules 
+from pybind_kernels.histograms import load_slice, write_slice # Rename and place under io_modules 
 
 mempool = cp.get_default_memory_pool()
 pinned_mempool = cp.get_default_pinned_memory_pool()
@@ -29,14 +29,14 @@ if __name__ == "__main__":
     print(f"Output flat binary {dtype} data to {output_root}/[1,2,4,8,16,32]x/{sample}.{dtype}")
     
     meta_h5    = h5py.File(input_meta, 'r')
-    Nz, Ny, Nx = meta_h5['voxels'].shape
+    full_Nz, Ny, Nx = meta_h5['voxels'].shape
     shifts     = meta_h5['volume_matching_shifts'][:] # TODO: Do this in a neater way
-    Nz        -= np.sum(shifts)
+    Nz         = full_Nz - np.sum(shifts)
     meta_h5.close()    
     
-    print("Downscaling from 1x to 2x")
+    print(f"Downscaling from 1x {(Nz,Ny,Nx)} to 2x {(Nz//2,Ny//2,Nx//2)}")
     if(chunk_size % 32):
-        print("Chunk size {chunk_size} is invalid: must be divisible by 32.")
+        print(f"Chunk size {chunk_size} is invalid: must be divisible by 32.")
         sys.exit(-1)
 #        print(f"Used GPU memory: {mempool.used_bytes()//1000000}MB out of {mempool.total_bytes()/1000000}MB. {pinned_mempool.n_free_blocks()} free pinned blocks.")
 
@@ -57,8 +57,13 @@ if __name__ == "__main__":
         # voxels1x_np = np.empty((zend-z,Ny,Nx),dtype=T);
         # load_slice(voxels1x_np,input_bin,(z,0,0),voxels1x_np.shape)
         # voxels1x_chunk = cp.array(voxels1x_np)
-        # NB: count is in items, offset is in bytes! Jesus Christ.                   
-        voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx) 
+        # NB: count is in items, offset is in bytes! Jesus Christ.
+        try:
+            voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx)
+        except:
+            print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
+            sys.exit(-1)
+            
 #        print(f"Used GPU memory: {mempool.used_bytes()//1000000}MB out of {mempool.total_bytes()/1000000}MB. {pinned_mempool.n_free_blocks()} free pinned blocks.")
         voxels2x_chunk = downsample2x(voxels1x_chunk)
         del voxels1x_chunk
@@ -90,5 +95,5 @@ if __name__ == "__main__":
     for i in tqdm.tqdm(range(len(scales)),f"{sample}: Downscaling to all smaller scales: {scales[2:]}"):
         output_dir = f"{output_root}/{scales[i]}x/"
         pathlib.Path(f"{output_dir}").mkdir(parents=True, exist_ok=True)            
-        print(f"Writing out scale {scales[i]}x to {output_dir}/{sample}.uint16")
+        print(f"Writing out scale {scales[i]}x {(voxels[i].shape)} to {output_dir}/{sample}.uint16")
         voxels[i].tofile(f"{output_dir}/{sample}.uint16")

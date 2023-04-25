@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-import sys
+import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
-from matplotlib import image
 import pybind_kernels.histograms as histograms
 import numpy as np, h5py, timeit
 from datetime import datetime
 from PIL import Image
 from tqdm import tqdm
-from config.paths import hdf5_root, commandline_args
+from config.paths import *
+from config.constants import implant_threshold
+from helper_functions import block_info, load_block
+
+NA = np.newaxis
 
 # TODO: Currently specialized to uint16_t
-def masked_minmax(voxels):
-    return histograms.masked_minmax(voxels)
+masked_minmax = histograms.masked_minmax
 
 def axes_histogram(voxels, func=histograms.axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
     (Nz,Ny,Nx) = voxels.shape
@@ -100,96 +102,96 @@ def tobyt(arr):
 def row_normalize(A):
     return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
-def load_block(sample, offset, block_size, y_cutoff, binary=True):
-    '''
-    Loads a block of data from disk into memory.
-    For binary files, it assumes that y_cutoff has been applied.
-    '''
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
-    Nz, Ny, Nx = dm['voxels'].shape
-    Ny -= y_cutoff
-    fz, fy, fx = fi['voxels'].shape
-    fy -= y_cutoff // 2
-    voxels = np.empty((block_size,Ny,Nx), dtype=np.uint16)
-    field = np.zeros((block_size//2,fy,fx), dtype=np.uint16)
-
-    if binary:
-        histograms.load_slice(voxels, f'{hdf5_root}/binary/{sample}_voxels.uint16', (offset, 0, 0), (Nz, Ny, Nx))
-        histograms.load_slice(field, f'{hdf5_root}/binary/{sample}_field.uint16', (offset//2, 0, 0), (fz, fy, fx))
-    else:
-        zstart = offset
-        zstop = min(offset+block_size, Nz)
-        fzstart = offset // 2
-        fzstop = min((offset//2)+(block_size//2), fz)
-        voxels[:zstop-zstart,:,:] = \
-                (dm['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16) << 8) | \
-                (dl['voxels'][zstart:zstop,y_cutoff:,:].astype(np.uint16))
-        if fzstop-fzstart > 0: # Guard since field is smaller than voxels
-            field[:fzstop-fzstart,:fy,:fx] = fi['voxels'][fzstart:fzstop,y_cutoff//2:,:].astype(np.uint16)
-
-    dm.close()
-    dl.close()
-    fi.close()
-
-    return voxels, field
 
 # Edition where the histogram is loaded and processed in chunks
 # If block_size is less than 0, then the whole thing is loaded and processed.
-def run_out_of_core(sample, block_size=128, voxel_bins=4096, y_cutoff=1300, implant_threshold=32000):
-    dm = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    dl = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    fi = h5py.File(f'{hdf5_root}/processed/implant-edt/2x/{sample}.h5', 'r')
+def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
+                    mask=None, mask_scale=8, voxel_bins=4096,
+                    implant_threshold=32000, field_names=["gauss","edt","gauss+edt"],
+                    value_ranges=((1e4,3e4),(1,2**16-1))
+):
 
-    Nz, Ny, Nx = dm['voxels'].shape
-    Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
-    center = ((Ny//2) - y_cutoff, Nx//2)
-    Ny -= y_cutoff
 
-    block_size = block_size if block_size > 0 else Nz
-    blocks = (Nz // block_size) + (1 if Nz % block_size > 0 else 0)
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size, n_blocks, z_offset)
+    (Nz,Ny,Nx,Nr) = bi['dimensions']
+    block_size    = bi['block_size']
+    n_blocks      = bi['n_blocks']    
+    blocks_are_subvolumes = bi['blocks_are_subvolumes']
 
-    vmin, vmax = 0.0, float(implant_threshold)
-    fmin, fmax = 4.0, 65535.0 # TODO don't hardcode.
+    center = (Ny//2,Nx//2)                
+#    vmin, vmax = 0.0, float(implant_threshold)
+    # TODO: Compute from overall histogram, store in result
+    (vmin,vmax), (fmin,fmax) = value_ranges
 
+    Nfields = len(field_names)
     x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
     y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
     z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
-    f_bins = np.zeros((voxel_bins//2, voxel_bins), dtype=np.uint64)
+    f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
 
-    fz, fy, fx = fi['voxels'].shape
-    fy -= y_cutoff // 2
+    for b in tqdm(range(n_blocks), desc='Computing histograms'):
+        # NB: Kopier til andre steder, som skal virke på samme voxels        
+        if blocks_are_subvolumes:
+            zstart     = bi['subvolume_starts'][z_offset+b]
+            block_size = bi['subvolume_nzs'][z_offset+b]
+        else:
+            zstart = z_offset + b*block_size
 
-    dm.close()
-    dl.close()
-    fi.close()
+            
+            
+        voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
+        for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
+            histograms.axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+        for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
+            histograms.field_histogram_resample_par_cpu(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
 
-    for i in tqdm(range(blocks), desc='Computing histograms'):
-        zstart = i*block_size
-        voxels, field = load_block(sample, zstart, block_size, y_cutoff, True)
-        histograms.axis_histogram_par_gpu(voxels, (zstart, 0, 0), block_size, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-        histograms.field_histogram_resample_par_cpu(voxels, field, (zstart, 0, 0), (Nz, Ny, Nx), (fz, fy, fx), block_size, f_bins, (vmin, vmax), (fmin, fmax))
+    f_bins[:, 0,:] = 0 # TODO EDT mask hack            
+    f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
-    f_bins[-1] = 0 # TODO "bright" mask hack
 
+    sigma = 5
+    x_bins = ndi.gaussian_filter(x_bins,sigma,mode='constant',cval=0)
+    y_bins = ndi.gaussian_filter(y_bins,sigma,mode='constant',cval=0)
+    z_bins = ndi.gaussian_filter(z_bins,sigma,mode='constant',cval=0)
+    r_bins = ndi.gaussian_filter(r_bins,sigma,mode='constant',cval=0)
+
+    for i, bins in enumerate(f_bins):
+        f_bins[i] = ndi.gaussian_filter(bins,sigma,mode='constant',cval=0)
+    
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
 if __name__ == '__main__':
-    sample, y_cutoff = commandline_args({"sample":"770c_pag", "y_cutoff":1300})
+    # Special parameter values:
+    # - block_size == 0 means "do one full subvolume at the time, interpret z_offset as start-at-subvolume-number"
+    # - n_blocks   == 0 means "all blocks"
+    sample, block_size, z_offset, n_blocks, suffix, \
+    mask, mask_scale, voxel_bins, field_bins = commandline_args({"sample":"<required>",
+                                                                 "block_size":256, "z_offset": 0, "n_blocks":0, "suffix":"",
+                                                                 "mask":"None", "mask_scale": 8, "voxel_bins":4096, "field_bins":2048})
 
-    implant_threshold_u16 = 32000 # TODO: to config.constants
-    voxel_bins = 4096
-    block_size = 256
-
+    implant_threshold_u16 = 32000 # TODO: use config.constants
+    (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
+    field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
+    
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
+    pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)    
+    
+    xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
+                                         None if mask=="None" else mask, mask_scale, voxel_bins,
+                                         implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)))
 
-    xb, yb, zb, rb, fb = run_out_of_core(sample, block_size)
+    Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb{suffix}.png")
+    Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb{suffix}.png")
+    Image.fromarray(tobyt(row_normalize(zb))).save(f"{outpath}/zb{suffix}.png")
+    Image.fromarray(tobyt(row_normalize(rb))).save(f"{outpath}/rb{suffix}.png")
 
-    Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb.png")
-    Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb.png")
-    Image.fromarray(tobyt(row_normalize(zb))).save(f"{outpath}/zb.png")
-    Image.fromarray(tobyt(row_normalize(rb))).save(f"{outpath}/rb.png")
-    Image.fromarray(tobyt(row_normalize(fb))).save(f"{outpath}/fb.png")
-    np.savez(f'{outpath}/bins.npz', x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb)
+    for i in range(len(field_names)):
+        Image.fromarray(tobyt(row_normalize(fb[i]))).save(f"{outpath}/fb-{field_names[i]}{suffix}.png")
+        
+    np.savez(f'{outpath}/bins{suffix}.npz',
+             x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
+             axis_names=np.array(["x","y","z","r"]),
+             field_names=field_names, suffix=suffix, mask=mask,
+             sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
+    
