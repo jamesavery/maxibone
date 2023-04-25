@@ -45,9 +45,8 @@ for z in tqdm.tqdm(range(0,nz,chunk_size),"Loading and thresholding voxels"):
                (z,0,0), (nz,ny,nx))
     noisy_implant[z:z+chunk_length] = (voxel_chunk[:chunk_length] > implant_threshold_u16)
 
-
 if verbose >= 1: print(f"Computing connected components")
->>>>>>> ffccb51ed8220405a1118d93dca6147b878b7011:src/processing_steps/0600_segment_implant_cc.py
+
 label, n_features = ndi.label(noisy_implant)
 if verbose >= 1: print(f"Counting component volumes")
 bincnts           = np.bincount(label[label>0],minlength=n_features+1)
