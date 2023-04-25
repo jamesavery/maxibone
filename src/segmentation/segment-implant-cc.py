@@ -42,7 +42,6 @@ for z in tqdm.tqdm(range(0,nz,chunk_size),"Loading and thresholding voxels"):
     load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16",
                (z,0,0), (nz,ny,nx))
     noisy_implant[z:z+chunk_length] = (voxel_chunk[:chunk_length] > implant_threshold_u16)
-    
                                                   
 print(f"Computing connected components")
 label, n_features = ndi.label(noisy_implant)
