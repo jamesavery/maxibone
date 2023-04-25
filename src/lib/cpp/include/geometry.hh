@@ -27,45 +27,38 @@ inline vector4 hom_transform(const vector4 &x, const matrix4x4 &M) {
     return c;
 }
 
-inline bool in_bbox(float U, float V, float W, const std::array<float, 6> &bbox) {
-    const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+inline bool in_bbox(const std::array<float, 3> index, const std::array<float, 6> &bbox) {
+    const auto& [z, y, x] = index;
+    const auto& [zmin, zmax, ymin, ymax, xmin, xmax] = bbox;
 
-    bool inside =
-        U >= U_min &&
-        U <= U_max &&
-        V >= V_min &&
-        V <= V_max &&
-        W >= W_min &&
-        W <= W_max;
-
-    // printf("in_bbox: (%.1f,%.1f,%.1f) \in ([%.1f,%.1f],[%.1f,%.1f],[%.1f,%.1f]) == %d\n",
-    //      U,V,W,U_min,U_max,V_min,V_max,U_min,U_max,inside);
-
-    return inside;
+    return
+        z >= zmin && z <= zmax &&
+        y >= ymin && y <= ymax &&
+        x >= xmin && x <= xmax;
 }
 
 template <typename T>
-float resample2x2x2(const T             *voxels,
-                    const array<ssize_t, 3> &shape,
-                    const array<float, 3>   &X) {
-    auto  [Nx,Ny,Nz] = shape;
+float resample2x2x2(const T                      *voxels,
+                    const std::array<ssize_t, 3> &shape,
+                    const std::array<float, 3>   &index) {
+    auto  [Nz,Ny,Nx] = shape;
 
-    if (!in_bbox(X[0], X[1], X[2], {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
-        uint64_t voxel_index = uint64_t(floor(X[0]))*Ny*Nz + uint64_t(floor(X[1]))*Ny + uint64_t(floor(X[2]));
+    if (!in_bbox(index, {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
+        uint64_t voxel_index = uint64_t(floor(index[0]))*Nz*Ny + uint64_t(floor(index[1]))*Nx + uint64_t(floor(index[2]));
         return voxels[voxel_index];
     }
 
-    float   Xfrac[2][3]; // {Xminus[3], Xplus[3]}
-    int64_t Xint[2][3];  // {Iminus[3], Iplus[3]}
+    float   Ifrac[2][3]; // {Xminus[3], Xplus[3]}
+    int64_t Iint[2][3];  // {Iminus[3], Iplus[3]}
     float   value = 0;
 
     for (int i = 0; i < 3; i++) {
         float Iminus, Iplus;
-        Xfrac[0][i] = 1-modf(X[i]-0.5f, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-        Xfrac[1][i] =   modf(X[i]+0.5f, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+        Ifrac[0][i] = 1-std::modf(index[i]-0.5f, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+        Ifrac[1][i] =   std::modf(index[i]+0.5f, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
-        Xint[0][i] = (int64_t) Iminus;
-        Xint[1][i] = (int64_t) Iplus;
+        Iint[0][i] = (int64_t) Iminus;
+        Iint[1][i] = (int64_t) Iplus;
     }
 
     for (int ijk = 0; ijk <= 7; ijk++) {
@@ -74,8 +67,8 @@ float resample2x2x2(const T             *voxels,
 
         for (int axis = 0; axis < 3; axis++) { // x-1/2 or x+1/2
             int pm    = (ijk >> axis) & 1;
-            IJK[axis] = Xint[pm][axis];
-            weight   *= Xfrac[pm][axis];
+            IJK[axis] = Iint[pm][axis];
+            weight   *= Ifrac[pm][axis];
         }
 
         auto [I,J,K] = IJK;
@@ -87,11 +80,11 @@ float resample2x2x2(const T             *voxels,
         //   printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
         //   abort();
         // }
-        uint64_t voxel_index = I*Ny*Nz+J*Ny+K;
+        uint64_t voxel_index = I*Ny*Nx + J*Nx + K;
         //assert(I>=0 && J>=0 && K>=0);
         //assert(I<Nx && J<Ny && K<Nz);
         float voxel = (float) voxels[voxel_index];
-        value += voxel*weight;
+        value += voxel * weight;
     }
 
     return value;
