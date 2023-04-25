@@ -176,6 +176,11 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
                  tuple(center), tuple(v_vec), tuple(w_vec),
                  sample_bbox,sample)
 
+    print (voxel_size, cm, v_vec, w_vec, sample_bbox)
+    plt.imshow(sample)
+    plt.savefig(f'{image_output_dir}/sample_plane_check.png')
+    plt.clf()
+
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.imshow(sample.T[::-1], extent=sample_bbox,cmap='RdYlBu')
@@ -283,6 +288,9 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
+    plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png')
+    plt.imshow(implant[:,implant.shape[0]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png')
+    plt.imshow(implant[:,:,implant.shape[0]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png')
     plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png')
     plt.imshow(voxels[:,voxels.shape[0]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png')
     plt.imshow(voxels[:,:,voxels.shape[0]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png')
