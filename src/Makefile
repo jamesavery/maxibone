@@ -37,7 +37,7 @@ else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
 
-all: $(TARGETS)
+all: $(TARGETS) pip_install
 
 define GEN_RULE
 $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(CPP_FOLDER)/$(PLATFORM)/$(LIB).cc $(CPP_FOLDER)/include/*.hh
@@ -51,6 +51,9 @@ $(foreach PLATFORM, $(PLATFORMS), \
 )
 
 # TODO lightweight openacc profiling can be done with the environment variable NV_ACC_TIME=1 !!!
+
+pip_install:
+	$(PYTHON) -m pip install -r requirements.txt
 
 test: all
 	$(PYTHON) -m pytest -n auto test
