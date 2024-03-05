@@ -6,7 +6,7 @@ PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 
 # Detect OS for OS specific changes
 ifeq ($(shell uname -s), Darwin) # Mac OSX
-CXX = g++-12 # Use homebrew gcc, as system gcc is an alias for clang
+CXX = g++-13 # Use homebrew gcc, as system gcc is an alias for clang
 CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
 CLEANUP += $(TARGETS) $(foreach TARGET, $(TARGETS), $(TARGET).dSYM) # These are also generated on Mac
 endif

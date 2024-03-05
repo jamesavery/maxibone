@@ -24,3 +24,6 @@ cudafe
 
 # Ignore the $BONE_DATA symlinks, as they're only there for convinience in vscode
 data_*
+
+# Ignore the .DS_Store Mac OS files
+.DS_Store
