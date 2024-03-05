@@ -35,7 +35,7 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
 
     print_timestamp("center_of_mass end");
 
-    return array<real_t, 3>{ rcmx, rcmy, rcmz };
+    return array<real_t, 3>{ rcmz, rcmy, rcmx };
 }
 
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,
@@ -271,38 +271,38 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
     UNPACK_NUMPY(mask);
 
     real_t
-        Ixx = 0, Ixy = 0, Ixz = 0,
-                 Iyy = 0, Iyz = 0,
-                          Izz = 0;
+        Izz = 0, Izy = 0, Izx = 0,
+                 Iyy = 0, Iyx = 0,
+                          Ixx = 0;
 
     print_timestamp("inertia_matrix_serial start");
 
-    BLOCK_BEGIN(mask, reduction(+:Ixx, Iyy, Izz) reduction(-:Ixy,Ixz,Iyz)) {
+    BLOCK_BEGIN(mask, reduction(+:Izz, Iyy, Ixx) reduction(+:Izy,Izx,Iyx)) {
 
-        mask_type m = mask_buffer[flat_index];
+        real_t m = mask_buffer[flat_index];
 
         // m guards this, and then branches are removed
         //if (m != 0)
         real_t
-            X = real_t(x) - cm[0],
-            Y = real_t(y) - cm[1],
-            Z = real_t(z) - cm[2];
+            Z = real(z) - cm[0],
+            Y = real(y) - cm[1],
+            X = real(x) - cm[2];
 
-        Ixx += m * (Y*Y + Z*Z);
-        Iyy += m * (X*X + Z*Z);
-        Izz += m * (X*X + Y*Y);
-        Ixy -= m * X*Y;
-        Ixz -= m * X*Z;
-        Iyz -= m * Y*Z;
+        Izz += m * (Y*Y + X*X);
+        Iyy += m * (Z*Z + X*X);
+        Ixx += m * (Z*Z + Y*Y);
+        Izy -= m * Z*Y;
+        Izx -= m * Z*X;
+        Iyx -= m * Y*X;
 
     } BLOCK_END();
 
     print_timestamp("inertia_matrix_serial end");
 
     return array<real_t,9> {
-        Ixx, Ixy, Ixz,
-        Ixy, Iyy, Iyz,
-        Ixz, Iyz, Izz
+        Izz, Izy, Izx,
+        Izy, Iyy, Iyx,
+        Izx, Iyx, Ixx
     };
 }
 
@@ -376,21 +376,21 @@ void sample_plane(const input_ndarray<T> &voxels,
 
             // X,Y,Z in micrometers;  x,y,z in voxel index space
             const real_t
-                X = cm[0] + u*u_axis[0] + v*v_axis[0],
+                Z = cm[0] + u*u_axis[0] + v*v_axis[0],
                 Y = cm[1] + u*u_axis[1] + v*v_axis[1],
-                Z = cm[2] + u*u_axis[2] + v*v_axis[2];
+                X = cm[2] + u*u_axis[2] + v*v_axis[2];
 
             const real_t
+                z = Z / voxel_size,
                 x = X / voxel_size,
-                y = Y / voxel_size,
-                z = Z / voxel_size;
+                y = Y / voxel_size;
 
             //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
             T value = 0;
-            std::array<float, 6> local_bbox = {0.5f, float(voxels_Nx)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nz)-0.5f}; 
-            if (in_bbox({{x,y,z}}, local_bbox))
-                value = (T) round(resample2x2x2<T>(voxels.data, {voxels_Nx, voxels_Ny, voxels_Nz}, {x, y, z}));
+            std::array<float, 6> local_bbox = {0.5f, float(voxels_Nz)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nx)-0.5f};
+            if (in_bbox({{z,y,x}}, local_bbox))
+                value = (T) round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
             // else
             //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
 

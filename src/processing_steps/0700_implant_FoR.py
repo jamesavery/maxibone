@@ -2,8 +2,8 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu.geometry import center_of_mass, inertia_matrix, sample_plane
-from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
+from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, sample_plane
+from lib.cpp.cpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
@@ -37,9 +37,9 @@ def close_3d(image, r):
     (Nz,Ny,Nx) = image.shape
     I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
     I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I1[r:-r,r:-r,r:-r] = image;
+    I1[r:-r,r:-r,r:-r] = image
 
-    dilate_3d(I1,r,I2);
+    dilate_3d(I1,r,I2)
     erode_3d (I2,r,I1)
 
     return I1[r:-r,r:-r,r:-r].astype(image.dtype)
@@ -48,9 +48,9 @@ def open_3d(image, r):
     (Nz,Ny,Nx) = image.shape
     I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
     I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I1[r:-r,r:-r,r:-r] = image;
+    I1[r:-r,r:-r,r:-r] = image
 
-    erode_3d (I1,r,I2);
+    erode_3d (I1,r,I2)
     dilate_3d(I2,r,I1)
 
     return I1[r:-r,r:-r,r:-r].astype(image.dtype)
@@ -119,7 +119,8 @@ vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.)
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
 
 def figure_FoR_UVW(debug=True):
-    vol = vedo.Volume(implant, alpha=[0,0,0.05,0.2])
+    vol = vedo.Volume(implant)
+    vol.alpha([0,0,0.05,0.2])
     u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
     v_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
     w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)
@@ -235,7 +236,8 @@ def figure_FoR_cylinder(debug=True):
     Vp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*v_prime), c='g')
     Wp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*w_prime), c='b')
 
-    vol = vedo.Volume(implant,alpha=[0,0,0.05,0.1])
+    vol = vedo.Volume(implant)
+    vol.alpha([0,0,0.05,0.1])
 
     pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
     for axis in vaxis.keys():
@@ -251,7 +253,8 @@ def figure_FoR_cylinder(debug=True):
         vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
 
 def figure_FoR_voxels(name,voxels,debug=True):
-    vol = vedo.Volume(voxels,alpha=[0,0,0.05,0.1])
+    vol = vedo.Volume(voxels)
+    vol.alpha([0,0,0.05,0.1])
 
     pl  = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
     for axis in vaxis.keys():
@@ -289,11 +292,11 @@ if __name__ == "__main__":
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
     plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png')
-    plt.imshow(implant[:,implant.shape[0]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png')
-    plt.imshow(implant[:,:,implant.shape[0]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png')
+    plt.imshow(implant[:,implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png')
+    plt.imshow(implant[:,:,implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png')
     plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png')
-    plt.imshow(voxels[:,voxels.shape[0]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png')
-    plt.imshow(voxels[:,:,voxels.shape[0]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png')
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png')
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png')
 
     nz,ny,nx = implant.shape
 
@@ -456,7 +459,10 @@ if __name__ == "__main__":
     figure_FoR_voxels("solid_implant",solid_implant,verbose >= 2)
 
     back_mask  = (Ws<0)
-    front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
+    front_mask = largest_cc_of((Ws>50)&(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
+    plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front_mask.png')
+    plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front_mask.png')
+    plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front_mask.png')
 
     # back_part = voxels*back_mask
 
@@ -516,24 +522,36 @@ if __name__ == "__main__":
                      group_name="implant_solid",
                      datasets={"mask":solid_implant},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+    plt.imshow(solid_implant[solid_implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-solid.png')
+    plt.imshow(solid_implant[:,solid_implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-solid.png')
+    plt.imshow(solid_implant[:,:,solid_implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-solid.png')
 
     if verbose >= 1: print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="implant_shell",
                      datasets={"mask":implant_shell_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+    plt.imshow(implant_shell_mask[implant_shell_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-shell.png')
+    plt.imshow(implant_shell_mask[:,implant_shell_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-shell.png')
+    plt.imshow(implant_shell_mask[:,:,implant_shell_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-shell.png')
 
     if verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="cut_cylinder_air",
                      datasets={"mask":back_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+    plt.imshow(back_mask[back_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-back.png')
+    plt.imshow(back_mask[:,back_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-back.png')
+    plt.imshow(back_mask[:,:,back_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-back.png')
 
     if verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="cut_cylinder_bone",
                      datasets={"mask":front_mask},
                      attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
+    plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front.png')
+    plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front.png')
+    plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front.png')
 
     if verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 256)
@@ -546,6 +564,10 @@ if __name__ == "__main__":
         if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
         bone_mask1 = front_part > midpoint
+        plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png')
+        plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
+        plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
+
         closing_diameter, opening_diameter = 400, 300           # micrometers
         closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
@@ -554,10 +576,19 @@ if __name__ == "__main__":
             bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
 
         for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
-            bone_region_mask &= ~solid_implant #~open_3d(implant_shell_mask, opening_voxels)
+            bone_region_mask &= (~solid_implant).astype(bool) #~open_3d(implant_shell_mask, opening_voxels)
             bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
 
         bone_region_mask = largest_cc_of(bone_region_mask)
+        plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
+        plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
+        plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
+
+        if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
+        update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                         group_name="bone_region",
+                         datasets={"mask":bone_region_mask},
+                         attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
     except:
         if verbose >= 1: print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
         bone_region_mask = front_mask
@@ -567,3 +598,6 @@ if __name__ == "__main__":
                          group_name="bone_region",
                          datasets={"mask":bone_region_mask},
                          attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
+        plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
+        plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
+        plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')

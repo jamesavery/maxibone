@@ -44,7 +44,7 @@ float resample2x2x2(const T                      *voxels,
     auto  [Nz,Ny,Nx] = shape;
 
     if (!in_bbox(index, {0.5f, float(Nx)-0.5f, 0.5f, float(Ny)-0.5f, 0.5f, float(Nz)-0.5f})) {
-        uint64_t voxel_index = uint64_t(floor(index[0]))*Nz*Ny + uint64_t(floor(index[1]))*Nx + uint64_t(floor(index[2]));
+        uint64_t voxel_index = uint64_t(floor(index[0]))*Ny*Nx + uint64_t(floor(index[1]))*Nx + uint64_t(floor(index[2]));
         return voxels[voxel_index];
     }
 
