@@ -172,111 +172,6 @@ template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
 #endif
 }
 
-void gauss_filter_par_cpu(const np_array<mask_type> np_mask,
-                          const tuple<uint64_t, uint64_t, uint64_t> shape,
-                          const np_array<gauss_type> np_kernel,
-                          const uint64_t reps,
-                          np_array<gauss_type> &np_result) {
-    auto
-        mask_info = np_mask.request(),
-        kernel_info = np_kernel.request(),
-        result_info = np_result.request();
-
-    const mask_type  *mask = static_cast<const mask_type*>(mask_info.ptr);
-    const gauss_type *kernel = static_cast<const gauss_type*>(kernel_info.ptr);
-
-    gauss_type *result = static_cast<gauss_type*>(result_info.ptr);
-
-    //auto [Nz, Ny, Nx] = shape; // global shape TODO for blocked edition
-
-    int64_t			// OMG! WTF!
-        kernel_size = kernel_info.size,
-        padding = kernel_size / 2, // kx should always be odd
-        // Partial shape
-        Pz = mask_info.shape[0],
-        Py = mask_info.shape[1],
-        Px = mask_info.shape[2],
-        // Result shape
-        Rz = result_info.shape[0],
-        Ry = result_info.shape[1],
-        Rx = result_info.shape[2];
-
-    assert(kernel_size % 2 == 1);
-
-    ssize_t image_size = Rz*Ry*Rx;
-    gauss_type
-        *tmp0 = (gauss_type *) calloc(image_size, sizeof(gauss_type)),
-        *tmp1 = (gauss_type *) calloc(image_size, sizeof(gauss_type));
-
-    assert(tmp0 != 0);
-    assert(tmp1 != 0);
-
-    #pragma omp parallel for
-    for (int64_t i = 0; i < mask_info.size; i++) {
-        tmp0[i] = mask[i] ? 1 : 0;
-    }
-
-    const int n_iterations = 3 * reps; // 1 pass for each dimension
-    const int64_t  strides[3] = {Py*Px,Px,1};
-    const int64_t  N[3]       = {Pz,Py,Px};
-
-    tqdm progress_bar;
-    progress_bar.set_label("Gauss iteration");
-    for (int rep=0;rep<n_iterations;rep++){
-      //      printf("Gauss iteration %d/%d\n",rep,n_iterations);
-        progress_bar.progress(rep,n_iterations);
-        gauss_type *tin, *tout;
-        if (rep % 2 == 1) {
-            tin  = tmp1;
-            tout = tmp0;
-        } else {
-            tin  = tmp0;
-            tout = tmp1;
-        }
-        int64_t dim = rep % 3;
-
-#pragma omp parallel for
-        for (int64_t z = 0; z < Pz; z++) {
-            for (int64_t y = 0; y < Py; y++) {
-                for (int64_t x = 0; x < Px; x++) {
-		  int64_t output_index = z*strides[0] + y*strides[1] + x*strides[2];
-		  if(!(output_index >= 0 && output_index < image_size)){
-		    fprintf(stderr,"output_index out of bounds:\n");
-		    fprintf(stderr,"output_index, image_size = %ld,%ld\n",output_index,image_size);
-		    fprintf(stderr,"x,y,z    = %ld,%ld,%ld\n",x,y,z);
-		    fprintf(stderr,"Px,Py,Pz = %ld,%ld,%ld\n",Px,Py,Pz);
-		    fprintf(stderr,"Rx,Ry,Rz = %ld,%ld,%ld\n",Rx,Ry,Rz);
-		    abort();
-		  }
-		  auto mask_value = mask[output_index];
-		  if (mask_value) {
-		    tout[output_index] = 1;
-		  } else {
-		    int64_t
-		      X[3] = {z, y, x},
-		      stride = strides[dim],
-		      i_start = -min((int64_t)padding, X[dim]),
-		      i_end = min((int64_t)padding, N[dim]-X[dim]-1);
-		    gauss_type sum = 0;
-
-                    #pragma omp simd reduction(+:sum)
-		    for (int64_t i = i_start; i <= i_end; i++) {
-		      int64_t voxel_index = output_index + stride*i;
-		      sum += tin[voxel_index] * kernel[i+padding];
-		    }
-		    tout[output_index] = sum;
-		  }
-                }
-            }
-        }
-    }
-
-    fprintf(stderr,"Done.\n");
-    memcpy(result, n_iterations % 2 == 1 ? tmp1 : tmp0, Rz*Ry*Rx * sizeof(gauss_type));
-    free(tmp0);
-    free(tmp1);
-}
-
 pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
     // Extract NumPy array basearray-pointer and length
     auto voxels_info    = np_voxels.request();
@@ -311,48 +206,6 @@ pair<float,float> float_minmax(const np_array<float> np_field) {
     }
 
     return make_pair(voxel_min,voxel_max);
-}
-
-void load_slice(np_array<voxel_type> &np_data, string filename,
-                const tuple<uint64_t, uint64_t, uint64_t> offset,
-                const tuple<uint64_t, uint64_t, uint64_t> shape) {
-    auto data_info = np_data.request();
-    voxel_type *data = static_cast<voxel_type*>(data_info.ptr);
-    ifstream file;
-    file.open(filename.c_str(), ios::binary);
-    if(!file.is_open()){
-      fprintf(stderr,"load_slice: Error opening %s for reading.\n",filename.c_str());
-      exit(-1);
-    }
-    auto [Nz, Ny, Nx] = shape;
-    auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = (oz*Ny*Nx + oy*Nx + ox) * sizeof(voxel_type);
-    file.seekg(flat_offset, ios::beg);
-    file.read((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
-}
-
-void write_slice(np_array<voxel_type> &np_data, uint64_t offset, string filename) {
-    auto data_info = np_data.request();
-    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
-    ofstream file;
-    file.open(filename.c_str(), ios::binary | ios::in);
-    if (!file.is_open()) {
-        file.clear();
-        file.open(filename.c_str(), ios::binary);
-    }
-    file.seekp(offset * sizeof(voxel_type), ios::beg);
-    file.write((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
-}
-
-void append_slice(np_array<voxel_type> &np_data, string filename) {
-    auto data_info = np_data.request();
-    const voxel_type *data = static_cast<const voxel_type*>(data_info.ptr);
-    ofstream file;
-    file.open(filename.c_str(), ios::binary | ios::app);
-    file.write((char*) data, data_info.size * sizeof(voxel_type));
-    file.close();
 }
 
 // On entry, np_*_bins are assumed to be pre allocated and zeroed.
@@ -934,7 +787,7 @@ float resample2x2x2(const field_type      *voxels,
   auto  [Nx,Ny,Nz] = shape;	// Eller omvendt?
 
   if(!in_bbox(X[0],X[1],X[2], {0.5,Nx-1.5, 0.5,Ny-1.5, 0.5,Nz-1.5})){
-    uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);      
+    uint64_t voxel_index = floor(X[0])*Ny*Nz+floor(X[1])*Ny+floor(X[2]);
     return voxels[voxel_index];
   }
   float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
@@ -1032,7 +885,7 @@ void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
 		    uint64_t i = floor(x)*ny*nz + floor(y)*nz + floor(z);
 
 
-		    
+
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                     if(VALID_VOXEL(voxel) && field[i]>0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
 		      field_type field_value = round(resample2x2x2(field,{nx,ny,nz},{x,y,z}));
@@ -1051,11 +904,11 @@ void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
 			       int(floor(z)),
 			       i
 			       );
-			
+
 			abort();
 		      }
 
-		      
+
 		      if((field_index >= 0) && (field_index < field_bins)) // Resampling with masked voxels can give field_value < field_min
 			tmp_bins[field_index*voxel_bins + voxel_index]++;
 		    }
@@ -1172,6 +1025,5 @@ PYBIND11_MODULE(histograms, m) {
     m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);
-    m.def("gauss_filter_par_cpu", &gauss_filter_par_cpu);
     m.def("otsu", &otsu);
 }
