@@ -1,4 +1,4 @@
-import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
+import h5py, sys, os, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
@@ -14,15 +14,18 @@ sample, scale, verbose = commandline_args({"sample" : "<required>",
                                            "scale" : 2,
                                            "verbose" : 1})
 
+output_image_dir = f"{hdf5_root}/processed/implant-data/{sample}"
+os.makedirs(output_image_dir, exist_ok=True)
+
 if verbose >= 1: print(f"Loading principal axis and cylinder frame-of-references")
 h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r")
-try:    
+try:
     h5g = h5meta["implant-FoR"]
     Muvwp = h5g["UVWp_transform"][:] # Actually all that's needed
     bbox = h5g["bounding_box_UVWp"][:]
     implant_radius = h5g.attrs["implant_radius"]
     theta_range    = h5g["theta_range"][:]
-    h5meta.close()    
+    h5meta.close()
 except Exception as e:
     print(f"Cant't read implant frame-of-reference: {e}")
     print(f"Make sure you have run implant-FoR.py for {sample} at scale {scale}x")
@@ -55,11 +58,11 @@ if verbose >= 1: print(f"Filling implant mask")
 fill_implant_mask(implant.astype(np.uint8,copy=False),
                   voxel_size,bbox_flat, rsqr_fraction,
                   Muvwp_flat,
-                  solid_implant_mask, rsqr_maxs, profile);
+                  solid_implant_mask, rsqr_maxs, profile)
 
 front_mask = np.zeros_like(solid_implant_mask)
 compute_front_mask(solid_implant_mask,voxel_size,
-                   Muvwp_flat, bbox_flat, front_mask);
+                   Muvwp_flat, bbox_flat, front_mask)
 
 # back_mask  = (Ws<0)
 # front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
@@ -72,15 +75,23 @@ update_hdf5(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",
             datasets  = {"quarter_profile":profile,
                          "r_maxs": np.sqrt(rsqr_maxs)}
 )
-            
+plt.plot(profile)
+plt.savefig(f"{output_image_dir}/profile.png")
+plt.clf()
+
 update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="implant_solid",
                  datasets={"mask":solid_implant_mask.astype(bool,copy=False)},
                  attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+plt.imshow(solid_implant_mask[solid_implant_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_yx.png")
+plt.imshow(solid_implant_mask[:, solid_implant_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zx.png")
+plt.imshow(solid_implant_mask[:, :, solid_implant_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zy.png")
 
 update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="cut_cylinder_bone",
                  datasets={"mask":front_mask.astype(bool,copy=False)},
                  attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-
+plt.imshow(front_mask[front_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/front_mask_yx.png")
+plt.imshow(front_mask[:, front_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/front_mask_zx.png")
+plt.imshow(front_mask[:, :, front_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/front_mask_zy.png")
 

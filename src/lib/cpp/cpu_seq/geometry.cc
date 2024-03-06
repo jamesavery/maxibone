@@ -50,9 +50,9 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
     BLOCK_BEGIN_WITH_OUTPUT(solid_implant, front_mask, ) {
 
         std::array<real_t, 4> Xs = {
-            real_t(x) * voxel_size,
-            real_t(y) * voxel_size,
             real_t(z) * voxel_size,
+            real_t(y) * voxel_size,
+            real_t(x) * voxel_size,
             1 };
         mask_type mask_value = solid_implant_buffer[flat_index];
 
@@ -204,9 +204,9 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
             for (int64_t x = 0; x < mask_Nx; x++) {
                 mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
                 std::array<real_t, 4> Xs = {
-                    real_t(x) * voxel_size,
-                    real_t(y) * voxel_size,
                     real_t(z) * voxel_size,
+                    real_t(y) * voxel_size,
+                    real_t(x) * voxel_size,
                     1 };
 
                 if (mask_value) {
@@ -239,9 +239,9 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
         for (int64_t y = 0; y < mask_Ny; y++) {
             for (int64_t x = 0; x < mask_Nx; x++) {
                 std::array<real_t, 4> Xs = {
-                    real_t(x) * voxel_size,
-                    real_t(y) * voxel_size,
                     real_t(z) * voxel_size,
+                    real_t(y) * voxel_size,
+                    real_t(x) * voxel_size,
                     1 };
                 int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
                 mask_type mask_value = mask.data[flat_index];
