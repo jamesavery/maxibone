@@ -9,25 +9,47 @@ from scipy import ndimage as ndi
 
 from config.paths import hdf5_root, binary_root
 from lib.py.helpers import commandline_args
-from lib.cpp.cpu_seq import gauss_filter
+from lib.cpp.cpu.diffusion import diffusion
 NA = np.newaxis
 
-impl_type = np.float32
+internal_type = np.float32
+result_type = np.uint8
 
 def toint(arr, dtype=np.uint8):
     vmin, vmax = arr.min(), arr.max()
     int_max = np.iinfo(dtype).max
     return np.round((((arr - vmin) / (vmax - vmin + (vmin==vmax))) * (int_max-1))).astype(dtype) + 1
 
+def gauss_kernel(sigma):
+    radius = round(4.0 * sigma) # stolen from the default scipy parameters
+    # Deprecated:
+    #kernel = ndi.filters._gaussian_kernel1d(sigma_voxels, 0, radius).astype(internal_type)
+
+    if False:
+        # Create a 1D Gaussian
+        x = np.arange(-radius, radius + 1)
+        kernel = 1.0 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-x**2 / (2 * sigma**2))
+        return kernel
+    else:
+        # Stolen from ndimage
+        sigma2 = sigma * sigma
+        x = np.arange(-radius, radius+1)
+        phi_x = np.exp(-0.5 / sigma2 * x ** 2)
+        phi_x = phi_x / phi_x.sum()
+        return phi_x
+
 # sigma is given in physical units, i.e. in micrometers, in order to give scale-invariant results.
 if __name__ == '__main__':
-    sample, sigma, reps, scale, voxel_size_1x, verify, verbose = commandline_args({"sample":"<required>",
-                                                                                   "sigma":40.0,
-                                                                                   "repititions":10,
-                                                                                   "scale":2,
-                                                                                   "voxel_size_1x":1.85, 
-                                                                                   "verify_against_ndimage":False, 
-                                                                                   "verbose":1})
+    sample, sigma, reps, scale, voxel_size_1x, verify, verbose = \
+        commandline_args({
+            "sample" : "<required>",
+            "sigma" : 40.0,
+            "repititions" : 10,
+            "scale" : 2,
+            "voxel_size_1x" : 1.85,
+            "verify_against_ndimage" : False,
+            "verbose" : 2
+        })
     if verbose >= 1: print(f"Diffusion approximation by repeated Gaussian blurs.\n")
     voxel_size   = voxel_size_1x*scale
     sigma_voxels = sigma/voxel_size
@@ -46,21 +68,21 @@ if __name__ == '__main__':
 
     if verbose >= 2:
         print(f"Writing PNGs of implant mask slices to {output_dir}")
-        Image.fromarray(toint(implant_mask[:,:,nx//2].astype(impl_type))).save(f"{output_dir}/{sample}-mask-yz.png")
-        Image.fromarray(toint(implant_mask[:,ny//2,:].astype(impl_type))).save(f"{output_dir}/{sample}-mask-xz.png")
-        Image.fromarray(toint(implant_mask[nz//2,:,:].astype(impl_type))).save(f"{output_dir}/{sample}-mask-xy.png")
+        Image.fromarray(toint(implant_mask[:,:,nx//2].astype(internal_type))).save(f"{output_dir}/{sample}-mask-yz.png")
+        Image.fromarray(toint(implant_mask[:,ny//2,:].astype(internal_type))).save(f"{output_dir}/{sample}-mask-xz.png")
+        Image.fromarray(toint(implant_mask[nz//2,:,:].astype(internal_type))).save(f"{output_dir}/{sample}-mask-xy.png")
 
-    radius = int(4.0 * sigma_voxels + .5) # stolen from the default scipy parameters
-    kernel = ndi.filters._gaussian_kernel1d(sigma_voxels, 0, radius).astype(impl_type)
+    kernel = gauss_kernel(sigma_voxels)
 
-    result = np.zeros(implant_mask.shape,dtype=impl_type)
+    result = np.zeros(implant_mask.shape,dtype=result_type)
     if verify:
         start = timeit.default_timer()
 
-    if verbose >= 1: print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={radius} coefficients)")
-    gauss_filter(implant_mask, implant_mask.shape, kernel, reps, result)
+    if verbose >= 1: print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
+    diffusion(implant_mask, kernel, result, reps)
     if verify:
-        if verbose >= 1: print (f'Parallel C edition took {timeit.default_timer() - start} seconds')
+        diffusion_time = timeit.default_timer() - start
+        if verbose >= 1: print (f'C++ edition took {diffusion_time:.02f} seconds')
 
     xs = np.linspace(-1,1,nx)
     rs = np.sqrt(xs[NA,NA,:]**2 + xs[NA,:,NA]**2)
@@ -69,7 +91,6 @@ if __name__ == '__main__':
     if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
     np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
 
-    
     if verbose >= 2:
         print(f"Debug: Writing PNGs of result slices to {output_dir}")
         Image.fromarray(toint(result[nz//2,:,:])).save(f'{output_dir}/{sample}-gauss-xy.png')
@@ -78,51 +99,66 @@ if __name__ == '__main__':
         Image.fromarray(toint((np.max(np.abs(result),axis=0)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-xy-nonzero.png')
         Image.fromarray(toint((np.max(np.abs(result),axis=1)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
         Image.fromarray(toint((np.max(np.abs(result),axis=2)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
-        
+
     if verify: # generate ndimage comparison
-        control = implant_mask.astype(impl_type)
+        control = (implant_mask>0).astype(internal_type)
         start = timeit.default_timer()
         for _ in tqdm(range(reps), desc='ndimage repititions'):
-            control[:] = ndi.gaussian_filter(control, sigma, mode='constant', cval=0)
-            control[implant_mask] = 1
-        print (f'ndimage edition took {timeit.default_timer() - start} seconds')
+            control[:] = ndi.gaussian_filter(control, sigma_voxels, mode='constant', cval=0)
+            control[implant_mask] = 1 # Illuminate
+        control = np.floor(control * np.iinfo(result_type).max).astype(result_type)
+        ndimage_time = timeit.default_timer() - start
+        print (f'ndimage edition took {ndimage_time:.02f} seconds')
+        print (f'C++ edition is {ndimage_time/diffusion_time:.02f} times faster')
         np.save(f'{output_dir}/{sample}_ndimage.npy',control)
         if verbose >= 2:
             Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
             Image.fromarray(toint(control[:,ny//2,:])).save(f'{output_dir}/{sample}-control-xz.png')
             Image.fromarray(toint(control[:,:,nx//2])).save(f'{output_dir}/{sample}-control-yz.png')
-        diff = np.abs(result - control)
-        diff_sum = diff.sum()
-        diff_max = diff.max()
-        diff_mean = diff.mean()
-        print (f'Total difference: {diff.sum()}')
-        print (f'Max difference: {diff.max()}')
-        print (f'Mean difference: {diff.mean()}')
-        if diff_max > 1e-10:
-            for name, res, ctrl in [
-                    ('xy', result[nz//2,:,:], control[nz//2,:,:]),
-                    ('xz', result[:,ny//2,:], control[:,ny//2,:]),
-                    ('yz', result[:,:,nx//2], control[:,:,nx//2])]:
+        if result_type == np.uint8:
+            diff = result.astype(np.int32) - control.astype(np.int32)
+        else:
+            diff = result - control
+        diff_abs = np.abs(diff)
+        diff_sum = diff_abs.sum()
+        diff_max = diff_abs.max()
+        diff_mean = diff_abs.mean()
+        print (f'Total difference: {diff_sum}')
+        print (f'Max abs difference: {diff_max}')
+        print (f'Min and max difference: {diff.min()} {diff.max()}')
+        print (f'Mean difference: {diff_mean}')
+        if diff_max > 1e-7:
+            for name, diff_img in [
+                    ('xy', diff[nz//2,:,:]),
+                    ('xz', diff[:,ny//2,:]),
+                    ('yz', diff[:,:,nx//2])]:
                 plt.figure(figsize=(20,20))
-                plt.imshow(np.abs(res - ctrl))
+                plt.imshow(diff_img)
+                plt.colorbar()
                 plt.savefig(f'{output_dir}/{sample}-diff-{name}.png')
-
 
     if verbose >= 1: print(f"Computing Euclidean distance transform.")
     fedt = edt.edt(~implant_mask,parallel=16)
     del implant_mask
-    
+
     edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
     pathlib.Path(edt_output_dir).mkdir(parents=True, exist_ok=True)
     if verbose >= 1: print(f"Writing EDT-field to {edt_output_dir}/{sample}.npy")
     np.save(f'{edt_output_dir}/{sample}.npy', toint(fedt*cylinder_mask,np.uint16)*cylinder_mask)
-                
+    if verbose >= 2:
+        Image.fromarray(toint(fedt[nz//2,:,:])).save(f'{edt_output_dir}/{sample}-edt-xy.png')
+        Image.fromarray(toint(fedt[:,ny//2,:])).save(f'{edt_output_dir}/{sample}-edt-xz.png')
+        Image.fromarray(toint(fedt[:,:,nx//2])).save(f'{edt_output_dir}/{sample}-edt-yz.png')
 
-    mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"    
-    if verbose >= 1: print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")                
+    mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"
+    if verbose >= 1: print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")
     pathlib.Path(mixed_output_dir).mkdir(parents=True, exist_ok=True)
     result = (result-fedt/(fedt.max()))*cylinder_mask
     result -= result.min()
     result /= result.max()
     if verbose >= 1: print(f"Result (min,max) = ({result.min(),result.max()})")
-    np.save(f'{mixed_output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)    
+    np.save(f'{mixed_output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
+    if verbose >= 2:
+        Image.fromarray(toint(result[nz//2,:,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xy.png')
+        Image.fromarray(toint(result[:,ny//2,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xz.png')
+        Image.fromarray(toint(result[:,:,nx//2])).save(f'{mixed_output_dir}/{sample}-gauss+edt-yz.png')

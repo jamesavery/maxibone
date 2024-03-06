@@ -42,28 +42,32 @@ template <typename T>
 constexpr ssize_t acc_block_size = 1024 * 1024 * 1024 / sizeof(T); // 1 GB
 
 struct plane_t {
-  array<real_t,3> cm, u_axis, v_axis;
+  std::array<real_t,3> cm, u_axis, v_axis;
 };
 
 template <typename T> struct input_ndarray {
   const T *data;
-  const vector<ssize_t> shape;
+  const std::vector<ssize_t> shape;
 
-  input_ndarray(const T *arg_data, const vector<ssize_t> &arg_shape): data(arg_data), shape(arg_shape) {}
-  input_ndarray(const void *arg_data, const vector<ssize_t> &arg_shape): data(static_cast<const T*>(arg_data)), shape(arg_shape) {}
+  input_ndarray(const T *arg_data, const std::vector<ssize_t> &arg_shape): data(arg_data), shape(arg_shape) {}
+  input_ndarray(const void *arg_data, const std::vector<ssize_t> &arg_shape): data(static_cast<const T*>(arg_data)), shape(arg_shape) {}
 };
 
 template <typename T> struct output_ndarray {
   T *data;
-  const vector<ssize_t> shape;
+  const std::vector<ssize_t> shape;
 
-  output_ndarray(T *arg_data, const vector<ssize_t> &arg_shape): data(arg_data), shape(arg_shape) {}
-  output_ndarray(void *arg_data, const vector<ssize_t> &arg_shape): data(static_cast<T*>(arg_data)), shape(arg_shape) {}
+  output_ndarray(T *arg_data, const std::vector<ssize_t> &arg_shape): data(arg_data), shape(arg_shape) {}
+  output_ndarray(void *arg_data, const std::vector<ssize_t> &arg_shape): data(static_cast<T*>(arg_data)), shape(arg_shape) {}
 };
 
 typedef std::array<real_t,16> matrix4x4;
 typedef std::array<real_t,4>  vector4;
 typedef std::array<real_t,9>  matrix3x3;
 typedef std::array<real_t,3>  vector3;
+
+typedef struct {
+  int64_t z, y, x;
+} shape_t;
 
 #endif

@@ -20,7 +20,7 @@ cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion #-Weffc++
 cpu_CXX=$(cpu_seq_CXX)
 cpu_FLAGS=$(cpu_seq_FLAGS) -fopenmp
 
-LIBS=io geometry morphology
+LIBS=io geometry morphology diffusion
 TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
 CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(CPP_FOLDER)/$(PLATFORM)/__pycache__)
 
