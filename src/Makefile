@@ -4,13 +4,6 @@ PYBIND_FLAGS = $(shell $(PYTHON) -m pybind11 --include)
 CXXFLAGS += $(subst -I,-isystem ,$(PYBIND_FLAGS)) # We don't care about warnings from the python headers
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 
-# Detect OS for OS specific changes
-ifeq ($(shell uname -s), Darwin) # Mac OSX
-CXX = g++-13 # Use homebrew gcc, as system gcc is an alias for clang
-CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
-CLEANUP += $(TARGETS) $(foreach TARGET, $(TARGETS), $(TARGET).dSYM) # These are also generated on Mac
-endif
-
 CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
 CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++17 -O3
@@ -23,6 +16,13 @@ cpu_FLAGS=$(cpu_seq_FLAGS) -fopenmp
 LIBS=io geometry morphology diffusion
 TARGETS = $(foreach PLATFORM, $(PLATFORMS), $(foreach LIB, $(LIBS), $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX)))
 CLEANUP = $(TARGETS) $(foreach PLATFORM, $(PLATFORMS), $(CPP_FOLDER)/$(PLATFORM)/__pycache__)
+PIP_INSTALL = pip_generic
+
+# Detect OS for OS specific changes
+ifeq ($(shell uname -s), Darwin) # Mac OSX
+CXX = g++-13 # Use homebrew gcc, as system gcc is an alias for clang
+CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
+endif
 
 # Detect if OpenACC can be used
 ifneq (, $(shell which nvc++))
@@ -33,11 +33,12 @@ gpu_FLAGS += -Xcudafe --display_error_number # Getting the warning codes for lat
 gpu_FLAGS += --diag_suppress 1626 # Remove the annoying pybind warning that routine is both inline and noinline
 gpu_FLAGS += --diag_suppress 9 # Remove the warning about nested comments
 gpu_FLAGS += -Wnvlink,-w # Disable nvlink warnings
+PIP_INSTALL += pip_cuda
 else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
 
-all: $(TARGETS) pip_install
+all: $(TARGETS) $(PIP_INSTALL)
 
 define GEN_RULE
 $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(CPP_FOLDER)/$(PLATFORM)/$(LIB).cc $(CPP_FOLDER)/include/*.hh
@@ -50,10 +51,13 @@ $(foreach PLATFORM, $(PLATFORMS), \
 	) \
 )
 
-# TODO lightweight openacc profiling can be done with the environment variable NV_ACC_TIME=1 !!!
+# lightweight openacc profiling can be done with the environment variable NV_ACC_TIME=1
 
-pip_install:
+pip_generic:
 	$(PYTHON) -m pip install -r requirements.txt
+
+pip_cuda:
+	$(PYTHON) -m pip install -r requirements-cuda.txt
 
 test: all
 	$(PYTHON) -m pytest -n auto test
@@ -62,4 +66,4 @@ test_%: test/test_%.py all
 	$(PYTHON) -m pytest -n auto $<
 
 clean:
-	rm -rf $(CLEANUP) __pycache__ test/__pycache__ .pytest_cache lib/cpp/**/*.so
+	rm -rf .pytest_cache __pycache__ **/__pycache__ lib/cpp/**/*.so lib/cpp/**/*.dSYM
