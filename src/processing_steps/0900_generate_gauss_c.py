@@ -10,6 +10,7 @@ from scipy import ndimage as ndi
 from config.paths import hdf5_root, binary_root
 from lib.py.helpers import commandline_args
 from lib.cpp.cpu.diffusion import diffusion
+from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
 
 internal_type = np.float32
@@ -51,8 +52,8 @@ if __name__ == '__main__':
             "verbose" : 2
         })
     if verbose >= 1: print(f"Diffusion approximation by repeated Gaussian blurs.\n")
-    voxel_size   = voxel_size_1x*scale
-    sigma_voxels = sigma/voxel_size
+    voxel_size   = voxel_size_1x * scale
+    sigma_voxels = sigma / voxel_size
     if verbose >= 1: print(f"At scale {scale}x, voxel size is {voxel_size} micrometers.")
     if verbose >= 1: print(f"Using sigma={sigma} micrometers, sigma_voxels={sigma_voxels}.")
 
@@ -74,15 +75,45 @@ if __name__ == '__main__':
 
     kernel = gauss_kernel(sigma_voxels)
 
-    result = np.zeros(implant_mask.shape,dtype=result_type)
-    if verify:
-        start = timeit.default_timer()
+    if scale == 1:
+        # Dump the mask
+        masks_dir = f"{binary_root}/masks/{scale}x"
+        pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
+        input_path = f"{masks_dir}/{sample}-implant_solid.{np.dtype(result_type).name}"
+        output_path = f"{output_dir}/{sample}.{np.dtype(result_type).name}"
+        write_slice(implant_mask.astype(result_type), input_path, (0,0,0), implant_mask.shape)
+        del implant_mask
 
-    if verbose >= 1: print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
-    diffusion(implant_mask, kernel, result, reps)
-    if verify:
-        diffusion_time = timeit.default_timer() - start
-        if verbose >= 1: print (f'C++ edition took {diffusion_time:.02f} seconds')
+        gigabyte = 1024**3
+        gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
+        n_layers = int(np.floor((10 * gigabyte_internal) / (ny*nx)))
+        n_layers = min(n_layers, nz)
+        n_layers = 100
+
+        if verbose >= 1:
+            print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
+            print(f"Reading from {input_path}, writing to {output_path}")
+            print(f"Using {n_layers} layers of {ny}x{nx} slices")
+            start = timeit.default_timer()
+
+        diffusion(input_path, kernel, output_path, (nz, ny, nx), (n_layers, ny, nx), reps)
+
+        if verbose >= 1:
+            diffusion_time = timeit.default_timer() - start
+            print (f'C++ edition took {diffusion_time:.02f} seconds')
+
+        result = np.empty((nz,ny,nx), dtype=result_type)
+        load_slice(result, output_path, (0,0,0), (nz,ny,nx))
+    else:
+        result = np.zeros(implant_mask.shape,dtype=result_type)
+        if verbose >= 1:
+            start = timeit.default_timer()
+
+        if verbose >= 1: print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
+        diffusion(implant_mask, kernel, result, reps)
+        if verbose >= 1:
+            diffusion_time = timeit.default_timer() - start
+            print (f'C++ edition took {diffusion_time:.02f} seconds')
 
     xs = np.linspace(-1,1,nx)
     rs = np.sqrt(xs[NA,NA,:]**2 + xs[NA,:,NA]**2)
@@ -100,7 +131,7 @@ if __name__ == '__main__':
         Image.fromarray(toint((np.max(np.abs(result),axis=1)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
         Image.fromarray(toint((np.max(np.abs(result),axis=2)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
 
-    if verify: # generate ndimage comparison
+    if verify and scale > 1: # generate ndimage comparison, but only for scale > 1
         start = timeit.default_timer()
         control = (implant_mask>0).astype(internal_type)
         for _ in tqdm(range(reps), desc='ndimage repititions'):

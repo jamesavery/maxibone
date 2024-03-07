@@ -7,6 +7,7 @@
 
 namespace cpu_par {
 
+    // TODO Transposed write-back should be faster, as each the reads will be sequential for all three dimensions. Test it!
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius) {
         #pragma omp parallel for collapse(3)
         for (int64_t i = 0; i < N.z; i++) {
@@ -39,15 +40,28 @@ namespace cpu_par {
 
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
-    void load_partial(FILE *f, T *__restrict__ buffer, const int64_t offset, const int64_t size, const int64_t total_size, const int64_t padding) {
+    void load_partial(FILE *f, T *__restrict__ buffer, const int64_t buffer_size, const int64_t offset, const int64_t size, const int64_t total_size, const int64_t padding) {
         int64_t
             disk_begin = std::max((int64_t) 0, offset-padding),
             disk_end = std::min(offset+size+padding, total_size),
-            disk_size = disk_end - disk_begin,
-            buffer_begin = disk_begin < padding ? 0 : padding;
+            read_size = disk_end - disk_begin,
+            buffer_begin = disk_begin == 0 ? padding : 0,
+            buffer_written = buffer_begin + read_size,
+            buffer_remaining = buffer_size - buffer_written;
 
+        // Fill the start of the buffer with zeros
+        if (disk_begin == 0) {
+            memset(buffer, 0, padding*sizeof(T));
+        }
+
+        // Read the data
         fseek(f, disk_begin*sizeof(T), SEEK_SET);
-        fread(buffer+buffer_begin, sizeof(T), disk_size, f);
+        fread(buffer+buffer_begin, sizeof(T), read_size, f);
+
+        // Fill the rest of the buffer with zeros
+        if (disk_end == total_size) {
+            memset(buffer+buffer_written, 0, buffer_remaining*sizeof(T));
+        }
     }
 
     template <typename T>
@@ -100,7 +114,7 @@ namespace cpu_par {
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
-            load_partial(file_src, buffer_src, chunk, size, total_flat_size, 0);
+            load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             convert_float_to_uint8(buffer_src, buffer_dst, size);
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
@@ -129,7 +143,7 @@ namespace cpu_par {
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
-            load_partial(file_src, buffer_src, chunk, size, total_flat_size, 0);
+            load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             convert_uint8_to_float(buffer_src, buffer_dst, size);
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
@@ -232,21 +246,21 @@ namespace cpu_par {
                 int64_t this_block_size = std::min(global_shape.z, total_shape.z - global_block*global_shape.z) * layer_flat_size;
 
                 // Load the global block
-                load_partial(tmp0, buffers[0], global_block*layer_flat_size, this_block_size, total_flat_size, padding*layer_flat_size);
+                load_partial(tmp0, buffers[0], disk_global_flat_size/sizeof(float), global_block*global_shape.z*layer_flat_size, this_block_size, total_flat_size, radius*layer_flat_size);
 
                 // Diffuse the global block
                 store_mask(buffers[0], mask, global_flat_size_padded);
                 diffusion_step(mask, buffers, global_shape_padded, kernel, radius);
 
                 // Store the global block
-                store_partial(tmp1, buffers[0], global_block*global_flat_size, this_block_size, padding*layer_flat_size);
+                store_partial(tmp1, buffers[0], global_block*global_flat_size, this_block_size, radius*layer_flat_size);
             }
             std::swap(temp0, temp1);
             std::swap(tmp0, tmp1);
         }
 
         // Convert to uint8
-        convert_float_to_uint8(output_file, temp0, total_flat_size);
+        convert_float_to_uint8(temp0, output_file, total_flat_size);
 
         // Free memory
         free(buffers[0]);
