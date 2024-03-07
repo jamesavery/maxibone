@@ -18,9 +18,11 @@ namespace cpu_par {
 
                     float sum = 0.0f;
 
-                    for (int64_t r = -radius; r <= radius; r++) {
+                    // Does not add performance:
+                    //#pragma omp simd reduction(+:sum)
+                    for (int64_t r = ranges[0]; r <= ranges[1]; r++) {
                         const int64_t input_index = output_index + r*stride[dim];
-                        float val = r >= ranges[0] && r <= ranges[1] ? input[input_index] : 0.0f;
+                        float val = input[input_index];
                         sum += val * kernel[radius+r];
                     }
 
