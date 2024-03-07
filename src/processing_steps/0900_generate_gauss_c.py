@@ -101,8 +101,8 @@ if __name__ == '__main__':
         Image.fromarray(toint((np.max(np.abs(result),axis=2)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
 
     if verify: # generate ndimage comparison
-        control = (implant_mask>0).astype(internal_type)
         start = timeit.default_timer()
+        control = (implant_mask>0).astype(internal_type)
         for _ in tqdm(range(reps), desc='ndimage repititions'):
             control[:] = ndi.gaussian_filter(control, sigma_voxels, mode='constant', cval=0)
             control[implant_mask] = 1 # Illuminate
