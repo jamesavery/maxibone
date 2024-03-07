@@ -66,8 +66,17 @@ typedef std::array<real_t,4>  vector4;
 typedef std::array<real_t,9>  matrix3x3;
 typedef std::array<real_t,3>  vector3;
 
+// Struct for holding the shape of a 3D array
 typedef struct {
-  int64_t z, y, x;
+    int64_t z, y, x;
 } shape_t;
+
+// Struct for accessing the raw bits of a 32-bit float
+typedef struct {
+    union {
+        float f;
+        int32_t i;
+    };
+} raw32_t;
 
 #endif
