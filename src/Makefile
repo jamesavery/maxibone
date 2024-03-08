@@ -29,6 +29,7 @@ ifneq (, $(shell which nvc++))
 PLATFORMS += gpu
 gpu_CXX = nvc++
 gpu_FLAGS = -acc=gpu -tp=native #-Minfo=accel
+#gpu_FLAGS += -mp=gpu -gpu=cc89 -Minfo=mp
 gpu_FLAGS += -Xcudafe --display_error_number # Getting the warning codes for later suppression
 gpu_FLAGS += --diag_suppress 1626 # Remove the annoying pybind warning that routine is both inline and noinline
 gpu_FLAGS += --diag_suppress 9 # Remove the warning about nested comments
