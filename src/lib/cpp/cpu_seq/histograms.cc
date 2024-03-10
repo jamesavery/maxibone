@@ -78,38 +78,31 @@ namespace cpu_seq {
     }
 
     // TODO: Allow field to be lower resolution than voxel data
-    void field_histogram_seq_cpu(const np_array<voxel_type> np_voxels,
-                                const np_array<field_type> np_field,
-                                const tuple<uint64_t,uint64_t,uint64_t> offset,
-                                const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
-                                const tuple<uint64_t,uint64_t,uint64_t> field_shape,
-                                const uint64_t block_size,
-                                np_array<uint64_t> &np_bins,
-                                const tuple<double, double> vrange,
-                                const tuple<double, double> frange) {
-        py::buffer_info
-            voxels_info = np_voxels.request(),
-            field_info = np_field.request(),
-            bins_info = np_bins.request();
-
-        const uint64_t
-            field_bins   = bins_info.shape[0],
-            voxel_bins   = bins_info.shape[1];
+    void field_histogram(const voxel_type *__restrict__ voxels,
+                         const field_type *__restrict__ field,
+                         const shape_t &voxels_shape,
+                         const shape_t &field_shape,
+                         const shape_t &offset,
+                         const shape_t &block_size,
+                         uint64_t *__restrict__ bins,
+                         const uint64_t voxel_bins,
+                         const uint64_t field_bins,
+                         const std::tuple<double, double> &vrange,
+                         const std::tuple<double, double> &frange) {
 
         auto [nZ, nY, nX] = voxels_shape;
         auto [nz, ny, nx] = field_shape;
 
-        double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
-
-        const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
-        const field_type *field  = static_cast<field_type*>(field_info.ptr);
-        uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+        double
+            dz = (double)nz/((double)nZ),
+            dy = (double)ny/((double)nY),
+            dx = (double)nx/((double)nX);
 
         auto [f_min, f_max] = frange;
         auto [v_min, v_max] = vrange;
         auto [z_start, y_start, x_start] = offset;
         uint64_t
-            z_end = min(z_start+block_size, nZ),
+            z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
             y_end = nY,
             x_end = nX;
 
@@ -119,19 +112,22 @@ namespace cpu_seq {
                 for (uint64_t X = x_start; X < x_end; X++) {
                     auto voxel = voxels[flat_index];
                     voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 
                     // What are the X,Y,Z indices corresponding to voxel basearray index I?
                     //uint64_t X = flat_index % nX, Y = (flat_index / nX) % nY, Z = (flat_index / (nX*nY)) + z_start;
 
                     // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
                     // TODO: Sample 2x2x2 volume?
-                    uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
+                    uint64_t
+                        z = (uint64_t) floor((double)Z*dz),
+                        y = (uint64_t) floor((double)Y*dy),
+                        x = (uint64_t) floor((double)X*dx);
                     uint64_t i = z*ny*nx + y*nx + x;
 
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
-                    if(VALID_VOXEL(voxel) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                        int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
+                    if((voxel != 0) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                        int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
 
                         bins[field_index*voxel_bins + voxel_index]++;
                     }
