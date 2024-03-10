@@ -97,6 +97,35 @@ namespace python_api {
         return make_pair(voxel_min,voxel_max);
     }
 
+    void field_histogram_resample(const np_array<voxel_type> np_voxels,
+                        const np_array<field_type> np_field,
+                        const std::tuple<int64_t,int64_t,int64_t> np_offset,
+                        const std::tuple<int64_t,int64_t,int64_t> np_block_size,
+                        np_array<uint64_t> &np_bins,
+                        const std::tuple<double,double> vrange,
+                        const std::tuple<double,double> frange) {
+        py::buffer_info
+            voxels_info = np_voxels.request(),
+            field_info = np_field.request(),
+            bins_info = np_bins.request();
+
+        shape_t
+            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) },
+            voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
+            field_shape = { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
+            block_size = { get<0>(np_block_size), get<1>(np_block_size), get<2>(np_block_size) };
+
+        uint64_t
+            voxel_bins = bins_info.shape[1],
+            field_bins = bins_info.shape[0];
+
+        const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+        const field_type *field = static_cast<field_type*>(field_info.ptr);
+        uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+
+        NS::field_histogram_resample(voxels, field, voxels_shape, field_shape, offset, block_size, bins, voxel_bins, field_bins, vrange, frange);
+    }
+
 }
 
 PYBIND11_MODULE(histograms, m) {
@@ -114,6 +143,14 @@ PYBIND11_MODULE(histograms, m) {
         py::arg("vrange"),
         py::arg("verbose"));
     m.def("field_histogram", &python_api::field_histogram,
+        py::arg("np_voxels"),
+        py::arg("np_field"),
+        py::arg("np_offset"),
+        py::arg("np_block_size"),
+        py::arg("np_bins").noconvert(),
+        py::arg("vrange"),
+        py::arg("frange"));
+    m.def("field_histogram_resample", &python_api::field_histogram_resample,
         py::arg("np_voxels"),
         py::arg("np_field"),
         py::arg("np_offset"),
