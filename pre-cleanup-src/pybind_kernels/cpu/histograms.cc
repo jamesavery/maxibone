@@ -250,101 +250,6 @@ float resample2x2x2(const field_type      *voxels,
   return value;
 }
 
-void field_histogram_resample_par_cpu(const np_array<voxel_type> np_voxels,
-				      const np_array<field_type> np_field,
-				      const array<uint64_t,3> offset,
-				      const array<uint64_t,3> voxels_shape,
-				      const array<uint64_t,3> field_shape,
-				      const uint64_t block_size,
-				      np_array<uint64_t> &np_bins,
-				      const array<double, 2> vrange,
-				      const array<double, 2> frange) {
-    py::buffer_info
-        voxels_info = np_voxels.request(),
-        field_info = np_field.request(),
-        bins_info = np_bins.request();
-
-    const uint64_t
-        bins_length  = bins_info.size,
-        field_bins   = bins_info.shape[0],
-        voxel_bins   = bins_info.shape[1];
-
-    auto [nX, nY, nZ] = voxels_shape;
-    auto [nx, ny, nz] = field_shape;
-
-    double dx = nx/((double)nX), dy = ny/((double)nY), dz = nz/((double)nZ);
-
-    const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
-    const field_type *field  = static_cast<field_type*>(field_info.ptr);
-    uint64_t         *bins   = static_cast<uint64_t*>(bins_info.ptr);
-
-    auto [f_min, f_max] = frange;
-    auto [v_min, v_max] = vrange;
-    auto [z_start, y_start, x_start] = offset;
-    uint64_t
-        x_end = min(x_start+block_size, nX),
-        y_end = nY,
-        z_end = nZ;
-
-    #pragma omp parallel
-    {
-        uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
-        #pragma omp for nowait
-        for (uint64_t X = 0; X < x_end-x_start; X++) {
-            for (uint64_t Y = y_start; Y < y_end; Y++) {
-                for (uint64_t Z = z_start; Z < z_end; Z++) {
-                    uint64_t flat_index = (X*nY*nZ) + (Y*nZ) + Z;
-                    auto voxel = voxels[flat_index];
-                    voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
-
-                    // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
-                    // TODO: Sample 2x2x2 volume?
-                    float    x = X*dx, y = Y*dy, z = Z*dz;
-		    uint64_t i = floor(x)*ny*nz + floor(y)*nz + floor(z);
-
-
-
-                    // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
-                    if(VALID_VOXEL(voxel) && field[i]>0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-		      field_type field_value = round(resample2x2x2(field,{nx,ny,nz},{x,y,z}));
-		      int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
-
-
-		      if(field_index < 0 || field_index >= field_bins){
-			fprintf(stderr,"field value out of bounds at X,Y,Z = %ld,%ld,%ld, x,y,z = %.1f,%.1f,%.1f:\n"
-				"\t field_value = %d (%.3f), field_index = %ld, voxel_value = %d, field[%ld] = %d\n",
-				X,Y,Z,x,y,z,
-				field_value, round(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
-			printf("nx,ny,nz = %ld,%ld,%ld. %ld*%ld + %ld*%ld + %ld = %ld\n",
-			       nx,ny,nz,
-			       int(floor(x)),ny*nz,
-			       int(floor(y)),nz,
-			       int(floor(z)),
-			       i
-			       );
-
-			abort();
-		      }
-
-
-		      if((field_index >= 0) && (field_index < field_bins)) // Resampling with masked voxels can give field_value < field_min
-			tmp_bins[field_index*voxel_bins + voxel_index]++;
-		    }
-                }
-            }
-        }
-        #pragma omp critical
-        {
-            for (uint64_t i = 0; i < bins_length; i++)
-                bins[i] += tmp_bins[i];
-        }
-        free(tmp_bins);
-    }
-}
-
-
-
 void otsu(
         const np_array<uint64_t> np_bins,
         np_array<uint64_t> np_result,
@@ -436,8 +341,6 @@ void otsu(
 
 PYBIND11_MODULE(histograms, m) {
     m.doc() = "2D histogramming plugin"; // optional module docstring
-    m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
-    m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
     m.def("float_minmax", &float_minmax);
     m.def("otsu", &otsu);
 }
