@@ -20,6 +20,18 @@ namespace NS {
                         const std::tuple<double, double> &vrange,
                         const bool verbose);
 
+    void field_histogram(const voxel_type *__restrict__ voxels,
+                         const field_type *__restrict__ field,
+                         const shape_t &voxels_shape,
+                         const shape_t &field_shape,
+                         const shape_t &offset,
+                         const shape_t &block_size,
+                         uint64_t *__restrict__ bins,
+                         const uint64_t voxel_bins,
+                         const uint64_t field_bins,
+                         const std::tuple<double, double> &vrange,
+                         const std::tuple<double, double> &frange);
+
 }
 
 #endif
