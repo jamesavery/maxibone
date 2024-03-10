@@ -188,4 +188,75 @@ namespace cpu_par {
         }
     }
 
+    void field_histogram_par_cpu(const np_array<voxel_type> np_voxels,
+                                const np_array<field_type> np_field,
+                                const tuple<uint64_t,uint64_t,uint64_t> offset,
+                                const tuple<uint64_t,uint64_t,uint64_t> voxels_shape,
+                                const tuple<uint64_t,uint64_t,uint64_t> field_shape,
+                                const uint64_t block_size,
+                                np_array<uint64_t> &np_bins,
+                                const tuple<double, double> vrange,
+                                const tuple<double, double> frange) {
+        py::buffer_info
+            voxels_info = np_voxels.request(),
+            field_info = np_field.request(),
+            bins_info = np_bins.request();
+
+        const uint64_t
+            bins_length  = bins_info.size,
+            field_bins   = bins_info.shape[0],
+            voxel_bins   = bins_info.shape[1];
+
+        auto [nZ, nY, nX] = voxels_shape;
+        auto [nz, ny, nx] = field_shape;
+
+        double dz = nz/((double)nZ), dy = ny/((double)nY), dx = nx/((double)nX);
+
+        const voxel_type *voxels = static_cast<voxel_type*>(voxels_info.ptr);
+        const field_type *field  = static_cast<field_type*>(field_info.ptr);
+        uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
+
+        auto [f_min, f_max] = frange;
+        auto [v_min, v_max] = vrange;
+        auto [z_start, y_start, x_start] = offset;
+        uint64_t
+            z_end = min(z_start+block_size, nZ),
+            y_end = nY,
+            x_end = nX;
+
+        #pragma omp parallel
+        {
+            uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+            #pragma omp for nowait
+            for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
+                for (uint64_t Y = y_start; Y < y_end; Y++) {
+                    for (uint64_t X = x_start; X < x_end; X++) {
+                        uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
+                        auto voxel = voxels[flat_index];
+                        voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
+                        int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+
+                        // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
+                        // TODO: Sample 2x2x2 volume?
+                        uint64_t x = floor(X*dx), y = floor(Y*dy), z = floor(Z*dz);
+                        uint64_t i = z*ny*nx + y*nx + x;
+
+                        // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
+                        if(VALID_VOXEL(voxel) && (field[i] > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                            int64_t field_index = floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
+
+                            tmp_bins[field_index*voxel_bins + voxel_index]++;
+                        }
+                    }
+                }
+            }
+            #pragma omp critical
+            {
+                for (uint64_t i = 0; i < bins_length; i++)
+                    bins[i] += tmp_bins[i];
+            }
+            free(tmp_bins);
+        }
+    }
+
 }
