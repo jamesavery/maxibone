@@ -20,7 +20,7 @@ template <typename voxel_type>
 
 //#define VALID_VOXEL(voxel) (voxel != 0 && voxel >= vmin && voxel <= vmax) /* Voxel not masked, and within vmin,vmax range */
 #define VALID_VOXEL(voxel) (voxel != 0) /* Voxel not masked */
-#define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
+
 
 
 template <typename T> void convolve1d(const np_array<T> np_kernel,

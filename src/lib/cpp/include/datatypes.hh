@@ -79,4 +79,6 @@ typedef struct {
     };
 } raw32_t;
 
+#define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
+
 #endif
