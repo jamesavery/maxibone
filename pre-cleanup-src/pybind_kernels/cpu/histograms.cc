@@ -172,24 +172,6 @@ template <typename Op, bool neutral> void morphology_3d_sphere_gpu(
 #endif
 }
 
-pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
-    // Extract NumPy array basearray-pointer and length
-    auto voxels_info    = np_voxels.request();
-    size_t image_length = voxels_info.size;
-    const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
-
-    voxel_type voxel_min = max(voxels[0], voxel_type(1)), voxel_max = voxels[0];
-
-    #pragma omp parallel for reduction(min:voxel_min) reduction(max:voxel_max)
-    for (size_t i=0; i < image_length; i++) {
-        voxel_min = min(voxel_min, voxels[i] > 0 ? voxels[i] : voxel_type(1));
-        voxel_max = max(voxel_max, voxels[i]);
-    }
-
-    assert(voxel_min > 0);
-    return make_pair(voxel_min,voxel_max);
-}
-
 pair<float,float> float_minmax(const np_array<float> np_field) {
     // Extract NumPy array basearray-pointer and length
     auto field_info    = np_field.request();
@@ -928,7 +910,6 @@ PYBIND11_MODULE(histograms, m) {
     m.def("field_histogram_seq_cpu", &field_histogram_seq_cpu);
     m.def("field_histogram_par_cpu", &field_histogram_par_cpu);
     m.def("field_histogram_resample_par_cpu", &field_histogram_resample_par_cpu);
-    m.def("masked_minmax", &masked_minmax);
     m.def("float_minmax", &float_minmax);
     m.def("otsu", &otsu);
 }
