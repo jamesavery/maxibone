@@ -174,6 +174,7 @@ namespace cpu_par {
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < local_flat_size; i++) {
+            #pragma GCC diagnostic ignored "-Wfloat-equal"
             mask[i] = input[i] == 1.0f ? 1 : 0; // The implant will always be 1.0f
         }
     }

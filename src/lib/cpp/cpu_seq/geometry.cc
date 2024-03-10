@@ -127,7 +127,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                 const float  x = float(Xl+1)*edx, y = float(Yl)*edy, z = float(Zl)*edy;
 
                 if (x > float(block_height)) {
-                    printf("Block number k=%ld.\nX,Y,Z=%ld,%ld,%ld\nXl,Yl,Zl=%ld,%ld,%ld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
+                    printf("Block number k=%lld.\nX,Y,Z=%lld,%lld,%lld\nXl,Yl,Zl=%lld,%lld,%lld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
                     abort();
                 }
 
@@ -284,9 +284,9 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
         // m guards this, and then branches are removed
         //if (m != 0)
         real_t
-            Z = real(z) - cm[0],
-            Y = real(y) - cm[1],
-            X = real(x) - cm[2];
+            Z = (real_t) real(z) - cm[0],
+            Y = (real_t) real(y) - cm[1],
+            X = (real_t) real(x) - cm[2];
 
         Izz += m * (Y*Y + X*X);
         Iyy += m * (Z*Z + X*X);
