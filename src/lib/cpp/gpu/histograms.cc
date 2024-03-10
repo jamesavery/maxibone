@@ -113,9 +113,37 @@ namespace gpu {
             printf("Exited function at %02d:%02d:%02d\n", local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
             fflush(stdout);
         }
-    #else
-        throw std::runtime_error("Library wasn't compiled with OpenACC.");
-    #endif
-}
+        #else
+            throw std::runtime_error("Library wasn't compiled with OpenACC.");
+        #endif
+    }
+
+    void field_histogram(const voxel_type *__restrict__ voxels,
+                         const field_type *__restrict__ field,
+                         const shape_t &voxels_shape,
+                         const shape_t &field_shape,
+                         const shape_t &offset,
+                         const shape_t &block_size,
+                         uint64_t *__restrict__ bins,
+                         const uint64_t voxel_bins,
+                         const uint64_t field_bins,
+                         const std::tuple<double, double> &vrange,
+                         const std::tuple<double, double> &frange) {
+        throw std::runtime_error("Not implemented");
+    }
+
+    void field_histogram_resample(const voxel_type *__restrict__ voxels,
+                                  const field_type *__restrict__ field,
+                                  const shape_t &voxels_shape,
+                                  const shape_t &field_shape,
+                                  const shape_t &offset,
+                                  const shape_t &block_size,
+                                  uint64_t *__restrict__ &bins,
+                                  const uint64_t voxel_bins,
+                                  const uint64_t field_bins,
+                                  const std::tuple<double, double> &vrange,
+                                  const std::tuple<double, double> &frange) {
+        throw std::runtime_error("Not implemented");
+    }
 
 }
