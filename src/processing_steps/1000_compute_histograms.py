@@ -2,9 +2,9 @@
 import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 # TODO Move benchmarking out of this script.
-from lib.cpp.cpu_seq.histograms import axis_histogram as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
-from lib.cpp.cpu.histograms import axis_histogram as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu, field_histogram_resample
-from lib.cpp.gpu.histograms import axis_histogram as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
+from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu#, field_histogram as field_histogram_seq_cpu
+#rom lib.cpp.cpu.histograms import axis_histogram as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu, field_histogram_resample
+#rom lib.cpp.gpu.histograms import axis_histogram as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
 from lib.cpp.cpu_seq.histograms import masked_minmax # TODO is it histogram specific?
 import numpy as np, h5py, timeit
 from datetime import datetime
@@ -120,10 +120,10 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size, n_blocks, z_offset)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
     block_size    = bi['block_size']
-    n_blocks      = bi['n_blocks']    
+    n_blocks      = bi['n_blocks']
     blocks_are_subvolumes = bi['blocks_are_subvolumes']
 
-    center = (Ny//2,Nx//2)                
+    center = (Ny//2,Nx//2)
 #    vmin, vmax = 0.0, float(implant_threshold)
     # TODO: Compute from overall histogram, store in result
     (vmin,vmax), (fmin,fmax) = value_ranges
@@ -136,22 +136,23 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
 
     for b in tqdm(range(n_blocks), desc='Computing histograms'):
-        # NB: Kopier til andre steder, som skal virke på samme voxels        
+        # NB: Kopier til andre steder, som skal virke på samme voxels
         if blocks_are_subvolumes:
             zstart     = bi['subvolume_starts'][z_offset+b]
             block_size = bi['subvolume_nzs'][z_offset+b]
         else:
             zstart = z_offset + b*block_size
 
-            
-            
+
+
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
-        for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
+            axis_histogram_seq_cpu(voxels, (zstart, 0, 0), voxels.shape[0], x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), False)
+        # TODO commented out during debugging
+        #for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
+        #    field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
 
-    f_bins[:, 0,:] = 0 # TODO EDT mask hack            
+    f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
 
@@ -163,7 +164,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
     for i, bins in enumerate(f_bins):
         f_bins[i] = ndi.gaussian_filter(bins,sigma,mode='constant',cval=0)
-    
+
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
 if __name__ == '__main__':
@@ -173,23 +174,23 @@ if __name__ == '__main__':
     # TODO move some of the constants / parameters out into the configuration
     sample, block_size, z_offset, n_blocks, suffix, \
     mask, mask_scale, voxel_bins, field_bins, verbose = commandline_args({"sample" : "<required>",
-                                                                          "block_size" : 256, 
-                                                                          "z_offset" :  0, 
-                                                                          "n_blocks" : 0, 
+                                                                          "block_size" : 256,
+                                                                          "z_offset" :  0,
+                                                                          "n_blocks" : 0,
                                                                           "suffix" : "",
-                                                                          "mask" : "None", 
-                                                                          "mask_scale" :  8, 
-                                                                          "voxel_bins" : 4096, 
+                                                                          "mask" : "None",
+                                                                          "mask_scale" :  8,
+                                                                          "voxel_bins" : 4096,
                                                                           "field_bins" : 2048,
                                                                           "verbose" : 1})
 
     implant_threshold_u16 = 32000 # TODO: use config.constants
     (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
     field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
-    
+
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
-    pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)    
-    
+    pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
+
     xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
                                          None if mask=="None" else mask, mask_scale, voxel_bins,
                                          implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)))
@@ -201,10 +202,10 @@ if __name__ == '__main__':
 
     for i in range(len(field_names)):
         Image.fromarray(tobyt(row_normalize(fb[i]))).save(f"{outpath}/fb-{field_names[i]}{suffix}.png")
-        
+
     np.savez(f'{outpath}/bins{suffix}.npz',
              x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
              axis_names=np.array(["x","y","z","r"]),
              field_names=field_names, suffix=suffix, mask=mask,
              sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
-    
+
