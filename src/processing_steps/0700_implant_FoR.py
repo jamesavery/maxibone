@@ -2,7 +2,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu_seq.geometry import center_of_mass, inertia_matrix, sample_plane
+from lib.cpp.cpu.geometry import center_of_mass, inertia_matrix, sample_plane
 from lib.cpp.cpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
@@ -118,52 +118,54 @@ def zyx_to_UVWp_transform():
 vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.))}
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
 
-def figure_FoR_UVW(debug=True):
-    vol = vedo.Volume(implant)
-    vol.alpha([0,0,0.05,0.2])
-    u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
-    v_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
-    w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)
+def figure_FoR_UVW(debug=2):
+    if debug >= 1:
+        vol = vedo.Volume(implant)
+        vol.alpha([0,0,0.05,0.2])
+        u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
+        v_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
+        w_arrow = vedo.Arrow(cm[::-1],cm[::-1]+100*w_vec[::-1],c='b',s=0.7)
 
-    for axis in vaxis.keys():
-        pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
-        pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
-            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
-            'focalPoint': (nz/2,ny/2,nx/2),
-            'viewup':-vaxis[axis]
-        })
+        for axis in vaxis.keys():
+            pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
+            pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
+                'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+                'focalPoint': (nz/2,ny/2,nx/2),
+                'viewup':-vaxis[axis]
+            })
 
-        pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
+            pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
 
-    if debug:
-        pl = vedo.Plotter(offscreen=False, interactive=True)
-        pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
-            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
-            'focalPoint': (nz/2,ny/2,nx/2),
-            'viewup':-vaxis[axis]
-        })
+        if debug >= 2:
+            pl = vedo.Plotter(offscreen=False, interactive=True)
+            pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
+                'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+                'focalPoint': (nz/2,ny/2,nx/2),
+                'viewup':-vaxis[axis]
+            })
 
 # TODO: Fix lengths (voxel_size times...)
-def figure_FoR_UVWp(debug=True):
-    implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
-    pts = pc.Points(implant_uvwps[:,:3])
+def figure_FoR_UVWp(debug=2):
+    if debug >= 1:
+        implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
+        pts = pc.Points(implant_uvwps[:,:3])
 
-    u_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[0]/ls[2])*100*np.array([0,0,1]),c='r',s=0.7)
-    v_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
-    w_arrow = vedo.Arrow([0,0,0],100*w_vec[::-1],c='b',s=0.7)
+        u_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[0]/ls[2])*100*np.array([0,0,1]),c='r',s=0.7)
+        v_arrow = vedo.Arrow([0,0,0],1/np.sqrt(ls[1]/ls[2])*100*v_vec[::-1],c='g',s=0.7)
+        w_arrow = vedo.Arrow([0,0,0],100*w_vec[::-1],c='b',s=0.7)
 
-    pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-    for axis in vaxis.keys():
-        pl.show([pts,u_arrow,v_arrow,w_arrow],camera={
-            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
-            'focalPoint': (nz/2,ny/2,nx/2),
-            'viewup':-vaxis[axis]
-        })
+        pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+        for axis in vaxis.keys():
+            pl.show([pts,u_arrow,v_arrow,w_arrow],camera={
+                'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+                'focalPoint': (nz/2,ny/2,nx/2),
+                'viewup':-vaxis[axis]
+            })
 
-        pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
+            pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
 
-    if debug:
-        vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)
+        if debug >= 2:
+            vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)
 
 def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     from matplotlib.patches import Circle
@@ -227,46 +229,48 @@ def figure_FoR_profiles(debug):
     if debug:
         plt.show()
 
-def figure_FoR_cylinder(debug=True):
-#    center_line = vedo.Arrow(C1,C2)
-    center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
-    cylinder = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels,height=implant_length_voxels, axis=(C2-C1),alpha=0.3)
+def figure_FoR_cylinder(debug=2):
+    if debug >= 1:
+    #    center_line = vedo.Arrow(C1,C2)
+        center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
+        cylinder = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels,height=implant_length_voxels, axis=(C2-C1),alpha=0.3)
 
-    Up_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_length*u_prime), c='r')
-    Vp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*v_prime), c='g')
-    Wp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*w_prime), c='b')
+        Up_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_length*u_prime), c='r')
+        Vp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*v_prime), c='g')
+        Wp_arrow = vedo.Arrow(Cp, UVW2xyz(cp+implant_radius*2*w_prime), c='b')
 
-    vol = vedo.Volume(implant)
-    vol.alpha([0,0,0.05,0.1])
+        vol = vedo.Volume(implant)
+        vol.alpha([0,0,0.05,0.1])
 
-    pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
-    for axis in vaxis.keys():
-        pl.show([vol,center_line,Vp_arrow,Wp_arrow,cylinder],camera={
-            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
-            'focalPoint': (nz/2,ny/2,nx/2),
-            'viewup':-vaxis[axis]
-        })
+        pl = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
+        for axis in vaxis.keys():
+            pl.show([vol,center_line,Vp_arrow,Wp_arrow,cylinder],camera={
+                'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+                'focalPoint': (nz/2,ny/2,nx/2),
+                'viewup':-vaxis[axis]
+            })
 
-        pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
+            pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
 
-    if debug:
-        vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
+        if debug >= 2:
+            vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
 
-def figure_FoR_voxels(name,voxels,debug=True):
-    vol = vedo.Volume(voxels)
-    vol.alpha([0,0,0.05,0.1])
+def figure_FoR_voxels(name, voxels, debug=2):
+    if debug >= 1:
+        vol = vedo.Volume(voxels)
+        vol.alpha([0,0,0.05,0.1])
 
-    pl  = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
-    for axis in vaxis.keys():
-        pl.show([vol],camera={
-            'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
-            'focalPoint': (nz/2,ny/2,nx/2),
-            'viewup':-vaxis[axis]
-        })
-        pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
+        pl  = vedo.Plotter(offscreen=True, interactive=False,sharecam=False)
+        for axis in vaxis.keys():
+            pl.show([vol],camera={
+                'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
+                'focalPoint': (nz/2,ny/2,nx/2),
+                'viewup':-vaxis[axis]
+            })
+            pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
 
-    if debug:
-        vedo.show([vol],interactive=True)
+        if debug >= 2:
+            vedo.show([vol],interactive=True)
 
 if __name__ == "__main__":
     sample, scale, verbose = commandline_args({"sample" : "<required>",
@@ -325,7 +329,7 @@ if __name__ == "__main__":
     UVW = E.T
     u_vec,v_vec,w_vec = UVW
 
-    figure_FoR_UVW(verbose >= 2)
+    figure_FoR_UVW(verbose)
 
     ### STEP 2: COMPUTE PHANTOM SCREW GEOMETRY
     #
@@ -399,7 +403,7 @@ if __name__ == "__main__":
     implant_length_voxels = implant_length/voxel_size
     implant_radius_voxels = implant_radius/voxel_size
 
-    figure_FoR_cylinder(verbose >= 2)
+    figure_FoR_cylinder(verbose)
 
     ### 3: In the cylinder coordinates, find radii and angle ranges to fill in the "holes" in the implant and make it solid
     ###    (More robust than closing operations, as we don't want to effect the screw threads).
@@ -414,7 +418,7 @@ if __name__ == "__main__":
 
     #TODO: Local circle figure (instead of showing global fit on local slice, which isn't snug)
     bbox_uvwp = [Up_min,Up_max,Vp_min,Vp_max,Wp_min,Wp_max]
-    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,verbose >= 2)
+    figure_FoR_circle("prime-circle",Cp*voxel_size,v_vec,w_vec,implant_radius,bbox_uvwp,verbose)
 
     ## 3B: Profile of radii and angles
     implant_thetas = np.arctan2(implant_Vps,implant_Wps)
@@ -455,8 +459,8 @@ if __name__ == "__main__":
     solid_implant_UVWps   = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
     Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0],200)
 
-    figure_FoR_profiles(verbose >= 2)
-    figure_FoR_voxels("solid_implant",solid_implant,verbose >= 2)
+    figure_FoR_profiles(verbose)
+    figure_FoR_voxels("solid_implant",solid_implant,verbose)
 
     back_mask  = (Ws<0)
     front_mask = largest_cc_of((Ws>50)&(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
@@ -467,8 +471,8 @@ if __name__ == "__main__":
     # back_part = voxels*back_mask
 
     front_part = voxels*front_mask
-    figure_FoR_voxels("back_part", voxels*back_mask, verbose >= 2)
-    figure_FoR_voxels("front_part",voxels*front_mask, verbose >= 2)
+    figure_FoR_voxels("back_part", voxels*back_mask, verbose)
+    figure_FoR_voxels("front_part",voxels*front_mask, verbose)
 
     Cp_zyx = Cp[::-1]*voxel_size
 
@@ -480,7 +484,7 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"cp = {np.round(cp,2)}")
     if verbose >= 1: print(f"cm = {np.round(cm,2)}")
 
-    figure_FoR_UVWp(verbose >= 2)
+    figure_FoR_UVWp(verbose)
 
     if verbose >= 1: print(f"Physical Cp = {Cp[::-1]*voxel_size}")
 
