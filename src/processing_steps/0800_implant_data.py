@@ -2,7 +2,7 @@ import h5py, sys, os, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu_seq.geometry import fill_implant_mask, compute_front_mask
+from lib.cpp.cpu.geometry import fill_implant_mask, compute_front_mask
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
