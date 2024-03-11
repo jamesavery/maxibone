@@ -9,7 +9,7 @@ from scipy import ndimage as ndi
 
 from config.paths import hdf5_root, binary_root
 from lib.py.helpers import commandline_args
-from lib.cpp.cpu.diffusion import diffusion
+from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
 
@@ -75,14 +75,13 @@ if __name__ == '__main__':
 
     kernel = gauss_kernel(sigma_voxels)
 
-    if scale == 1:
+    if scale < 4:
         # Dump the mask
         masks_dir = f"{binary_root}/masks/{scale}x"
         pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
         input_path = f"{masks_dir}/{sample}-implant_solid.{np.dtype(result_type).name}"
         output_path = f"{output_dir}/{sample}.{np.dtype(result_type).name}"
         write_slice(implant_mask.astype(result_type), input_path, (0,0,0), implant_mask.shape)
-        del implant_mask
 
         gigabyte = 1024**3
         gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
