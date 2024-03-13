@@ -29,12 +29,12 @@ namespace cpu_par {
         auto [z_start, y_start, x_start] = offset;
 
         uint64_t
-            z_end   = (uint64_t) std::min(z_start+block_size.z, Nz),
+            z_end   = Nz, //(uint64_t) std::min(z_start+block_size.z, Nz),
             y_end   = Ny,
             x_end   = Nx;
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld,%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
             printf("Starting calculation\n");
             fflush(stdout);
         }
@@ -55,7 +55,7 @@ namespace cpu_par {
 
                 // Read & Compute
                 #pragma omp simd collapse(2)
-                for (uint64_t z = 0; z < z_end-z_start; z++) {
+                for (uint64_t z = 0; z < z_end; z++) {
                     for (uint64_t y = y_start; y < y_end; y++) {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
@@ -86,7 +86,7 @@ namespace cpu_par {
 
                 // Read & Compute
                 #pragma omp simd collapse(2)
-                for (uint64_t z = 0; z < z_end-z_start; z++) {
+                for (uint64_t z = 0; z < z_end; z++) {
                     for (uint64_t x = x_start; x < x_end; x++) {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
@@ -109,7 +109,7 @@ namespace cpu_par {
 
             // z_bins
             #pragma omp for nowait
-            for (uint64_t z = 0; z < z_end-z_start; z++) {
+            for (uint64_t z = 0; z < z_end; z++) {
                 // Init
                 #pragma omp simd
                 for (uint64_t i = 0; i < voxel_bins; i++)
@@ -151,7 +151,7 @@ namespace cpu_par {
 
                     // Read and compute
                     #pragma omp simd
-                    for (uint64_t z = 0; z < z_end-z_start; z++) {
+                    for (uint64_t z = 0; z < z_end; z++) {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range

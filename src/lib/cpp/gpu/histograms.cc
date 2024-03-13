@@ -31,7 +31,7 @@ namespace gpu {
         uint64_t memory_needed = ((Nx*voxel_bins)+(Ny*voxel_bins)+(Nz*voxel_bins)+(Nr*voxel_bins))*sizeof(uint64_t);
 
         uint64_t
-            z_end   = (uint64_t) std::min(z_start+block_size.z, Nz),
+            z_end   = Nz, //(uint64_t) std::min(z_start+block_size.z, Nz),
             y_end   = Ny,
             x_end   = Nx,
             image_length = Nx*Ny*Nz;

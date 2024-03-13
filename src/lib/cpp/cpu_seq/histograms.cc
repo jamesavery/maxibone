@@ -30,12 +30,13 @@ namespace cpu_seq {
         auto [z_start, y_start, x_start] = offset;
 
         uint64_t
-            z_end   = (uint64_t) std::min(z_start+block_size.z, Nz),
+            z_end   = Nz, //(uint64_t) std::min(z_start+block_size.z, Nz),
+            //z_size  = z_end - z_start,
             y_end   = Ny,
             x_end   = Nx;
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld,%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
             printf("Starting calculation\n");
             fflush(stdout);
         }
@@ -43,13 +44,13 @@ namespace cpu_seq {
         auto start = std::chrono::steady_clock::now();
 
         uint64_t flat_idx = 0;
-        for (uint64_t z = z_start; z < z_end; z++) {
+        for (uint64_t z = 0; z < z_end; z++) {
             for (uint64_t y = y_start; y < y_end; y++) {
                 for (uint64_t x = x_start; x < x_end; x++) {
                     uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
                     auto voxel = voxels[flat_idx];
-                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
                     int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
@@ -57,7 +58,7 @@ namespace cpu_seq {
                     } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                         x_bins[x*voxel_bins + voxel_index]++;
                         y_bins[y*voxel_bins + voxel_index]++;
-                        z_bins[z*voxel_bins + voxel_index]++;
+                        z_bins[(z+z_start)*voxel_bins + voxel_index]++;
                         r_bins[r*voxel_bins + voxel_index]++;
                     }
                     flat_idx++;
