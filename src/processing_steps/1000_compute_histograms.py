@@ -147,7 +147,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_seq_cpu(voxels, (zstart, 0, 0), (voxels.shape[0],0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
+            axis_histogram_seq_cpu(voxels, (zstart, 0, 0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
         # TODO commented out during debugging
         #for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
         #    field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))

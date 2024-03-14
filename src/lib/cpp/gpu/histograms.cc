@@ -31,10 +31,10 @@ namespace gpu {
         uint64_t memory_needed = ((Nx*voxel_bins)+(Ny*voxel_bins)+(Nz*voxel_bins)+(Nr*voxel_bins))*sizeof(uint64_t);
 
         uint64_t
-            z_end   = Nz, //(uint64_t) std::min(z_start+block_size.z, Nz),
+            z_end   = (uint64_t) std::min(z_start+block_size.z, Nz),
             y_end   = Ny,
             x_end   = Nx,
-            image_length = Nx*Ny*Nz;
+            image_length = block_size.z*Ny*Nx;
 
         uint64_t gpu_block_size = 1 * GB_VOXEL;
 
@@ -46,6 +46,7 @@ namespace gpu {
 
         if (verbose) {
             printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("Offset is (%ld,%ld,%ld)\n", z_start, y_start, x_start);
             printf("Allocating result memory (%ld bytes (%.02f Mbytes))\n", memory_needed, memory_needed/1024./1024.);
             printf("Starting calculation\n");
             printf("Size of voxels is %ld bytes (%.02f Mbytes)\n", image_length * sizeof(voxel_type), (image_length * sizeof(voxel_type))/1024./1024.);
