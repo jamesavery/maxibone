@@ -10,6 +10,7 @@ else:
 from lib.py.helpers import commandline_args
 from lib.py.resample import downsample2x, downsample3x
 from config.paths import hdf5_root, binary_root
+import traceback
 
 if cupy_available:
     mempool = cp.get_default_memory_pool()
@@ -68,6 +69,7 @@ if __name__ == "__main__":
         try:
             voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx)
         except:
+            traceback.print_exc()
             if verbose >= 1: print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
             sys.exit(-1)
 

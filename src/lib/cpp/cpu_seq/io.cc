@@ -28,14 +28,66 @@ void write_contiguous_slice(const T *data,
         const uint64_t offset,
         const uint64_t size) {
     ofstream file;
-    file.open(filename.c_str(), ios::binary | ios::in);
+    file.open(filename.c_str(), ios::binary | ios::in | ios::out);
     if (!file.is_open()) {
         file.clear();
-        file.open(filename.c_str(), ios::binary);
+        file.open(filename.c_str(), ios::binary | ios::out);
     }
-    file.seekp(offset * sizeof(T), ios::beg);
-    file.write((char*) data, size * sizeof(T));
-    file.flush(); // Should have flushed, but just in case
+    // Error handling
+    if (file.seekp(offset * sizeof(T), ios::beg).fail()) {
+        fprintf(stderr, "write_slice: Error seeking to %lu in %s.\n", offset, filename.c_str());
+        file.close();
+        exit(-1);
+    }
+    //file.seekp(offset * sizeof(T), ios::beg);
+    uint64_t
+        block_size = 4096 * 1024,
+        blocks = (size * sizeof(T)) / block_size;
+    blocks = (size * sizeof(T)) % block_size == 0 ? blocks : blocks + 1;
+    for (uint64_t block = 0; block < blocks; block++) {
+        uint64_t this_block_size = block_size;
+        if (block == blocks - 1) {
+            this_block_size = (size * sizeof(T)) % block_size;
+        }
+        if (file.write((char*) data + block * block_size, this_block_size).fail()) {
+            fprintf(stderr, "write_slice: Error writing block %ld to %s.\n", block, filename.c_str());
+            // Print reason for failure
+            if (file.bad()) {
+                fprintf(stderr, "write_slice: Bad bit set.\n");
+            }
+            if (file.fail()) {
+                fprintf(stderr, "write_slice: Fail bit set.\n");
+            }
+            if (file.eof()) {
+                fprintf(stderr, "write_slice: EOF bit set.\n");
+            }
+            if (file.good()) {
+                fprintf(stderr, "write_slice: Good bit set.\n");
+            }
+            file.close();
+            exit(-1);
+        }
+        // Check if the correct number of bytes were written
+        if (file.tellp() != (offset * sizeof(T) + block * block_size + this_block_size)) {
+            fprintf(stderr, "write_slice: Error writing block %lu to %s.\n", block, filename.c_str());
+            fprintf(stderr, "write_slice: Wrote %lu bytes, expected %lu.\n", file.tellp(), offset * sizeof(T) + block * block_size + this_block_size);
+            file.close();
+            exit(-1);
+        }
+
+    }
+    //if (file.write((char*) data, size * sizeof(T)).fail()) {
+    //    fprintf(stderr, "write_slice: Error writing to %s.\n", filename.c_str());
+    //    file.close();
+    //    exit(-1);
+    //}
+    //file.write((char*) data, size * sizeof(T));
+    if (file.flush().fail()) {
+        fprintf(stderr, "write_slice: Error flushing %s.\n", filename.c_str());
+        file.close();
+        exit(-1);
+    }
+    //file.flush(); // Should have flushed, but just in case
     file.close();
 }
 
