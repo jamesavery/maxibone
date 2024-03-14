@@ -42,6 +42,36 @@ namespace cpu_par {
 
         auto start = std::chrono::steady_clock::now();
 
+        // TODO This is faster on Intel?
+        #pragma omp parallel for collapse(3)
+        for (uint64_t z = z_start; z < z_end; z++) {
+            for (uint64_t y = y_start; y < y_end; y++) {
+                for (uint64_t x = x_start; x < x_end; x++) {
+                    uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
+                    uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+
+                    auto voxel = voxels[flat_idx];
+                    voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
+                    int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+
+                    if (voxel_index >= (int64_t)voxel_bins) {
+                        fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                    } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
+                        #pragma omp atomic
+                        x_bins[x*voxel_bins + voxel_index]++;
+                        #pragma omp atomic
+                        y_bins[y*voxel_bins + voxel_index]++;
+                        #pragma omp atomic
+                        z_bins[z*voxel_bins + voxel_index]++;
+                        #pragma omp atomic
+                        r_bins[r*voxel_bins + voxel_index]++;
+                    }
+                }
+            }
+        }
+
+        /*
+        // TODO This is faster on AMD?
         #pragma omp parallel
         {
             uint64_t *tmp = (uint64_t*) calloc(voxel_bins, sizeof(uint64_t));
@@ -177,6 +207,7 @@ namespace cpu_par {
 
             free(tmp);
         }
+        */
 
         auto end = std::chrono::steady_clock::now();
 
