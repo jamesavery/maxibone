@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import h5py, sys, os, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
@@ -9,6 +11,7 @@ import vedo, vedo.pointcloud as pc
 from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
 from numpy import array, newaxis as NA
 
+vedo.settings.start_xvfb()
 
 sample, scale, verbose = commandline_args({"sample" : "<required>",
                                            "scale" : 2,

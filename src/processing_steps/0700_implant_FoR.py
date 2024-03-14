@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
@@ -12,6 +14,8 @@ from lib.py.helpers import update_hdf5, update_hdf5_mask, commandline_args
 from numpy import array, newaxis as NA
 
 verbose = 1
+
+vedo.settings.start_xvfb()
 
 # Hvor skal disse hen?
 def circle_center(p0,p1,p2):
