@@ -1,16 +1,21 @@
 import h5py, sys, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 import numpy as np
-import cupy  as cp
-#import numpy as cp
+import importlib
+cupy_available = importlib.util.find_spec("cupy") is not None
+if cupy_available:
+    import cupy as cp
+else:
+    import numpy as cp
 from lib.py.helpers import commandline_args
 from lib.py.resample import downsample2x, downsample3x
 from config.paths import hdf5_root, binary_root
 
-mempool = cp.get_default_memory_pool()
-pinned_mempool = cp.get_default_pinned_memory_pool()
-mempool.free_all_blocks()
-pinned_mempool.free_all_blocks()
+if cupy_available:
+    mempool = cp.get_default_memory_pool()
+    pinned_mempool = cp.get_default_pinned_memory_pool()
+    mempool.free_all_blocks()
+    pinned_mempool.free_all_blocks()
 
 if __name__ == "__main__":
     sample, image, chunk_size, dtype, verbose = commandline_args({"sample" : "<required>",
@@ -74,18 +79,18 @@ if __name__ == "__main__":
         voxels16x_chunk = downsample2x(voxels8x_chunk)
         voxels32x_chunk = downsample2x(voxels16x_chunk)
 
-        ## if cupy
-        voxels2x[z//2:zend//2]  = voxels2x_chunk.get()
-        voxels4x[z//4:zend//4]  = voxels4x_chunk.get()
-        voxels8x[z//8:zend//8]  = voxels8x_chunk.get()
-        voxels16x[z//16:zend//16] = voxels16x_chunk.get()
-        voxels32x[z//32:zend//32] = voxels32x_chunk.get()
-        ## else
-        # voxels2x[z//2:zend//2]  = voxels2x_chunk
-        # voxels4x[z//4:zend//4]  = voxels4x_chunk
-        # voxels8x[z//8:zend//8]  = voxels8x_chunk
-        # voxels16x[z//16:zend//16] = voxels16x_chunk
-        # voxels32x[z//32:zend//32] = voxels32x_chunk
+        if cupy_available:
+            voxels2x[z//2:zend//2]  = voxels2x_chunk.get()
+            voxels4x[z//4:zend//4]  = voxels4x_chunk.get()
+            voxels8x[z//8:zend//8]  = voxels8x_chunk.get()
+            voxels16x[z//16:zend//16] = voxels16x_chunk.get()
+            voxels32x[z//32:zend//32] = voxels32x_chunk.get()
+        else:
+            voxels2x[z//2:zend//2]  = voxels2x_chunk
+            voxels4x[z//4:zend//4]  = voxels4x_chunk
+            voxels8x[z//8:zend//8]  = voxels8x_chunk
+            voxels16x[z//16:zend//16] = voxels16x_chunk
+            voxels32x[z//32:zend//32] = voxels32x_chunk
 
         del voxels4x_chunk
         del voxels8x_chunk
