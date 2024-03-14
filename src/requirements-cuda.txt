@@ -1,1 +1,1 @@
-cupy-cuda11x==11.5.0
+cupy-cuda12x==13.0.0
