@@ -277,7 +277,7 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
     fclose(file);
 }
 
-int64_t connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose) {
+int64_t connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
     auto cc_start = std::chrono::high_resolution_clock::now();
     // Check if the call is well-formed
     int64_t chunks = n_labels.size();

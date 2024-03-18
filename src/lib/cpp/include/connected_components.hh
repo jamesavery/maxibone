@@ -6,7 +6,7 @@
 namespace NS {
 
     // External Functions
-    int64_t connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose = false);
+    int64_t connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose = false);
 
     // Internal Functions
     void apply_renaming(std::vector<int64_t> &img, const std::vector<int64_t> &to_rename);
