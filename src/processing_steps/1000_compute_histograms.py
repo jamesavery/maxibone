@@ -2,9 +2,9 @@
 import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 # TODO Move benchmarking out of this script.
-from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu#, field_histogram as field_histogram_seq_cpu
-from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu#, field_histogram as field_histogram_par_cpu, field_histogram_resample
-from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu#, field_histogram as field_histogram_par_gpu
+from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
+from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu, field_histogram_resample
+from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
 from lib.cpp.cpu_seq.histograms import masked_minmax # TODO is it histogram specific?
 import numpy as np, h5py, timeit
 from datetime import datetime
@@ -21,7 +21,7 @@ verbose = 1
 # TODO: Currently specialized to uint16_t
 #masked_minmax = histograms.masked_minmax
 
-def axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
+def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
     (Nz, Ny, Nx) = voxels.shape
     center = (Ny//2, Nx//2)
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
@@ -36,24 +36,27 @@ def axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=
     else:
         vmin, vmax = ranges
     if verbose >= 1: print ("Entering call", datetime.now())
-    func(voxels, (0,0,0), (Nz, Ny, Nx), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
+    func(voxels, (0,0,0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
     if verbose >= 1: print ("Exited call", datetime.now())
     return x_bins, y_bins, z_bins, r_bins
 
-def field_histogram(voxels, field, field_bins, voxel_bins, ranges):
+def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=None, voxel_bins=256, field_bins=256):
     bins = np.zeros((field_bins, voxel_bins), dtype=np.uint64)
-    vmin, vmax = ranges
-    # python3 histograms_tester.py 770c_pag  1849.98s user 170.42s system 512% cpu 6:33.95 total
-    field_histogram_par_cpu(voxels, field, bins, vmin, vmax)
-    # python3 histograms_tester.py 770c_pag  1095.49s user 141.76s system 104% cpu 19:44.64 total
-    #field_histogram_seq_cpu(voxels, field, bins, vmin, vmax)
+    if ranges is None:
+        vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
+    else:
+        vrange, frange = ranges
+
+    if verbose >= 1: print ("Entering call", datetime.now())
+    func(voxels, field, (0,0,0), voxels.shape, bins, vrange, frange, verbose >= 1)
+    if verbose >= 1: print ("Exited call", datetime.now())
 
     return bins
 
 def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
     tolerance = 1e-5
     print ('Running sequential CPU version')
-    schx, schy, schz, schr = axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    schx, schy, schz, schr = axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
 
     # Check that the sequential CPU version produced any results
     seq_cpu_verified = False
@@ -61,7 +64,7 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
         seq_cpu_verified = True
 
     print ('Running parallel CPU version')
-    pchx, pchy, pchz, pchr = axes_histogram(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    pchx, pchy, pchz, pchr = axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
 
     dx = np.abs(schx - pchx).sum()
     dy = np.abs(schy - pchy).sum()
@@ -78,7 +81,7 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
         print (f'diff r = {dr}')
 
     print ('Running parallel GPU version')
-    pghx, pghy, pghz, pghr = axes_histogram(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
+    pghx, pghy, pghz, pghr = axes_histogram_in_memory(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
 
     dx = np.abs(schx - pghx).sum()
     dy = np.abs(schy - pghy).sum()
@@ -99,22 +102,67 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
         print ('Both parallel CPU and GPU matched sequential CPU version')
     return verified
 
+def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256):
+    tolerance = 1e-5
+    print ('Running sequential CPU version')
+    sch = field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    # Check that the sequential CPU version produced any results
+    seq_cpu_verified = False
+    if (sch.sum() > 0):
+        seq_cpu_verified = True
+
+    return seq_cpu_verified
+
+    print ('Running parallel CPU version')
+    pch = field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    d = np.abs(sch - pch).sum()
+
+    par_cpu_verified = False
+    if (d < tolerance):
+        par_cpu_verified = True
+    else:
+        print (f'diff = {d}')
+
+    return seq_cpu_verified and par_cpu_verified
+
+    print ('Running parallel GPU version')
+    pgh = field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    d = np.abs(sch - pgh).sum()
+
+    par_gpu_verified = False
+    if (d < tolerance):
+        par_gpu_verified = True
+    else:
+        print (f'diff = {d}')
+
+    verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
+    if verified:
+        print ('Both parallel CPU and GPU matched sequential CPU version')
+    return verified
+
 def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
-    par_cpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
-    par_gpu = timeit.timeit(lambda: axes_histogram(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    par_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    par_gpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
     print (f'Average of {runs} runs:')
     print (f'Seq CPU: {seq_cpu / runs:9.04f}')
     print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
     print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
 
-def verify_and_benchmark(voxels):
-    verified = verify_axes_histogram(voxels, voxel_bins=4096)
+def verify_and_benchmark(voxels, field):
+    vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
+    #axes_verified = verify_axes_histogram(voxels, voxel_bins=4096, ranges=vrange)
+    fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=4096, field_bins=4096)
+    print (fields_verified)
+    return
     benchmark_axes_histograms(voxels, voxel_bins=4096)
-    if verified:
+    if axes_verified and fields_verified:
         print ('Verified')
     else:
         print ('Not verified')
@@ -168,8 +216,8 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
             axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
         # TODO commented out during debugging
-        #for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-        #    field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
+        for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
+            field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -210,13 +258,15 @@ if __name__ == '__main__':
         print(f'Benchmarking axes_histograms for {sample} at scale {scale}x')
         h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
         Nz, Ny, Nx = h5meta['voxels'].shape
-        voxels = np.empty((Nz//scale,Ny//scale,Nx//scale), dtype=np.uint16)
+        scaled_shape = (Nz//scale, Ny//scale, Nx//scale)
+        voxels = np.empty(scaled_shape, dtype=np.uint16)
         start = datetime.now()
-        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (0, 0, 0), (Nz//scale, Ny//scale, Nx//scale))
+        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (0, 0, 0), scaled_shape)
+        field = np.load(f'{binary_root}/fields/implant-edt/{scale}x/{sample}.npy')
         end = datetime.now()
-        gb = voxels.nbytes / 1024**3
+        gb = (voxels.nbytes + field.nbytes) / 1024**3
         print(f"Loaded {gb}GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
-        verify_and_benchmark(voxels)
+        verify_and_benchmark(voxels, field)
     else:
         implant_threshold_u16 = 32000 # TODO: use config.constants
         (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram

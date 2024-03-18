@@ -343,7 +343,7 @@ namespace cpu_par {
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                         //if ((voxel >= 0) && field[i] > 0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                            field_type field_value = (field_type) (resample2x2x2(field,{nx,ny,nz},{x,y,z}));
+                            field_type field_value = (field_type) (resample2x2x2(field,field_shape,{z,y,x}));
                             int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
 
 
