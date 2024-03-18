@@ -52,7 +52,7 @@ namespace cpu_par {
 
                     auto voxel = voxels[flat_idx];
                     voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -91,7 +91,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -122,7 +122,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -153,7 +153,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -187,7 +187,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -351,7 +351,7 @@ namespace cpu_par {
                                 fprintf(stderr,"field value out of bounds at X,Y,Z = %lld,%lld,%lld, x,y,z = %.1f,%.1f,%.1f:\n"
                                 "\t field_value = %d (%.3f), field_index = %lld, voxel_value = %d, field[%lld] = %d\n",
                                 X,Y,Z,x,y,z,
-                                field_value, round(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
+                                field_value, floor(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
                                 printf("nx,ny,nz = %lld,%lld,%lld. %lld*%lld + %lld*%lld + %lld = %lld\n",
                                     nx,ny,nz,
                                     (uint64_t) floor(x),ny*nz,

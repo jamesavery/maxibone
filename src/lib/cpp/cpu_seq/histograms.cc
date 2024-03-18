@@ -51,7 +51,7 @@ namespace cpu_seq {
 
                     auto voxel = voxels[flat_idx];
                     voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = (int64_t) round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
@@ -128,7 +128,7 @@ namespace cpu_seq {
                     uint64_t i = z*ny*nx + y*nx + x;
 
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
-                    if((voxel != 0) && (field[i]>0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
+                    if((voxel != 0) && (field[i] > 0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
                         int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
 
                         bins[field_index*voxel_bins + voxel_index]++;
