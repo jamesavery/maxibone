@@ -71,6 +71,16 @@ typedef struct {
     int64_t z, y, x;
 } shape_t;
 
+// Struct for a 3d index
+typedef struct {
+    int64_t z, y, x;
+} idx3d;
+
+// Struct for a 3d index range
+struct idx3drange {
+    int64_t z_start, z_end, y_start, y_end, x_start, x_end;
+};
+
 // Struct for accessing the raw bits of a 32-bit float
 typedef struct {
     union {
@@ -80,5 +90,7 @@ typedef struct {
 } raw32_t;
 
 #define GB_VOXEL ((1024 / sizeof(voxel_type)) * 1024 * 1024)
+
+typedef std::vector<std::unordered_set<int64_t>> mapping_t;
 
 #endif
