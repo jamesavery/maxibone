@@ -233,7 +233,8 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
             axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
         # TODO commented out during debugging
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
+            #field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
+            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz, Ny, Nx), voxels.shape, f_bins[i], (vmin, vmax), (fmin, fmax), True)
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -293,7 +294,7 @@ if __name__ == '__main__':
     else:
         implant_threshold_u16 = 32000 # TODO: use config.constants
         (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
-        field_names=[] #["edt","gauss","gauss+edt"] # Should this be commandline defined?
+        field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
         xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
                                             None if mask=="None" else mask, mask_scale, voxel_bins,

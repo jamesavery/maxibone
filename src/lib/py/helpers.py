@@ -143,7 +143,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     block_size       = min(block_size, Nz-offset)
 
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
-    fields = np.zeros((Nfields,block_size//2,Ny//2,Nx//2), dtype=np.uint16)
+    fields = np.zeros((Nfields,block_size,Ny,Nx), dtype=np.uint16)
 
     if mask_name is not None:
         for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5", leave=True):
@@ -154,9 +154,9 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/1x/{sample}.uint16", leave=True):
         load_slice(voxels, f'{binary_root}/voxels/1x/{sample}.uint16', (offset, 0, 0), (Nz, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
 
-    for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/2x/{sample}.npy",leave=True):
-        fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/2x/{sample}.npy", mmap_mode='r')
-        fields[i,:] = fi[offset//2:offset//2 + block_size//2]
+    for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/1x/{sample}.npy",leave=True):
+        fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/1x/{sample}.npy", mmap_mode='r')
+        fields[i,:] = fi[offset:offset + block_size]
 
     if mask_name is not None:
         nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
