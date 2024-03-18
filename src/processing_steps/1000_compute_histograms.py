@@ -119,7 +119,7 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     if (sch.sum() > 0):
         seq_cpu_verified = True
 
-    print ('Running parallel CPU version')
+    print ('Field - Running parallel CPU version')
     pch = field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
 
     Image.fromarray(tobyt(row_normalize(pch))).save(f"{outpath}/field_verification_par_cpu.png")
@@ -132,9 +132,7 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     else:
         print (f'diff = {d}')
 
-    return seq_cpu_verified and par_cpu_verified
-
-    print ('Running parallel GPU version')
+    print ('Field - Running parallel GPU version')
     pgh = field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
 
     d = np.abs(sch - pgh).sum()
@@ -147,7 +145,7 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
 
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
     if verified:
-        print ('Both parallel CPU and GPU matched sequential CPU version')
+        print ('Field: Both parallel CPU and GPU matched sequential CPU version')
     return verified
 
 def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
@@ -162,13 +160,24 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
     print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
 
+def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins=256, runs=10):
+    print()
+    print('----- Benchmarking -----')
+    print()
+    seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+    par_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+    par_gpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+    print (f'Average of {runs} runs:')
+    print (f'Seq CPU: {seq_cpu / runs:9.04f}')
+    print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
+    print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
+
 def verify_and_benchmark(voxels, field, bins=4096):
     vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
     axes_verified = verify_axes_histogram(voxels, voxel_bins=bins, ranges=vrange)
     fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
-    print (fields_verified)
-    return
     benchmark_axes_histograms(voxels, voxel_bins=bins)
+    benchmark_field_histograms(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
     if axes_verified and fields_verified:
         print ('Verified')
     else:
@@ -268,13 +277,16 @@ if __name__ == '__main__':
     if benchmark:
         print(f'Benchmarking axes_histograms for {sample} at scale {scale}x')
         h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-        Nz, Ny, Nx = h5meta['voxels'].shape
+        Nz, Ny, Nx = h5meta['voxels'].shape # TODO this is not the volume matched shape!
         scaled_shape = (Nz//scale, Ny//scale, Nx//scale)
         voxels = np.empty(scaled_shape, dtype=np.uint16)
         start = datetime.now()
         load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (0, 0, 0), scaled_shape)
-        field = np.load(f'{binary_root}/fields/implant-edt/{scale}x/{sample}.npy')
+        field = np.load(f'{binary_root}/fields/implant-gauss/{scale}x/{sample}.npy')
         end = datetime.now()
+        # Align them
+        voxels = voxels[:field.shape[0],:,:]
+        print (voxels.shape, field.shape, (Nz, Ny, Nx))
         gb = (voxels.nbytes + field.nbytes) / 1024**3
         print(f"Loaded {gb}GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
         verify_and_benchmark(voxels, field, 4096 // scale)
