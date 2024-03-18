@@ -6,7 +6,7 @@ PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 
 CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++17 -O3
+CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++20 -O3
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
 cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion #-Weffc++
