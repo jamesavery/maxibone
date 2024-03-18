@@ -245,15 +245,14 @@ namespace cpu_par {
         auto [v_min, v_max] = vrange;
         auto [z_start, y_start, x_start] = offset;
         uint64_t
-            // TODO maybe make into a parameter? These values are derived from 1000_compute_histograms.py, the original was bins_info.size, which is the flat total amount of elements in the bins array.
-            bins_length = nz*(voxel_bins/2)*field_bins,
+            bins_length = field_bins * voxel_bins,
             z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
             y_end = nY,
             x_end = nX;
 
         #pragma omp parallel
         {
-            uint64_t *tmp_bins = (uint64_t*) malloc(sizeof(uint64_t) * bins_length);
+            uint64_t *tmp_bins = (uint64_t*) calloc(bins_length, sizeof(uint64_t));
             #pragma omp for nowait
             for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
                 for (uint64_t Y = y_start; Y < y_end; Y++) {

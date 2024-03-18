@@ -112,17 +112,17 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     print ('Running sequential CPU version')
     sch = field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
 
-    Image.fromarray(tobyt(row_normalize(sch))).save(f"{outpath}/field_verification.png")
+    Image.fromarray(tobyt(row_normalize(sch))).save(f"{outpath}/field_verification_seq_cpu.png")
 
     # Check that the sequential CPU version produced any results
     seq_cpu_verified = False
     if (sch.sum() > 0):
         seq_cpu_verified = True
 
-    return seq_cpu_verified
-
     print ('Running parallel CPU version')
     pch = field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    Image.fromarray(tobyt(row_normalize(pch))).save(f"{outpath}/field_verification_par_cpu.png")
 
     d = np.abs(sch - pch).sum()
 
