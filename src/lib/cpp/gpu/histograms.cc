@@ -125,7 +125,8 @@ namespace gpu {
                          const uint64_t voxel_bins,
                          const uint64_t field_bins,
                          const std::tuple<double, double> &vrange,
-                         const std::tuple<double, double> &frange) {
+                         const std::tuple<double, double> &frange,
+                         const bool verbose) {
         throw std::runtime_error("Not implemented");
     }
 
@@ -139,7 +140,8 @@ namespace gpu {
                                   const uint64_t voxel_bins,
                                   const uint64_t field_bins,
                                   const std::tuple<double, double> &vrange,
-                                  const std::tuple<double, double> &frange) {
+                                  const std::tuple<double, double> &frange,
+                                  const bool verbose) {
         throw std::runtime_error("Not implemented");
     }
 

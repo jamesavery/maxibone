@@ -54,7 +54,8 @@ namespace python_api {
                          const tuple<int64_t,int64_t,int64_t> np_block_size,
                          np_array<uint64_t> &np_bins,
                          const tuple<double, double> vrange,
-                         const tuple<double, double> frange) {
+                         const tuple<double, double> frange,
+                         const bool verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
             field_info = np_field.request(),
@@ -74,7 +75,7 @@ namespace python_api {
         const field_type *field = static_cast<field_type*>(field_info.ptr);
         uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
 
-        NS::field_histogram(voxels, field, voxels_shape, field_shape, offset, block_size, bins, voxel_bins, field_bins, vrange, frange);
+        NS::field_histogram(voxels, field, voxels_shape, field_shape, offset, block_size, bins, voxel_bins, field_bins, vrange, frange, verbose);
     }
 
     pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
@@ -104,7 +105,8 @@ namespace python_api {
                         const std::tuple<int64_t,int64_t,int64_t> np_block_size,
                         np_array<uint64_t> &np_bins,
                         const std::tuple<double,double> vrange,
-                        const std::tuple<double,double> frange) {
+                        const std::tuple<double,double> frange,
+                        const bool verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
             field_info = np_field.request(),
@@ -124,7 +126,7 @@ namespace python_api {
         const field_type *field = static_cast<field_type*>(field_info.ptr);
         uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
 
-        NS::field_histogram_resample(voxels, field, voxels_shape, field_shape, offset, block_size, bins, voxel_bins, field_bins, vrange, frange);
+        NS::field_histogram_resample(voxels, field, voxels_shape, field_shape, offset, block_size, bins, voxel_bins, field_bins, vrange, frange, verbose);
     }
 
 }
@@ -150,7 +152,8 @@ PYBIND11_MODULE(histograms, m) {
         py::arg("np_block_size"),
         py::arg("np_bins").noconvert(),
         py::arg("vrange"),
-        py::arg("frange"));
+        py::arg("frange"),
+        py::arg("verbose"));
     m.def("field_histogram_resample", &python_api::field_histogram_resample,
         py::arg("np_voxels"),
         py::arg("np_field"),
@@ -158,7 +161,8 @@ PYBIND11_MODULE(histograms, m) {
         py::arg("np_block_size"),
         py::arg("np_bins").noconvert(),
         py::arg("vrange"),
-        py::arg("frange"));
+        py::arg("frange"),
+        py::arg("verbose"));
     m.def("masked_minmax", &python_api::masked_minmax,
         py::arg("np_voxels"));
 }

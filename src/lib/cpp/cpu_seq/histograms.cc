@@ -89,7 +89,8 @@ namespace cpu_seq {
                          const uint64_t voxel_bins,
                          const uint64_t field_bins,
                          const std::tuple<double, double> &vrange,
-                         const std::tuple<double, double> &frange) {
+                         const std::tuple<double, double> &frange,
+                         const bool verbose) {
 
         auto [nZ, nY, nX] = voxels_shape;
         auto [nz, ny, nx] = field_shape;
@@ -149,7 +150,8 @@ namespace cpu_seq {
                                   const uint64_t voxel_bins,
                                   const uint64_t field_bins,
                                   const std::tuple<double, double> &vrange,
-                                  const std::tuple<double, double> &frange) {
+                                  const std::tuple<double, double> &frange,
+                                  const bool verbose) {
         throw std::runtime_error("Not implemented");
     }
 
