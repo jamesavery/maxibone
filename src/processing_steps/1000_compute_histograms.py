@@ -26,10 +26,10 @@ def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, v
     center = (Ny//2, Nx//2)
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
 
-    x_bins = np.zeros((Nx,voxel_bins), dtype=np.uint64)
-    y_bins = np.zeros((Ny,voxel_bins), dtype=np.uint64)
-    z_bins = np.zeros((Nz,voxel_bins), dtype=np.uint64)
-    r_bins = np.zeros((Nr,voxel_bins), dtype=np.uint64)
+    x_bins = np.zeros((Nx, voxel_bins), dtype=np.uint64)
+    y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
+    z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
+    r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
 
     if ranges is None:
         vmin, vmax = masked_minmax(voxels)
@@ -65,6 +65,11 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
 
     print ('Running parallel CPU version')
     pchx, pchy, pchz, pchr = axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
+
+    Image.fromarray(tobyt(row_normalize(pchx))).save(f"{outpath}/xb_verification.png")
+    Image.fromarray(tobyt(row_normalize(pchy))).save(f"{outpath}/yb_verification.png")
+    Image.fromarray(tobyt(row_normalize(pchz))).save(f"{outpath}/zb_verification.png")
+    Image.fromarray(tobyt(row_normalize(pchr))).save(f"{outpath}/rb_verification.png")
 
     dx = np.abs(schx - pchx).sum()
     dy = np.abs(schy - pchy).sum()
@@ -106,6 +111,8 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     tolerance = 1e-5
     print ('Running sequential CPU version')
     sch = field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    Image.fromarray(tobyt(row_normalize(sch))).save(f"{outpath}/field_verification.png")
 
     # Check that the sequential CPU version produced any results
     seq_cpu_verified = False
@@ -155,13 +162,13 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
     print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
 
-def verify_and_benchmark(voxels, field):
+def verify_and_benchmark(voxels, field, bins=4096):
     vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
-    #axes_verified = verify_axes_histogram(voxels, voxel_bins=4096, ranges=vrange)
-    fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=4096, field_bins=4096)
+    axes_verified = verify_axes_histogram(voxels, voxel_bins=bins, ranges=vrange)
+    fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
     print (fields_verified)
     return
-    benchmark_axes_histograms(voxels, voxel_bins=4096)
+    benchmark_axes_histograms(voxels, voxel_bins=bins)
     if axes_verified and fields_verified:
         print ('Verified')
     else:
@@ -239,6 +246,7 @@ if __name__ == '__main__':
     # - block_size == 0 means "do one full subvolume at the time, interpret z_offset as start-at-subvolume-number"
     # - n_blocks   == 0 means "all blocks"
     # TODO move some of the constants / parameters out into the configuration
+    # TODO stripes appear in the histograms when running on 8x with bins=4096 ??
     sample, scale, block_size, z_offset, n_blocks, suffix, \
     mask, mask_scale, voxel_bins, field_bins, benchmark, verbose \
         = commandline_args({"sample" : "<required>",
@@ -254,6 +262,9 @@ if __name__ == '__main__':
                             "benchmark" : False,
                             "verbose" : 1})
 
+    outpath = f'{hdf5_root}/processed/histograms/{sample}/'
+    pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
+
     if benchmark:
         print(f'Benchmarking axes_histograms for {sample} at scale {scale}x')
         h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
@@ -266,14 +277,11 @@ if __name__ == '__main__':
         end = datetime.now()
         gb = (voxels.nbytes + field.nbytes) / 1024**3
         print(f"Loaded {gb}GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
-        verify_and_benchmark(voxels, field)
+        verify_and_benchmark(voxels, field, 4096 // scale)
     else:
         implant_threshold_u16 = 32000 # TODO: use config.constants
         (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
-        field_names=["edt","gauss","gauss+edt"] # Should this be commandline defined?
-
-        outpath = f'{hdf5_root}/processed/histograms/{sample}/'
-        pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
+        field_names=[] #["edt","gauss","gauss+edt"] # Should this be commandline defined?
 
         xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
                                             None if mask=="None" else mask, mask_scale, voxel_bins,
