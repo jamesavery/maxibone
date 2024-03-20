@@ -474,8 +474,9 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         global_size = global_shape.z * global_shape.y * global_shape.x,
         chunks = renames.size(),
         largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
-        chunk_size = largest_chunk * global_shape.y * global_shape.x,
-        aligned_chunk_size = (chunk_size / disk_block_size) * disk_block_size;
+        chunk_size = global_shape.z * global_shape.y * global_shape.x,
+        largest_chunk_size = largest_chunk * global_shape.y * global_shape.x,
+        aligned_chunk_size = ((largest_chunk_size + disk_block_size-1) / disk_block_size) * disk_block_size;
 
     // Generate the paths to the different chunks
     std::vector<std::string> paths(chunks);
@@ -486,7 +487,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
     int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
 
     for (int64_t i = 0; i < chunks; i++) {
-        int64_t this_chunk_size = (i == chunks-1) ? chunk_size - (chunks*chunk_size - global_size) : chunk_size;
+        int64_t this_chunk_size = (i == chunks-1) ? largest_chunk_size : chunk_size;
 
         auto load_start = std::chrono::high_resolution_clock::now();
         load_file(chunk, paths[i], 0, this_chunk_size);
@@ -507,6 +508,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         auto filter_start = std::chrono::high_resolution_clock::now();
 
         for (int64_t j = 0; j < this_chunk_size; j++) {
+            assert (i*global_size + j < (total_shape.z * total_shape.y * total_shape.x) && "Index out of bounds");
             mask[i*global_size + j] = chunk[j] == largest;
         }
         auto filter_end = std::chrono::high_resolution_clock::now();
