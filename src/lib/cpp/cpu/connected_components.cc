@@ -308,33 +308,40 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         paths[i] = base_path + std::to_string(i) + ".int64";
     }
     std::string all_path = base_path + "all.int64";
-    int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
+    int64_t
+        global_size = global_shape.z * global_shape.y * global_shape.x,
+        largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
+        chunk_size = largest_chunk * global_shape.y * global_shape.x,
+        aligned_chunk_size = (chunk_size / disk_block_size) * disk_block_size;
+
     FILE *all_file = open_file_write(all_path);
     // TODO handle chunks % disk_block_size != 0
-    int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, chunk_size * sizeof(int64_t));
+    int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
     for (int64_t i = 0; i < chunks; i++) {
+        int64_t this_chunk_size = (i == chunks-1) ? chunk_size - (chunks*chunk_size - global_size) : chunk_size;
+
         auto load_start = std::chrono::high_resolution_clock::now();
-        load_file(chunk, paths[i], 0, chunk_size);
+        load_file(chunk, paths[i], 0, this_chunk_size);
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
-        apply_renaming(chunk, chunk_size, renames[i]);
+        apply_renaming(chunk, this_chunk_size, renames[i]);
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto store_start = std::chrono::high_resolution_clock::now();
-        store_partial(chunk, all_file, i*chunk_size, chunk_size);
+        store_partial(chunk, all_file, i*this_chunk_size, this_chunk_size);
         auto store_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_store = store_end - store_start;
         if (verbose) {
-            std::cout << "store_partial: " << (chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "store_partial: " << (this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
         }
     }
     free(chunk);
