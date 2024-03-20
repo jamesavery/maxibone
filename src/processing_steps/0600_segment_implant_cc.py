@@ -5,8 +5,11 @@ from config.paths import hdf5_root, binary_root
 from functools import partial
 from lib.py.helpers import commandline_args, update_hdf5_mask
 from lib.cpp.cpu.io import load_slice
-from lib.cpp.cpu.connected_components import connected_components
+from lib.cpp.cpu.connected_components import largest_connected_component, connected_components
 import multiprocessing as mp
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 NA = np.newaxis
 
@@ -35,7 +38,7 @@ implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
 layer_size = ny*nx
 hyperthreading = True # TODO check if hyperthreading is enabled
 n_cores = mp.cpu_count() // (2 if hyperthreading else 1) # Only count physical cores
-available_memory = 1024**3 * 64 # 64 GB
+available_memory = 1024**3 * 1 * n_cores # 1 GB per core-ish
 memory_per_core  = available_memory // n_cores
 elements_per_core = memory_per_core // 8 # 8 bytes per element
 layers_per_core = elements_per_core // layer_size
@@ -67,6 +70,7 @@ if layers_per_core > nz:
     noisy_implant = (voxels > implant_threshold_u16)
     del voxels
     label, n_features = ndi.label(noisy_implant, output=np.int64)
+    print (n_features)
     bincnts           = np.bincount(label[label>0],minlength=n_features+1)
     largest_cc_ix     = np.argmax(bincnts)
     implant_mask      = (label == largest_cc_ix)
@@ -95,11 +99,15 @@ else:
 
         np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
 
-    new_labels = connected_components(f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+    #new_labels = connected_components(f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+    #print (new_labels)
+    implant_mask = np.zeros((nz,ny,nx),dtype=bool)
+    print (implant_mask.size)
+    largest_connected_component(implant_mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
-    print (new_labels)
-
-    quit()
+plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{intermediate_folder}/{sample}_yx_largest.png")
+plt.imshow(implant_mask[:,ny//2,:]); plt.savefig(f"{intermediate_folder}/{sample}_zx_largest.png")
+plt.imshow(implant_mask[:,:,nx//2]); plt.savefig(f"{intermediate_folder}/{sample}_zy_largest.png")
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
