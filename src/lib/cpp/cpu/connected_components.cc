@@ -105,11 +105,29 @@ std::vector<T> load_file_strided(const std::string &path, const idx3d &disk_shap
     return data;
 }
 
+// Assumes that `dst` and `dst + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
 template <typename T>
-void load_partial(T *__restrict__ dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
+void load_partial_aligned(T *__restrict__ dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
     fseek(fp, offset*sizeof(T), SEEK_SET);
     int64_t n = fread((char *) dst, sizeof(T), n_elements, fp);
     assert(n == n_elements && "Failed to read all elements");
+}
+
+template <typename T>
+void load_partial(T *__restrict__ dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
+    if (offset % disk_block_size == 0 && n_elements % disk_block_size == 0 && (int64_t) dst % disk_block_size == 0) {
+        load_partial_aligned(dst, fp, offset, n_elements);
+        return;
+    }
+
+    // TODO doesn't work when offset > aligned_n_elements; it is built around loading from the beginning of the file.
+    int64_t
+        aligned_offset = (offset / disk_block_size) * disk_block_size,
+        aligned_n_elements = ((n_elements + disk_block_size - 1) / disk_block_size) * disk_block_size;
+    T *buffer = (T *) aligned_alloc(disk_block_size, aligned_n_elements * sizeof(T));
+    load_partial_aligned(buffer, fp, aligned_offset, aligned_n_elements);
+    memcpy((char *) dst, (char *) buffer + offset - aligned_offset, n_elements*sizeof(T));
+    free(buffer);
 }
 
 FILE* open_file_read(const std::string &path) {
@@ -218,11 +236,50 @@ void store_file_strided(const std::vector<T> &data, const std::string &path, con
     store_file_strided(data.data(), path, disk_shape, shape, range, offset_global);
 }
 
+// Assumes that `src` and `src + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
 template <typename T>
-void store_partial(const T *__restrict__ src, FILE *fp, const int64_t offset, const int64_t n_elements) {
+void store_partial_aligned(const T *__restrict__ src, FILE *fp, const int64_t offset, const int64_t n_elements) {
     fseek(fp, offset*sizeof(T), SEEK_SET);
     int64_t n = fwrite((char *) src, sizeof(T), n_elements, fp);
     assert(n == n_elements && "Failed to write all elements");
+}
+
+template <typename T>
+void store_partial(const T *__restrict__ src, FILE *fp, const int64_t offset, const int64_t n_elements) {
+    if (offset % disk_block_size == 0 && n_elements % disk_block_size == 0 && (int64_t) src % disk_block_size == 0) {
+        store_partial_aligned(src, fp, offset, n_elements);
+        return;
+    }
+
+    int64_t
+        buffer_start = offset % disk_block_size,
+        buffer_end = buffer_start + n_elements,
+        front_elements = disk_block_size - buffer_start,
+        back_elements = buffer_end % disk_block_size,
+        in_between = (n_elements - front_elements) - back_elements,
+        aligned_start = (offset / disk_block_size) * disk_block_size,
+        aligned_end = offset + n_elements + (disk_block_size - back_elements),
+        aligned_n_elements = aligned_end - aligned_start,
+        n_blocks = aligned_n_elements / disk_block_size;
+
+    assert(front_elements + in_between + back_elements == n_elements && "Front, in-between and back elements don't add up to n_elements");
+    assert(aligned_n_elements >= n_elements && "Aligned n_elements is smaller than n_elements");
+
+    T *buffer = (T *) aligned_alloc(disk_block_size, aligned_n_elements * sizeof(T));
+
+    if (front_elements != 0) {
+        load_file_no_alloc(buffer, fp, aligned_start, disk_block_size);
+    }
+
+    if (back_elements != 0) {
+        load_file_no_alloc(buffer + buffer_end, fp, aligned_start + buffer_end, disk_block_size);
+    }
+
+    memcpy((char *) buffer + buffer_start, (char *) src, n_elements * sizeof(T));
+
+    store_partial_aligned(buffer, fp, aligned_start, aligned_n_elements);
+
+    free(buffer);
 }
 
 namespace cpu_par {
