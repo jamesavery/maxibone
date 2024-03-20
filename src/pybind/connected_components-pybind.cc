@@ -13,7 +13,7 @@ namespace python_api {
             global_shape = {std::get<0>(py_global_shape), std::get<1>(py_global_shape), std::get<2>(py_global_shape)};
 
         auto renamings = NS::connected_components(base_path, n_labels_vec, total_shape, global_shape, verbose);
-        return NS::apply_renamings(base_path, n_labels_vec, global_shape, renamings, verbose);
+        return NS::apply_renamings(base_path, n_labels_vec, total_shape, global_shape, renamings, verbose);
     }
 
     void largest_connected_component(np_array<bool> &result, const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const bool verbose = false) {

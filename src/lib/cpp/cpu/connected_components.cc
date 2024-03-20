@@ -240,7 +240,7 @@ void apply_renaming(int64_t *__restrict__ img, const int64_t n, const std::vecto
     }
 }
 
-int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
+int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
     auto cc_app_start = std::chrono::high_resolution_clock::now();
 
     // Apply the renaming to a new global file

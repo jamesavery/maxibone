@@ -3,7 +3,7 @@
 namespace cpu_seq {
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
+int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
     throw std::runtime_error("Not implemented");
 }
 
