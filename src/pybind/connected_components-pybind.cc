@@ -30,7 +30,7 @@ namespace python_api {
             global_shape = {std::get<0>(py_global_shape), std::get<1>(py_global_shape), std::get<2>(py_global_shape)};
 
         auto renamings = NS::connected_components(base_path, n_labels_vec, total_shape, global_shape, verbose);
-        int64_t largest = NS::largest_component(base_path, renamings, n_labels_vec.size(), total_shape, global_shape, verbose);
+        int64_t largest = NS::largest_component(base_path, renamings, n_labels_vec[0], total_shape, global_shape, verbose);
         NS::filter_largest(base_path, result_data, renamings, largest, total_shape, global_shape, verbose);
     }
 

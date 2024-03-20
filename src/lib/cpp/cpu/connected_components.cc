@@ -396,10 +396,10 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
     return renames;
 }
 
-void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const idx3d &global_shape) {
-    int64_t n = global_shape.z * global_shape.y * global_shape.x;
+void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size) {
     //#pragma omp parallel for schedule(static)
-    for (int64_t i = 0; i < n; i++) {
+    for (int64_t i = 0; i < size; i++) {
+        assert (img[i] <= n_labels && "Label out of bounds");
         sizes[img[i]]++;
     }
 }
@@ -537,7 +537,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
         paths[i] = base_path + std::to_string(i) + ".int64";
     }
 
-    std::vector<int64_t> sizes(n_labels, 0);
+    std::vector<int64_t> sizes(n_labels+1, 0);
 
     int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
 
