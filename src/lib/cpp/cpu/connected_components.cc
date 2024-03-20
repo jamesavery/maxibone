@@ -594,8 +594,9 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
     int64_t
         chunks = renames.size(),
         largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
-        chunk_size = largest_chunk * global_shape.y * global_shape.x,
-        aligned_chunk_size = (chunk_size / disk_block_size) * disk_block_size;
+        chunk_size = global_shape.z * global_shape.y * global_shape.x,
+        largest_chunk_size = largest_chunk * global_shape.y * global_shape.x,
+        aligned_chunk_size = ((largest_chunk_size + disk_block_size-1) / disk_block_size) * disk_block_size;
 
     // Generate the paths to the different chunks
     std::vector<std::string> paths(chunks);
@@ -608,7 +609,8 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
     int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
 
     for (int64_t i = 0; i < chunks; i++) {
-        int64_t this_chunk_size = (i == chunks-1) ? chunk_size - (chunks*chunk_size - total_shape.z*total_shape.y*total_shape.x) : chunk_size;
+        int64_t this_chunk_size = (i == chunks-1) ? largest_chunk_size : chunk_size;
+        assert (this_chunk_size < aligned_chunk_size && "Chunk size is larger than aligned chunk size");
 
         auto load_start = std::chrono::high_resolution_clock::now();
         load_file(chunk, paths[i], 0, this_chunk_size);
@@ -627,7 +629,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
         }
 
         auto sizes_start = std::chrono::high_resolution_clock::now();
-        count_sizes(chunk, sizes, n_labels, global_shape);
+        count_sizes(chunk, sizes, n_labels, this_chunk_size);
         auto sizes_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_sizes = sizes_end - sizes_start;
         if (verbose) {
@@ -636,11 +638,18 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
     }
 
     auto largest_start = std::chrono::high_resolution_clock::now();
-    int64_t largest = *std::max_element(sizes.begin(), sizes.end());
+    int64_t largest = 1;
+    for (int64_t i = 2; i < n_labels+1; i++) {
+        if (sizes[i] > sizes[largest]) {
+            largest = i;
+        }
+    }
     auto largest_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_largest = largest_end - largest_start;
     if (verbose) {
         std::cout << "max_element: " << (n_labels*sizeof(int64_t)) / elapsed_largest.count() / 1e9 << " GB/s" << std::endl;
+        std::cout << "Largest element is: " << largest << std::endl;
+        std::cout << "It occurs " << sizes[largest] << " times" << std::endl;
     }
 
     return largest;
