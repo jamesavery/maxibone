@@ -9,58 +9,92 @@
 #include <unordered_set>
 
 // TODO these should be in a proper spot.
-int64_t disk_block_size = 4096; // TODO get from filesystem.
+// TODO Emphasize names!
+// e_ = element sizes / indices
+// b_ = byte sizes / indices
+int64_t b_disk_block_size = 4096; // TODO get from filesystem.
 
 FILE* open_file_read(const std::string &path);
+FILE* open_file_read_direct(const std::string &path);
 FILE* open_file_write(const std::string &path);
+FILE* open_file_write_direct(const std::string &path);
 
-template <typename T>
-void load_file_no_alloc(T *dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
-    fseek(fp, offset*sizeof(T), SEEK_SET);
-    int64_t n = fread((char *) dst, sizeof(T), n_elements, fp);
-    assert(n == n_elements && "Failed to read all elements");
+template <typename T> int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
+//template <typename T> T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> void load_file_flat(T *__restrict__ dst, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> std::vector<T> load_file_strided(const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+
+template <typename T> int64_t store_flat_aligned(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> int64_t store_strided(const T *__restrict__ src, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
+template <typename T> void store_file_flat(const T *__restrict__ data, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+template <typename T> void store_file_flat(const std::vector<T> &data, const std::string &path, const int64_t e_offset);
+template <typename T> void store_file_strided(const T *__restrict__ data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+template <typename T> void store_file_strided(const std::vector<T> &data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+
+//
+// File open functions
+//
+
+FILE* open_file_read(const std::string &path) {
+    int fd = open(path.c_str(), O_RDONLY);
+    return fdopen(fd, "rb");
 }
 
-// Loads `n_elements` of a file located at `path` on disk at `offset` elements from the beginning of the file, into a vector of type `T`.
-template <typename T>
-void load_file(T *dst, const std::string &path, const int64_t total_offset, const int64_t n_elements) {
-    // Open the file
-    FILE *fp = open_file_write(path);
+FILE* open_file_read_direct(const std::string &path) {
+    int fd = open(path.c_str(), O_RDONLY | O_DIRECT);
+    return fdopen(fd, "rb");
+}
 
-    // Calculate the aligned start and end positions
+FILE* open_file_write(const std::string &path) {
+    int fd = open(path.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    return fdopen(fd, "r+b");
+}
+
+FILE* open_file_write_direct(const std::string &path) {
+    int fd = open(path.c_str(), O_CREAT | O_RDWR | O_DIRECT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    return fdopen(fd, "r+b");
+}
+
+//
+// File load functions
+//
+
+// Assumes that `dst` and `dst + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
+template <typename T>
+int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
+    fseek(fp, e_offset*sizeof(T), SEEK_SET);
+    int64_t e_n = fread((char *) dst, sizeof(T), e_n_elements, fp);
+    return e_n;
+}
+
+template <typename T>
+int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
     int64_t
-        disk_block_size_elements = disk_block_size / sizeof(T),
-        start_pos = total_offset*sizeof(T),
-        end_pos = (total_offset+n_elements)*sizeof(T),
-        aligned_start = (start_pos / disk_block_size) * disk_block_size,
-        aligned_end = ((end_pos + disk_block_size - 1) / disk_block_size) * disk_block_size,
-        aligned_size = aligned_end - aligned_start,
-        aligned_n_elements = aligned_size / sizeof(T),
-        aligned_offset = aligned_start / sizeof(T);
+        b_offset = e_offset * sizeof(T),
+        b_n_elements = e_n_elements * sizeof(T),
+        b_aligned_offset = (b_offset / b_disk_block_size) * b_disk_block_size,
+        b_aligned_n_elements = ((b_n_elements + b_disk_block_size - 1) / b_disk_block_size) * b_disk_block_size,
+        e_aligned_offset = b_aligned_offset / sizeof(T),
+        e_aligned_n_elements = b_aligned_n_elements / sizeof(T);
 
-    if (start_pos % disk_block_size == 0 && end_pos % disk_block_size == 0 && n_elements % disk_block_size_elements == 0 && (int64_t) dst % disk_block_size == 0 && total_offset % disk_block_size_elements == 0) {
-        load_file_no_alloc(dst, fp, total_offset, n_elements);
-    } else {
-        // Allocate a buffer for the write
-        T *buffer = (T *) aligned_alloc(disk_block_size, aligned_size);
-
-        // Read the buffer from disk
-        load_file_no_alloc(buffer, fp, aligned_offset, aligned_n_elements);
-
-        // Copy the data to the destination
-        memcpy((char *) dst, (char *) buffer + start_pos - aligned_start, n_elements*sizeof(T));
-
-        // Free the buffer and close the file
-        free(buffer);
+    if (b_offset % b_disk_block_size == 0 && b_n_elements % b_disk_block_size == 0 && (int64_t) dst % b_disk_block_size == 0) {
+        int64_t e_n = load_flat_aligned(dst, fp, e_offset, e_n_elements);
+        assert (e_n == e_n_elements && "Failed to read all elements");
+        return e_n;
     }
-    fclose(fp);
-}
 
-template <typename T>
-std::vector<T> load_file(const std::string &path, const int64_t offset, const int64_t n_elements) {
-    std::vector<T> data(n_elements);
-    load_file(data.data(), path, offset, n_elements);
-    return data;
+    T *buffer = (T *) aligned_alloc(b_disk_block_size, b_aligned_n_elements);
+    int64_t e_n = load_flat_aligned(buffer, fp, e_aligned_offset, e_aligned_n_elements);
+    int64_t b_pos = ftell(fp);
+    assert ((e_n == e_aligned_n_elements || b_pos == b_offset + b_n_elements) && "Failed to read all elements");
+    memcpy((char *) dst, (char *) buffer + e_offset - e_aligned_offset, b_n_elements);
+    free(buffer);
+
+    return e_n_elements;
 }
 
 // Reads the specified index `range` of a file located at `path` on disk which is of the given `shape`, into `dst`.
@@ -69,217 +103,239 @@ std::vector<T> load_file(const std::string &path, const int64_t offset, const in
 // The last stride is always assumed to be 1, for both src and dst.
 // It is up to the caller to ensure that 1) `range` doesn't exceed `shape`, 2) `dst` is large enough to hold the data, 3) `dst` is set to 0 in case of a partial read and 0s are desired and 4) `dst` is an aligned allocation (e.g. using `aligned_alloc()`) to maximize performance.
 template <typename T>
-void load_file_strided(T *dst, const std::string &path, const idx3d &shape_total, const idx3d &shape_global, const idx3drange &range, const idx3d &offset_global) {
+int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global) {
     // Calculate the strides and sizes
     const idx3d
-        strides_total = {shape_total.y*shape_total.x, shape_total.x, 1},
-        strides_global = {shape_global.y*shape_global.x, shape_global.x, 1},
-        sizes = {range.z_end - range.z_start, range.y_end - range.y_start, range.x_end - range.x_start};
+        e_strides_total = {e_shape_total.y*e_shape_total.x, e_shape_total.x, 1},
+        e_strides_global = {e_shape_global.y*e_shape_global.x, e_shape_global.x, 1},
+        e_sizes = {e_range.z_end - e_range.z_start, e_range.y_end - e_range.y_start, e_range.x_end - e_range.x_start};
 
     // If the shape on disk is the same as the shape in memory, just load the entire file
-    if (shape_global.y == shape_total.y && shape_global.x == shape_total.x && offset_global.y == 0 && offset_global.x == 0 && range.y_start == 0 && range.x_start == 0 && range.y_end == shape_total.y && range.x_end == shape_total.x) {
-        load_file(dst + (offset_global.z*strides_global.z), path, range.z_start*strides_total.z, sizes.z*strides_total.z);
-        return;
+    if (e_shape_global.y == e_shape_total.y && e_shape_global.x == e_shape_total.x && e_offset_global.y == 0 && e_offset_global.x == 0 && e_range.y_start == 0 && e_range.x_start == 0 && e_range.y_end == e_shape_total.y && e_range.x_end == e_shape_total.x) {
+        return load_file(dst + (e_offset_global.z*e_strides_global.z), path, e_range.z_start*e_strides_total.z, e_sizes.z*e_strides_total.z);
     }
     assert (false && "Not implemented yet :) - After the deadline!");
 
     // Open the file
+    int64_t e_total_n = 0;
     FILE *fp = open_file_read(path);
-    fseek(fp, (range.z_start*strides_total.z + range.y_start*strides_total.y + range.x_start*strides_total.x)*sizeof(T), SEEK_SET);
-    for (int64_t z = 0; z < sizes.z; z++) {
-        for (int64_t y = 0; y < sizes.y; y++) {
-            int64_t n = fread((char *) &dst[(z+offset_global.z)*strides_global.z + (y+offset_global.y)*strides_global.y + offset_global.x*strides_global.x], sizeof(T), sizes.x, fp);
-            assert(n == sizes.x && "Failed to read all elements");
-            fseek(fp, (strides_total.y - sizes.x)*sizeof(T), SEEK_CUR);
+    fseek(fp, (e_range.z_start*e_strides_total.z + e_range.y_start*e_strides_total.y + e_range.x_start*e_strides_total.x)*sizeof(T), SEEK_SET);
+    for (int64_t e_z = 0; e_z < e_sizes.z; e_z++) {
+        for (int64_t e_y = 0; e_y < e_sizes.y; e_y++) {
+            int64_t e_n = fread((char *) &dst[(e_z+e_offset_global.z)*e_strides_global.z + (e_y+e_offset_global.y)*e_strides_global.y + e_offset_global.x*e_strides_global.x], sizeof(T), e_sizes.x, fp);
+            assert(e_n == e_sizes.x && "Failed to read all elements");
+            e_total_n += e_n;
+            fseek(fp, (e_strides_total.y - e_sizes.x)*sizeof(T), SEEK_CUR);
         }
-        fseek(fp, (strides_total.z - sizes.y*strides_total.y)*sizeof(T), SEEK_CUR);
+        fseek(fp, (e_strides_total.z - e_sizes.y*e_strides_total.y)*sizeof(T), SEEK_CUR);
     }
     fclose(fp);
+
+    return e_total_n;
 }
 
-// Loads the specified index `range` of a file located at `path` on disk which is of the given `shape`, into a vector of type `T`.
+//template <typename T>
+//T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+//    T *data = (T *) malloc(e_n_elements * sizeof(T));
+//    FILE *fp = open_file_read(path);
+//    int64_t e_n = load_flat(data, fp, e_offset, e_n_elements);
+//    assert (e_n == e_n_elements && "Failed to read all elements");
+//    fclose(fp);
+//    return data;
+//}
+
 template <typename T>
-std::vector<T> load_file_strided(const std::string &path, const idx3d &disk_shape, const idx3d &shape, const idx3drange &range, const idx3d &offset_global) {
-    std::vector<T> data(shape.z*shape.y*shape.x);
-    load_file_strided(data.data(), path, disk_shape, shape, range, offset_global);
+std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+    std::vector<T> data(e_n_elements);
+    FILE *fp = open_file_read(path);
+    int64_t e_n = load_flat(data.data(), fp, e_offset, e_n_elements);
+    assert (e_n == e_n_elements && "Failed to read all elements");
+    fclose(fp);
     return data;
 }
 
-// Assumes that `dst` and `dst + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
 template <typename T>
-void load_partial_aligned(T *__restrict__ dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
-    fseek(fp, offset*sizeof(T), SEEK_SET);
-    int64_t n = fread((char *) dst, sizeof(T), n_elements, fp);
-    assert(n == n_elements && "Failed to read all elements");
-}
-
-template <typename T>
-void load_partial(T *__restrict__ dst, FILE *fp, const int64_t offset, const int64_t n_elements) {
-    if (offset % disk_block_size == 0 && n_elements % disk_block_size == 0 && (int64_t) dst % disk_block_size == 0) {
-        load_partial_aligned(dst, fp, offset, n_elements);
-        return;
-    }
-
-    // TODO doesn't work when offset > aligned_n_elements; it is built around loading from the beginning of the file.
-    int64_t
-        aligned_offset = (offset / disk_block_size) * disk_block_size,
-        aligned_n_elements = ((n_elements + disk_block_size - 1) / disk_block_size) * disk_block_size;
-    T *buffer = (T *) aligned_alloc(disk_block_size, aligned_n_elements * sizeof(T));
-    load_partial_aligned(buffer, fp, aligned_offset, aligned_n_elements);
-    memcpy((char *) dst, (char *) buffer + offset - aligned_offset, n_elements*sizeof(T));
-    free(buffer);
-}
-
-FILE* open_file_read(const std::string &path) {
-    int fd = open(path.c_str(), O_RDONLY | O_DIRECT);
-    return fdopen(fd, "rb");
-}
-
-FILE* open_file_write(const std::string &path) {
-    int fd = open(path.c_str(), O_CREAT | O_RDWR | O_DIRECT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-    return fdopen(fd, "r+b");
-}
-
-// Stores `data.size()` elements of `data` into a file located at `path` on disk at `offset` elements from the beginning of the file.
-template <typename T>
-void store_file(const std::vector<T> &data, const std::string &path, const int64_t offset) {
-    std::ofstream file;
-    file.open(path, std::ios::binary | std::ios::in);
-    if (!file.is_open()) {
-        file.clear();
-        file.open(path, std::ios::binary | std::ios::out);
-    }
-    file.seekp(offset*sizeof(T), std::ios::beg);
-    file.write(reinterpret_cast<const char*>(data.data()), data.size()*sizeof(T));
-    file.flush();
-    file.close();
-}
-
-template <typename T>
-void store_file(const T *data, const std::string &path, const int64_t offset, const int64_t n_elements) {
-    // Open the file
-    FILE *fp = open_file_write(path);
-
-    // Calculate the aligned start and end positions
-    int64_t
-        start_pos = offset*sizeof(T),
-        end_pos = (offset+n_elements)*sizeof(T),
-        aligned_start = (start_pos / disk_block_size) * disk_block_size,
-        aligned_end = ((end_pos + disk_block_size - 1) / disk_block_size) * disk_block_size,
-        aligned_size = aligned_end - aligned_start,
-        aligned_n_elements = aligned_size / sizeof(T);
-
-    // Allocate a buffer for the write
-    T *buffer = (T *) aligned_alloc(disk_block_size, aligned_size);
-
-    // If the start is not aligned, read the first block
-    if (start_pos != aligned_start) {
-        // Read the first block
-        fseek(fp, aligned_start, SEEK_SET);
-        int64_t n = fread((char *) buffer, sizeof(T), disk_block_size, fp);
-        assert (n == disk_block_size && "Failed to read all elements");
-    }
-
-    // If the end is not aligned, read the last block
-    if (end_pos != aligned_end) {
-        // Read the last block
-        fseek(fp, aligned_end - disk_block_size, SEEK_SET);
-        int64_t n = fread((char *) buffer + aligned_size - disk_block_size, sizeof(T), disk_block_size, fp);
-        assert (n == disk_block_size && "Failed to read all elements");
-    }
-
-    // Copy the data to the buffer
-    memcpy((char *) buffer + start_pos - aligned_start, (char *) data, n_elements*sizeof(T));
-
-    // Write the buffer to disk
-    fseek(fp, aligned_start, SEEK_SET);
-    int64_t n = fwrite((char *) buffer, sizeof(T), aligned_n_elements, fp);
-    assert (n == aligned_n_elements && "Failed to write all elements");
-
-    // Free the buffer and close the file
-    free(buffer);
+void load_file_flat(T *__restrict__ dst, const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+    FILE *fp = open_file_read(path);
+    int64_t e_n = load_flat(dst, fp, e_offset, e_n_elements);
+    assert (e_n == e_n_elements && "Failed to read all elements");
     fclose(fp);
 }
 
 template <typename T>
-void store_file_strided(const T *data, const std::string &path, const idx3d &shape_total, const idx3d &shape_global, const idx3drange &range, const idx3d &offset_global) {
+std::vector<T> load_file_strided(const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global) {
+    std::vector<T> data(e_shape.z*e_shape.y*e_shape.x);
+    load_strided(data.data(), path, e_disk_shape, e_shape, e_range, e_offset_global);
+    return data;
+}
+
+//
+// File store functions
+//
+// Assumes that `src` and `src + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
+template <typename T>
+int64_t store_flat_aligned(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
+    fseek(fp, e_offset*sizeof(T), SEEK_SET);
+    int64_t e_n = fwrite((char *) src, sizeof(T), e_n_elements, fp);
+    return e_n;
+}
+
+template <typename T>
+int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
+    int64_t
+        e_disk_block_size = b_disk_block_size / sizeof(T),
+        b_offset = e_offset * sizeof(T),
+        b_n_elements = e_n_elements * sizeof(T),
+        e_buffer_start = e_offset % e_disk_block_size,
+        e_buffer_end = e_buffer_start + e_n_elements,
+        e_front_elements = e_buffer_start == 0 ? 0 : e_disk_block_size - e_buffer_start,
+        e_back_elements = e_buffer_end % e_disk_block_size,
+        e_in_between = (e_n_elements - e_front_elements) - e_back_elements,
+        e_aligned_start = (e_offset / e_disk_block_size) * e_disk_block_size,
+        e_aligned_end = e_offset + e_n_elements + (e_disk_block_size - e_back_elements),
+        e_aligned_n_elements = e_aligned_end - e_aligned_start,
+        b_aligned_start = e_aligned_start * sizeof(T),
+        b_aligned_end = e_aligned_end * sizeof(T),
+        b_aligned_n_elements = e_aligned_n_elements * sizeof(T);
+
+    if (b_offset % b_disk_block_size == 0 && b_n_elements % b_disk_block_size == 0 && (int64_t) src % b_disk_block_size == 0) {
+        std::cout << "ayo" << std::endl;
+        int64_t e_n = store_flat_aligned(src, fp, e_offset, e_n_elements);
+        return e_n;
+    }
+
+    assert(e_front_elements + e_in_between + e_back_elements == e_n_elements && "Front, in-between and back elements don't add up to n_elements");
+    assert(e_aligned_n_elements > e_n_elements && "Aligned n_elements is smaller than n_elements");
+    assert(b_aligned_n_elements % b_disk_block_size == 0 && "Aligned n_elements is not a multiple of disk_block_size");
+
+    std::cout << "sizes are " << e_front_elements << " " << e_in_between << " " << e_back_elements << std::endl;
+
+    // Get the current_file_size
+    fseek(fp, 0, SEEK_END);
+    int64_t b_current_file_size = ftell(fp), e_current_file_size = b_current_file_size / sizeof(T);
+
+    T *buffer = (T *) aligned_alloc(b_disk_block_size, b_aligned_n_elements);
+
+    // Mask the buffer, primarily for debugging, as this is easy to spot in hexdump
+    memset(buffer, 0xff, b_aligned_n_elements);
+
+    std::cout << b_current_file_size << " > " << b_aligned_start << "(" << (b_current_file_size > b_aligned_start) << ") && " << e_front_elements << " != 0 (" << (e_front_elements != 0) << ")" << std::endl;
+    if (b_current_file_size > b_aligned_start && e_front_elements != 0) {
+        std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
+        std::cout << "b_offset " << b_offset << std::endl;
+        std::cout << "b_n_elements " << b_n_elements << std::endl;
+        std::cout << "e_buffer_start " << e_buffer_start << std::endl;
+        std::cout << "e_buffer_end " << e_buffer_end << std::endl;
+        std::cout << "e_front_elements " << e_front_elements << std::endl;
+        std::cout << "e_back_elements " << e_back_elements << std::endl;
+        std::cout << "e_in_between " << e_in_between << std::endl;
+        std::cout << "e_aligned_start " << e_aligned_start << std::endl;
+        std::cout << "e_aligned_end " << e_aligned_end << std::endl;
+        std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
+        std::cout << "b_aligned_start " << b_aligned_start << std::endl;
+        std::cout << "b_aligned_end " << b_aligned_end << std::endl;
+        std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
+
+        int64_t
+            b_this_n = std::min(b_current_file_size - b_aligned_start, b_disk_block_size),
+            e_this_n = b_this_n / sizeof(T),
+            e_n = load_flat_aligned(buffer, fp, e_aligned_start, e_this_n);
+        std::cout << "Front elements: " << e_front_elements << " | e_n: " << e_n << std::endl;
+        assert(e_n == e_this_n && "Failed to read all elements");
+    }
+
+    if (b_current_file_size > b_aligned_end - b_disk_block_size && e_back_elements != 0) {
+        std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
+        std::cout << "b_offset " << b_offset << std::endl;
+        std::cout << "b_n_elements " << b_n_elements << std::endl;
+        std::cout << "e_buffer_start " << e_buffer_start << std::endl;
+        std::cout << "e_buffer_end " << e_buffer_end << std::endl;
+        std::cout << "e_front_elements " << e_front_elements << std::endl;
+        std::cout << "e_back_elements " << e_back_elements << std::endl;
+        std::cout << "e_in_between " << e_in_between << std::endl;
+        std::cout << "e_aligned_start " << e_aligned_start << std::endl;
+        std::cout << "e_aligned_end " << e_aligned_end << std::endl;
+        std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
+        std::cout << "b_aligned_start " << b_aligned_start << std::endl;
+        std::cout << "b_aligned_end " << b_aligned_end << std::endl;
+        std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
+
+
+        int64_t
+            b_this_n = std::min(b_current_file_size - (b_aligned_end - b_disk_block_size), b_disk_block_size),
+            e_this_n = b_this_n / sizeof(T),
+            e_n = load_flat_aligned(buffer + e_buffer_start + e_front_elements + e_in_between, fp, e_aligned_end - e_disk_block_size, e_this_n);
+        std::cout
+            << "Back elements: " << e_back_elements
+            << " | e_n: " << e_n
+            << " | e_this_n: " << e_this_n
+            << " | current_file_size: " << b_current_file_size
+            << std::endl;
+        assert(e_n == e_this_n && "Failed to read all elements");
+    }
+
+    memcpy((char *) buffer + e_buffer_start, (char *) src, b_n_elements);
+
+    int64_t e_n = store_flat_aligned(buffer, fp, e_aligned_start, e_aligned_n_elements);
+
+    free(buffer);
+
+    return e_n;
+}
+
+template <typename T>
+int64_t store_strided(const T *__restrict__ src, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global) {
     // Calculate the strides and sizes
     const idx3d
-        strides_total = {shape_total.y*shape_total.x, shape_total.x, 1},
-        strides_global = {shape_global.y*shape_global.x, shape_global.x, 1},
-        sizes = {range.z_end - range.z_start, range.y_end - range.y_start, range.x_end - range.x_start};
+        e_strides_total = {e_shape_total.y*e_shape_total.x, e_shape_total.x, 1},
+        e_strides_global = {e_shape_global.y*e_shape_global.x, e_shape_global.x, 1},
+        e_sizes = {e_range.z_end - e_range.z_start, e_range.y_end - e_range.y_start, e_range.x_end - e_range.x_start};
+
+    FILE *fp = open_file_write(path);
 
     // If the shape on disk is the same as the shape in memory, just store the entire file
-    if (shape_global.y == shape_total.y && shape_global.x == shape_total.x && offset_global.y == 0 && offset_global.x == 0 && range.y_start == 0 && range.x_start == 0 && range.y_end == shape_total.y && range.x_end == shape_total.x) {
-        store_file(data + offset_global.z*strides_global.z, path, range.z_start*strides_total.z, sizes.z*strides_total.z);
-        return;
+    if (e_shape_global.y == e_shape_total.y && e_shape_global.x == e_shape_total.x && e_offset_global.y == 0 && e_offset_global.x == 0 && e_range.y_start == 0 && e_range.x_start == 0 && e_range.y_end == e_shape_total.y && e_range.x_end == e_shape_total.x) {
+        int64_t e_n = store_flat(src + e_offset_global.z*e_strides_global.z, fp, e_range.z_start*e_strides_total.z, e_sizes.z*e_strides_total.z);
+        fclose(fp);
+        return e_n;
     }
 
     assert (false && "Not implemented yet :) - After the deadline!");
 
     // Open the file
-    FILE *fp = open_file_write(path);
-    fseek(fp, (range.z_start*strides_total.z + range.y_start*strides_total.y + range.x_start*strides_total.x)*sizeof(T), SEEK_SET);
-    for (int64_t z = 0; z < sizes.z; z++) {
-        for (int64_t y = 0; y < sizes.y; y++) {
-            int64_t n = fwrite((char *) &data[(z+offset_global.z)*strides_global.z + (y+offset_global.y)*strides_global.y + (0+offset_global.x)*strides_global.x], sizeof(T), sizes.x, fp);
-            assert (n == sizes.x && "Failed to write all elements");
-            fseek(fp, (strides_total.y - sizes.x)*sizeof(T), SEEK_CUR);
+    fseek(fp, (e_range.z_start*e_strides_total.z + e_range.y_start*e_strides_total.y + e_range.x_start*e_strides_total.x)*sizeof(T), SEEK_SET);
+    for (int64_t z = 0; z < e_sizes.z; z++) {
+        for (int64_t y = 0; y < e_sizes.y; y++) {
+            int64_t n = fwrite((char *) &src[(z+e_offset_global.z)*e_strides_global.z + (y+e_offset_global.y)*e_strides_global.y + (0+e_offset_global.x)*e_strides_global.x], sizeof(T), e_sizes.x, fp);
+            assert (n == e_sizes.x && "Failed to write all elements");
+            fseek(fp, (e_strides_total.y - e_sizes.x)*sizeof(T), SEEK_CUR);
         }
-        fseek(fp, (strides_total.z - sizes.y*strides_total.y) * sizeof(T), SEEK_CUR);
+        fseek(fp, (e_strides_total.z - e_sizes.y*e_strides_total.y) * sizeof(T), SEEK_CUR);
     }
     fclose(fp);
 }
 
 template <typename T>
-void store_file_strided(const std::vector<T> &data, const std::string &path, const idx3d &disk_shape, const idx3d &shape, const idx3drange &range, const idx3d &offset_global) {
-    store_file_strided(data.data(), path, disk_shape, shape, range, offset_global);
-}
-
-// Assumes that `src` and `src + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
-template <typename T>
-void store_partial_aligned(const T *__restrict__ src, FILE *fp, const int64_t offset, const int64_t n_elements) {
-    fseek(fp, offset*sizeof(T), SEEK_SET);
-    int64_t n = fwrite((char *) src, sizeof(T), n_elements, fp);
-    assert(n == n_elements && "Failed to write all elements");
+void store_file_flat(const T *__restrict__ data, const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+    FILE *fp = open_file_write(path);
+    int64_t e_n = store_flat(data, fp, e_offset, e_n_elements);
+    assert (e_n == e_n_elements && "Failed to write all elements");
+    fclose(fp);
 }
 
 template <typename T>
-void store_partial(const T *__restrict__ src, FILE *fp, const int64_t offset, const int64_t n_elements) {
-    if (offset % disk_block_size == 0 && n_elements % disk_block_size == 0 && (int64_t) src % disk_block_size == 0) {
-        store_partial_aligned(src, fp, offset, n_elements);
-        return;
-    }
+void store_file_flat(const std::vector<T> &data, const std::string &path, const int64_t e_offset) {
+    store_file_flat(data.data(), path, e_offset, data.size());
+}
 
-    int64_t
-        buffer_start = offset % disk_block_size,
-        buffer_end = buffer_start + n_elements,
-        front_elements = disk_block_size - buffer_start,
-        back_elements = buffer_end % disk_block_size,
-        in_between = (n_elements - front_elements) - back_elements,
-        aligned_start = (offset / disk_block_size) * disk_block_size,
-        aligned_end = offset + n_elements + (disk_block_size - back_elements),
-        aligned_n_elements = aligned_end - aligned_start,
-        n_blocks = aligned_n_elements / disk_block_size;
+template <typename T>
+void store_file_strided(const T *__restrict__ data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global) {
+    store_strided(data, path, e_disk_shape, e_shape, e_range, e_offset_global);
+}
 
-    assert(front_elements + in_between + back_elements == n_elements && "Front, in-between and back elements don't add up to n_elements");
-    assert(aligned_n_elements >= n_elements && "Aligned n_elements is smaller than n_elements");
-
-    T *buffer = (T *) aligned_alloc(disk_block_size, aligned_n_elements * sizeof(T));
-
-    if (front_elements != 0) {
-        load_file_no_alloc(buffer, fp, aligned_start, disk_block_size);
-    }
-
-    if (back_elements != 0) {
-        load_file_no_alloc(buffer + buffer_end, fp, aligned_start + buffer_end, disk_block_size);
-    }
-
-    memcpy((char *) buffer + buffer_start, (char *) src, n_elements * sizeof(T));
-
-    store_partial_aligned(buffer, fp, aligned_start, aligned_n_elements);
-
-    free(buffer);
+template <typename T>
+void store_file_strided(const std::vector<T> &data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global) {
+    store_file_strided(data.data(), path, e_disk_shape, e_shape, e_range, e_offset_global);
 }
 
 namespace cpu_par {
@@ -297,7 +353,7 @@ void apply_renaming(int64_t *__restrict__ img, const int64_t n, const std::vecto
     }
 }
 
-int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
+int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
     auto cc_app_start = std::chrono::high_resolution_clock::now();
 
     // Apply the renaming to a new global file
@@ -309,43 +365,86 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
     }
     std::string all_path = base_path + "all.int64";
     int64_t
-        global_size = global_shape.z * global_shape.y * global_shape.x,
-        largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
-        chunk_size = largest_chunk * global_shape.y * global_shape.x,
-        aligned_chunk_size = (chunk_size / disk_block_size) * disk_block_size;
+        //largest_chunk = std::max(e_global_shape.z, (e_total_shape.z - (e_total_shape.z / e_global_shape.z) * e_global_shape.z) + e_global_shape.z),
+        e_disk_block_size = b_disk_block_size / sizeof(int64_t),
+        e_largest_chunk = e_total_shape.z - ((chunks-1) * e_global_shape.z),
+        e_chunk_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
+        b_chunk_size = e_chunk_size * sizeof(int64_t),
+        e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
+        b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
+        b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size;
+
+    assert (e_largest_chunk >= e_global_shape.z && "The largest chunk is smaller than the global shape");
+    std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
+    std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
+    std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
+    std::cout << "Chunks: " << chunks << std::endl;
+    std::cout << "Chunk size: " << e_chunk_size << std::endl;
+    std::cout << "Largest chunk size: " << e_largest_chunk_size << std::endl;
+    assert ((chunks-1) * e_global_shape.z + e_largest_chunk == e_total_shape.z && "The chunks don't add up to the total shape");
 
     FILE *all_file = open_file_write(all_path);
-    // TODO handle chunks % disk_block_size != 0
-    int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
-    for (int64_t i = 0; i < chunks; i++) {
-        int64_t this_chunk_size = (i == chunks-1) ? chunk_size - (chunks*chunk_size - global_size) : chunk_size;
 
+    // TODO DEBUGGING
+    int64_t b_img_size = e_total_shape.z * e_total_shape.y * sizeof(int64_t);
+    int64_t b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size;
+    int64_t e_aligned_img_size = b_aligned_img_size / sizeof(int64_t);
+    int64_t *debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
+    memset(debug_image, 0, b_aligned_img_size);
+    if (debug_image == nullptr) {
+        perror("aligned_alloc");
+        exit(EXIT_FAILURE);
+    }
+
+    int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size * sizeof(int64_t));
+    for (int64_t i = 0; i < chunks; i++) {
+        int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
+
+        if (i < chunks) {
         auto load_start = std::chrono::high_resolution_clock::now();
-        load_file(chunk, paths[i], 0, this_chunk_size);
+        load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
-        apply_renaming(chunk, this_chunk_size, renames[i]);
+        apply_renaming(chunk, e_this_chunk_size, renames[i]);
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+        }
+            //for (int64_t ii = 0; ii < e_this_chunk_size; ii++) { chunk[ii] = i+1; } // For matplotlib
+            //memset(chunk, i+1, e_this_chunk_size * sizeof(int64_t)); // For hexdump
+        } else {
+            memset(chunk, 0, e_this_chunk_size * sizeof(int64_t));
+        }
+
+        // TODO DEBUGGING
+        for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
+            for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
+                debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+            }
         }
 
         auto store_start = std::chrono::high_resolution_clock::now();
-        store_partial(chunk, all_file, i*this_chunk_size, this_chunk_size);
+        store_flat(chunk, all_file, i*e_chunk_size, e_this_chunk_size);
         auto store_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_store = store_end - store_start;
         if (verbose) {
-            std::cout << "store_partial: " << (this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "store_partial: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
         }
     }
     free(chunk);
     fclose(all_file);
+
+    // TODO DEBUGGING
+    FILE *debug_file = open_file_write(base_path + "debug.int64");
+    store_flat(debug_image, debug_file, 0, e_aligned_img_size);
+    free(debug_image);
+    fclose(debug_file);
 
     auto cc_app_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_cc_app = cc_app_end - cc_app_start;
@@ -362,11 +461,11 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
     int64_t n_chunks = total_shape.z / global_shape.z; // Assuming that they are divisible
     FILE *file = open_file_read(path);
     int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
-    int64_t *img = (int64_t *) aligned_alloc(disk_block_size, chunk_size * sizeof(int64_t));
+    int64_t *img = (int64_t *) aligned_alloc(b_disk_block_size, chunk_size * sizeof(int64_t));
     for (int64_t chunk = 0; chunk < n_chunks; chunk++) {
         std::cout << "Chunk " << chunk << " / " << n_chunks << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
-        load_partial(img, file, chunk*chunk_size, chunk_size);
+        load_flat(img, file, chunk*chunk_size, chunk_size);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "load_partial: " << (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
@@ -417,10 +516,10 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
         //#pragma omp parallel for
         for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
             auto [l, r] = index_tree[i][j];
-            // TODO Handle when all chunks doesn't have the same shape.
+            // TODO Handle when all chunks doesn't have the same shape. Shouldn't be the case, as it's only the last block that differs, and we only read the first layer from that one.
             int64_t last_layer = (global_shape.z-1) * global_strides.z;
-            std::vector<int64_t> a = load_file<int64_t>(paths[l], last_layer, global_strides.z);
-            std::vector<int64_t> b = load_file<int64_t>(paths[r], 0, global_strides.z);
+            std::vector<int64_t> a = load_file_flat<int64_t>(paths[l], last_layer, global_strides.z);
+            std::vector<int64_t> b = load_file_flat<int64_t>(paths[r], 0, global_strides.z);
 
             if (i > 0) {
                 // Apply the renamings obtained from the previous layer
@@ -468,15 +567,16 @@ void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const i
     }
 }
 
-void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
+void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
     // Apply the renaming to a new global file
     int64_t
-        global_size = global_shape.z * global_shape.y * global_shape.x,
+        e_global_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
         chunks = renames.size(),
-        largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
-        chunk_size = global_shape.z * global_shape.y * global_shape.x,
-        largest_chunk_size = largest_chunk * global_shape.y * global_shape.x,
-        aligned_chunk_size = ((largest_chunk_size + disk_block_size-1) / disk_block_size) * disk_block_size;
+        e_largest_chunk = std::max(e_global_shape.z, (e_total_shape.z - (e_total_shape.z / e_global_shape.z) * e_global_shape.z) + e_global_shape.z),
+        e_chunk_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
+        e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
+        b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
+        b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size;
 
     // Generate the paths to the different chunks
     std::vector<std::string> paths(chunks);
@@ -484,37 +584,37 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         paths[i] = base_path + std::to_string(i) + ".int64";
     }
 
-    int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
+    int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size);
 
     for (int64_t i = 0; i < chunks; i++) {
-        int64_t this_chunk_size = (i == chunks-1) ? largest_chunk_size : chunk_size;
+        int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
 
         auto load_start = std::chrono::high_resolution_clock::now();
-        load_file(chunk, paths[i], 0, this_chunk_size);
+        load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
-        apply_renaming(chunk, this_chunk_size, renames[i]);
+        apply_renaming(chunk, e_this_chunk_size, renames[i]);
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto filter_start = std::chrono::high_resolution_clock::now();
 
-        for (int64_t j = 0; j < this_chunk_size; j++) {
-            assert (i*global_size + j < (total_shape.z * total_shape.y * total_shape.x) && "Index out of bounds");
-            mask[i*global_size + j] = chunk[j] == largest;
+        for (int64_t j = 0; j < e_this_chunk_size; j++) {
+            assert (i*e_global_size + j < (e_total_shape.z * e_total_shape.y * e_total_shape.x) && "Index out of bounds");
+            mask[i*e_global_size + j] = chunk[j] == largest;
         }
         auto filter_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_filter = filter_end - filter_start;
         if (verbose) {
-            std::cout << "filter_largest: " << (this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "filter_largest: " << (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
         }
     }
 }
@@ -587,16 +687,18 @@ std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(c
     return tree;
 }
 
-int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
+int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
     auto lc_start = std::chrono::high_resolution_clock::now();
 
     // Apply the renaming to a new global file
     int64_t
         chunks = renames.size(),
-        largest_chunk = std::max(global_shape.z, (total_shape.z - (total_shape.z / global_shape.z) * global_shape.z) + global_shape.z),
-        chunk_size = global_shape.z * global_shape.y * global_shape.x,
-        largest_chunk_size = largest_chunk * global_shape.y * global_shape.x,
-        aligned_chunk_size = ((largest_chunk_size + disk_block_size-1) / disk_block_size) * disk_block_size;
+        e_largest_chunk = std::max(e_global_shape.z, (e_total_shape.z - (e_total_shape.z / e_global_shape.z) * e_global_shape.z) + e_global_shape.z),
+        e_chunk_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
+        e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
+        b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
+        b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size,
+        e_aligned_chunk_size = b_aligned_chunk_size / sizeof(int64_t);
 
     // Generate the paths to the different chunks
     std::vector<std::string> paths(chunks);
@@ -606,34 +708,34 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
 
     std::vector<int64_t> sizes(n_labels+1, 0);
 
-    int64_t *chunk = (int64_t *) aligned_alloc(disk_block_size, aligned_chunk_size * sizeof(int64_t));
+    int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size);
 
     for (int64_t i = 0; i < chunks; i++) {
-        int64_t this_chunk_size = (i == chunks-1) ? largest_chunk_size : chunk_size;
-        assert (this_chunk_size < aligned_chunk_size && "Chunk size is larger than aligned chunk size");
+        int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
+        assert (e_this_chunk_size <= e_aligned_chunk_size && "Chunk size is larger than aligned chunk size");
 
         auto load_start = std::chrono::high_resolution_clock::now();
-        load_file(chunk, paths[i], 0, this_chunk_size);
+        load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
-        apply_renaming(chunk, this_chunk_size, renames[i]);
+        apply_renaming(chunk, e_this_chunk_size, renames[i]);
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto sizes_start = std::chrono::high_resolution_clock::now();
-        count_sizes(chunk, sizes, n_labels, this_chunk_size);
+        count_sizes(chunk, sizes, n_labels, e_this_chunk_size);
         auto sizes_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_sizes = sizes_end - sizes_start;
         if (verbose) {
-            std::cout << "count_sizes: " << (this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "count_sizes: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
         }
     }
 
