@@ -8,6 +8,23 @@
 #include <omp.h>
 #include <unordered_set>
 
+// Debug functions
+constexpr bool DEBUG = false;
+
+void print_idx3d(const idx3d &idx) {
+    std::cout << idx.z << " " << idx.y << " " << idx.x << std::endl;
+}
+
+void print_vector(const std::vector<int64_t> &vec) {
+    std::cout << "[ ";
+    for (int64_t i = 0; i < (int64_t) vec.size(); i++) {
+        if (i > 0)
+            std::cout << ", ";
+        std::cout << vec[i];
+    }
+    std::cout << " ]" << std::endl;
+}
+
 // TODO these should be in a proper spot.
 // TODO Emphasize names!
 // e_ = element sizes / indices
@@ -74,12 +91,20 @@ int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset,
 template <typename T>
 int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
     int64_t
+        e_disk_block_size = b_disk_block_size / sizeof(T),
         b_offset = e_offset * sizeof(T),
         b_n_elements = e_n_elements * sizeof(T),
-        b_aligned_offset = (b_offset / b_disk_block_size) * b_disk_block_size,
-        b_aligned_n_elements = ((b_n_elements + b_disk_block_size - 1) / b_disk_block_size) * b_disk_block_size,
-        e_aligned_offset = b_aligned_offset / sizeof(T),
-        e_aligned_n_elements = b_aligned_n_elements / sizeof(T);
+        e_buffer_start = e_offset % e_disk_block_size,
+        e_buffer_end = e_buffer_start + e_n_elements,
+        e_front_elements = (e_disk_block_size - e_buffer_start) % e_disk_block_size,
+        e_back_elements = e_buffer_end % e_disk_block_size,
+        e_in_between = (e_n_elements - e_front_elements) - e_back_elements,
+        e_aligned_start = (e_offset / e_disk_block_size) * e_disk_block_size,
+        e_aligned_end = e_offset + e_n_elements + ((e_disk_block_size - e_back_elements) % e_disk_block_size),
+        e_aligned_n_elements = e_aligned_end - e_aligned_start,
+        b_aligned_start = e_aligned_start * sizeof(T),
+        b_aligned_end = e_aligned_end * sizeof(T),
+        b_aligned_n_elements = e_aligned_n_elements * sizeof(T);
 
     if (b_offset % b_disk_block_size == 0 && b_n_elements % b_disk_block_size == 0 && (int64_t) dst % b_disk_block_size == 0) {
         int64_t e_n = load_flat_aligned(dst, fp, e_offset, e_n_elements);
@@ -87,11 +112,36 @@ int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const i
         return e_n;
     }
 
+    if (DEBUG) {
+        std::cout << "--------------- sizes are" << std::endl;
+        std::cout << "e_offset " << e_offset << std::endl;
+        std::cout << "e_n_elements " << e_n_elements << std::endl;
+        std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
+        std::cout << "b_offset " << b_offset << std::endl;
+        std::cout << "b_n_elements " << b_n_elements << std::endl;
+        std::cout << "e_buffer_start " << e_buffer_start << std::endl;
+        std::cout << "e_buffer_end " << e_buffer_end << std::endl;
+        std::cout << "e_front_elements " << e_front_elements << std::endl;
+        std::cout << "e_back_elements " << e_back_elements << std::endl;
+        std::cout << "e_in_between " << e_in_between << std::endl;
+        std::cout << "e_aligned_start " << e_aligned_start << std::endl;
+        std::cout << "e_aligned_end " << e_aligned_end << std::endl;
+        std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
+        std::cout << "b_aligned_start " << b_aligned_start << std::endl;
+        std::cout << "b_aligned_end " << b_aligned_end << std::endl;
+        std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
+        std::cout << "---------------" << std::endl;
+    }
+
     T *buffer = (T *) aligned_alloc(b_disk_block_size, b_aligned_n_elements);
-    int64_t e_n = load_flat_aligned(buffer, fp, e_aligned_offset, e_aligned_n_elements);
+    int64_t e_n = load_flat_aligned(buffer, fp, e_aligned_start, e_aligned_n_elements);
     int64_t b_pos = ftell(fp);
+
+    if (DEBUG) std::cout << "e_n " << e_n << std::endl;
+
+    // Correct read, or read the rest of the file:
     assert ((e_n == e_aligned_n_elements || b_pos == b_offset + b_n_elements) && "Failed to read all elements");
-    memcpy((char *) dst, (char *) buffer + e_offset - e_aligned_offset, b_n_elements);
+    memcpy((char *) dst, (char *) (buffer + e_buffer_start), b_n_elements);
     free(buffer);
 
     return e_n_elements;
@@ -147,7 +197,7 @@ int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &
 template <typename T>
 std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
     std::vector<T> data(e_n_elements);
-    FILE *fp = open_file_read(path);
+    FILE *fp = open_file_read_direct(path);
     int64_t e_n = load_flat(data.data(), fp, e_offset, e_n_elements);
     assert (e_n == e_n_elements && "Failed to read all elements");
     fclose(fp);
@@ -188,11 +238,11 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
         b_n_elements = e_n_elements * sizeof(T),
         e_buffer_start = e_offset % e_disk_block_size,
         e_buffer_end = e_buffer_start + e_n_elements,
-        e_front_elements = e_buffer_start == 0 ? 0 : e_disk_block_size - e_buffer_start,
+        e_front_elements = (e_disk_block_size - e_buffer_start) % e_disk_block_size,
         e_back_elements = e_buffer_end % e_disk_block_size,
         e_in_between = (e_n_elements - e_front_elements) - e_back_elements,
         e_aligned_start = (e_offset / e_disk_block_size) * e_disk_block_size,
-        e_aligned_end = e_offset + e_n_elements + (e_disk_block_size - e_back_elements),
+        e_aligned_end = e_offset + e_n_elements + ((e_disk_block_size - e_back_elements) % e_disk_block_size),
         e_aligned_n_elements = e_aligned_end - e_aligned_start,
         b_aligned_start = e_aligned_start * sizeof(T),
         b_aligned_end = e_aligned_end * sizeof(T),
@@ -208,7 +258,7 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
     assert(e_aligned_n_elements > e_n_elements && "Aligned n_elements is smaller than n_elements");
     assert(b_aligned_n_elements % b_disk_block_size == 0 && "Aligned n_elements is not a multiple of disk_block_size");
 
-    std::cout << "sizes are " << e_front_elements << " " << e_in_between << " " << e_back_elements << std::endl;
+    if (DEBUG) std::cout << "sizes are " << e_front_elements << " " << e_in_between << " " << e_back_elements << std::endl;
 
     // Get the current_file_size
     fseek(fp, 0, SEEK_END);
@@ -219,68 +269,73 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
     // Mask the buffer, primarily for debugging, as this is easy to spot in hexdump
     memset(buffer, 0xff, b_aligned_n_elements);
 
-    std::cout << b_current_file_size << " > " << b_aligned_start << "(" << (b_current_file_size > b_aligned_start) << ") && " << e_front_elements << " != 0 (" << (e_front_elements != 0) << ")" << std::endl;
+    if (DEBUG) std::cout << b_current_file_size << " > " << b_aligned_start << "(" << (b_current_file_size > b_aligned_start) << ") && " << e_front_elements << " != 0 (" << (e_front_elements != 0) << ")" << std::endl;
     if (b_current_file_size > b_aligned_start && e_front_elements != 0) {
-        std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
-        std::cout << "b_offset " << b_offset << std::endl;
-        std::cout << "b_n_elements " << b_n_elements << std::endl;
-        std::cout << "e_buffer_start " << e_buffer_start << std::endl;
-        std::cout << "e_buffer_end " << e_buffer_end << std::endl;
-        std::cout << "e_front_elements " << e_front_elements << std::endl;
-        std::cout << "e_back_elements " << e_back_elements << std::endl;
-        std::cout << "e_in_between " << e_in_between << std::endl;
-        std::cout << "e_aligned_start " << e_aligned_start << std::endl;
-        std::cout << "e_aligned_end " << e_aligned_end << std::endl;
-        std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
-        std::cout << "b_aligned_start " << b_aligned_start << std::endl;
-        std::cout << "b_aligned_end " << b_aligned_end << std::endl;
-        std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
-
         int64_t
             b_this_n = std::min(b_current_file_size - b_aligned_start, b_disk_block_size),
             e_this_n = b_this_n / sizeof(T),
             e_n = load_flat_aligned(buffer, fp, e_aligned_start, e_this_n);
-        std::cout << "Front elements: " << e_front_elements << " | e_n: " << e_n << std::endl;
+
+        if (DEBUG) {
+            std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
+            std::cout << "b_offset " << b_offset << std::endl;
+            std::cout << "b_n_elements " << b_n_elements << std::endl;
+            std::cout << "e_buffer_start " << e_buffer_start << std::endl;
+            std::cout << "e_buffer_end " << e_buffer_end << std::endl;
+            std::cout << "e_front_elements " << e_front_elements << std::endl;
+            std::cout << "e_back_elements " << e_back_elements << std::endl;
+            std::cout << "e_in_between " << e_in_between << std::endl;
+            std::cout << "e_aligned_start " << e_aligned_start << std::endl;
+            std::cout << "e_aligned_end " << e_aligned_end << std::endl;
+            std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
+            std::cout << "b_aligned_start " << b_aligned_start << std::endl;
+            std::cout << "b_aligned_end " << b_aligned_end << std::endl;
+            std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
+            std::cout << "Front elements: " << e_front_elements << " | e_n: " << e_n << std::endl;
+        }
+
         assert(e_n == e_this_n && "Failed to read all elements");
     }
 
     if (b_current_file_size > b_aligned_end - b_disk_block_size && e_back_elements != 0) {
-        std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
-        std::cout << "b_offset " << b_offset << std::endl;
-        std::cout << "b_n_elements " << b_n_elements << std::endl;
-        std::cout << "e_buffer_start " << e_buffer_start << std::endl;
-        std::cout << "e_buffer_end " << e_buffer_end << std::endl;
-        std::cout << "e_front_elements " << e_front_elements << std::endl;
-        std::cout << "e_back_elements " << e_back_elements << std::endl;
-        std::cout << "e_in_between " << e_in_between << std::endl;
-        std::cout << "e_aligned_start " << e_aligned_start << std::endl;
-        std::cout << "e_aligned_end " << e_aligned_end << std::endl;
-        std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
-        std::cout << "b_aligned_start " << b_aligned_start << std::endl;
-        std::cout << "b_aligned_end " << b_aligned_end << std::endl;
-        std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
-
-
         int64_t
             b_this_n = std::min(b_current_file_size - (b_aligned_end - b_disk_block_size), b_disk_block_size),
             e_this_n = b_this_n / sizeof(T),
             e_n = load_flat_aligned(buffer + e_buffer_start + e_front_elements + e_in_between, fp, e_aligned_end - e_disk_block_size, e_this_n);
-        std::cout
-            << "Back elements: " << e_back_elements
-            << " | e_n: " << e_n
-            << " | e_this_n: " << e_this_n
-            << " | current_file_size: " << b_current_file_size
-            << std::endl;
+
+        if (DEBUG) {
+            std::cout << "e_disk_block_size " << e_disk_block_size << std::endl;
+            std::cout << "b_offset " << b_offset << std::endl;
+            std::cout << "b_n_elements " << b_n_elements << std::endl;
+            std::cout << "e_buffer_start " << e_buffer_start << std::endl;
+            std::cout << "e_buffer_end " << e_buffer_end << std::endl;
+            std::cout << "e_front_elements " << e_front_elements << std::endl;
+            std::cout << "e_back_elements " << e_back_elements << std::endl;
+            std::cout << "e_in_between " << e_in_between << std::endl;
+            std::cout << "e_aligned_start " << e_aligned_start << std::endl;
+            std::cout << "e_aligned_end " << e_aligned_end << std::endl;
+            std::cout << "e_aligned_n_elements " << e_aligned_n_elements << std::endl;
+            std::cout << "b_aligned_start " << b_aligned_start << std::endl;
+            std::cout << "b_aligned_end " << b_aligned_end << std::endl;
+            std::cout << "b_aligned_n_elements " << b_aligned_n_elements << std::endl;
+            std::cout
+                << "Back elements: " << e_back_elements
+                << " | e_n: " << e_n
+                << " | e_this_n: " << e_this_n
+                << " | current_file_size: " << b_current_file_size
+                << std::endl;
+        }
+
         assert(e_n == e_this_n && "Failed to read all elements");
     }
 
-    memcpy((char *) buffer + e_buffer_start, (char *) src, b_n_elements);
+    memcpy((char *) (buffer + e_buffer_start), (char *) src, b_n_elements);
 
     int64_t e_n = store_flat_aligned(buffer, fp, e_aligned_start, e_aligned_n_elements);
 
     free(buffer);
 
-    return e_n;
+    return e_n_elements;
 }
 
 template <typename T>
@@ -386,21 +441,16 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
     FILE *all_file = open_file_write(all_path);
 
     // TODO DEBUGGING
-    int64_t b_img_size = e_total_shape.z * e_total_shape.y * sizeof(int64_t);
-    int64_t b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size;
-    int64_t e_aligned_img_size = b_aligned_img_size / sizeof(int64_t);
-    int64_t *debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
-    memset(debug_image, 0, b_aligned_img_size);
-    if (debug_image == nullptr) {
-        perror("aligned_alloc");
-        exit(EXIT_FAILURE);
-    }
+    int64_t
+        e_img_size = e_total_shape.z * e_total_shape.y,
+        b_img_size = e_img_size * sizeof(int64_t);
+    int64_t *debug_image = (int64_t *) malloc(b_img_size);
+    memset(debug_image, 0, b_img_size);
 
     int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size * sizeof(int64_t));
     for (int64_t i = 0; i < chunks; i++) {
         int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
 
-        if (i < chunks) {
         auto load_start = std::chrono::high_resolution_clock::now();
         load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
         auto load_end = std::chrono::high_resolution_clock::now();
@@ -415,11 +465,6 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
             std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
-        }
-            //for (int64_t ii = 0; ii < e_this_chunk_size; ii++) { chunk[ii] = i+1; } // For matplotlib
-            //memset(chunk, i+1, e_this_chunk_size * sizeof(int64_t)); // For hexdump
-        } else {
-            memset(chunk, 0, e_this_chunk_size * sizeof(int64_t));
         }
 
         // TODO DEBUGGING
@@ -442,9 +487,10 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
 
     // TODO DEBUGGING
     FILE *debug_file = open_file_write(base_path + "debug.int64");
-    store_flat(debug_image, debug_file, 0, e_aligned_img_size);
-    free(debug_image);
+    fseek(debug_file, 0, SEEK_SET);
+    fwrite((char *) debug_image, sizeof(int64_t), e_img_size, debug_file);
     fclose(debug_file);
+    free(debug_image);
 
     auto cc_app_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_cc_app = cc_app_end - cc_app_start;
@@ -521,14 +567,22 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
             std::vector<int64_t> a = load_file_flat<int64_t>(paths[l], last_layer, global_strides.z);
             std::vector<int64_t> b = load_file_flat<int64_t>(paths[r], 0, global_strides.z);
 
+            store_file_flat(a, base_path + "a_" + std::to_string(l) + ".int64", 0);
+            store_file_flat(b, base_path + "b_" + std::to_string(r) + ".int64", 0);
+
             if (i > 0) {
                 // Apply the renamings obtained from the previous layer
                 apply_renaming(a, renames[l]);
                 apply_renaming(b, renames[r]);
             }
+            std::cout << "l" << l << ":"; print_vector(renames[l]);
+            std::cout << "r" << r << ":"; print_vector(renames[r]);
             auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, verbose);
             n_labels[l] = n_new_labels;
             n_labels[r] = n_new_labels;
+            std::cout << "n_new_labels: " << n_new_labels << std::endl;
+            std::cout << "l" << l << ":"; print_vector(rename_l);
+            std::cout << "r" << r << ":"; print_vector(rename_r);
 
             if (i > 0) {
                 // Run through the left subtree
@@ -543,6 +597,8 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
                     apply_renaming(renames[k], rename_r);
                     n_labels[k] = n_new_labels;
                 }
+                std::cout << "l" << l << ":"; print_vector(rename_l);
+                std::cout << "r" << r << ":"; print_vector(rename_r);
             } else {
                 renames[l] = rename_l;
                 renames[r] = rename_r;
@@ -572,7 +628,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
     int64_t
         e_global_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
         chunks = renames.size(),
-        e_largest_chunk = std::max(e_global_shape.z, (e_total_shape.z - (e_total_shape.z / e_global_shape.z) * e_global_shape.z) + e_global_shape.z),
+        e_largest_chunk = e_total_shape.z - ((chunks-1) * e_global_shape.z),
         e_chunk_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
         e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
         b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
@@ -585,6 +641,13 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
     }
 
     int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size);
+
+    // TODO DEBUGGING
+    int64_t b_img_size = e_total_shape.z * e_total_shape.y * sizeof(int64_t);
+    int64_t b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size;
+    int64_t e_aligned_img_size = b_aligned_img_size / sizeof(int64_t);
+    int64_t *debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
+    memset(debug_image, 0, b_aligned_img_size);
 
     for (int64_t i = 0; i < chunks; i++) {
         int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
@@ -605,8 +668,14 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
             std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
-        auto filter_start = std::chrono::high_resolution_clock::now();
+        // TODO DEBUGGING
+        for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
+            for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
+                debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+            }
+        }
 
+        auto filter_start = std::chrono::high_resolution_clock::now();
         for (int64_t j = 0; j < e_this_chunk_size; j++) {
             assert (i*e_global_size + j < (e_total_shape.z * e_total_shape.y * e_total_shape.x) && "Index out of bounds");
             mask[i*e_global_size + j] = chunk[j] == largest;
@@ -617,6 +686,12 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
             std::cout << "filter_largest: " << (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
         }
     }
+
+    // TODO DEBUGGING
+    FILE *debug_file = open_file_write(base_path + "debug_filter_largest.int64");
+    store_flat(debug_image, debug_file, 0, e_aligned_img_size);
+    free(debug_image);
+    fclose(debug_file);
 }
 
 std::tuple<mapping_t, mapping_t> get_mappings(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape) {
