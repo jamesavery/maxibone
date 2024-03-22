@@ -561,7 +561,7 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
     std::vector<std::vector<std::vector<int64_t>>> renames(index_tree.size(), std::vector<std::vector<int64_t>>(chunks));
     // Rename LUTs, one for each chunk
     for (int64_t i = 0; i < (int64_t) index_tree.size(); i++) {
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
             auto [l, r] = index_tree[i][j];
             // TODO Handle when all chunks doesn't have the same shape. Shouldn't be the case, as it's only the last block that differs, and we only read the first layer from that one.
@@ -624,7 +624,7 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
 }
 
 void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size) {
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (int64_t i = 0; i < size; i++) {
         assert (img[i] <= n_labels && "Label out of bounds");
         sizes[img[i]]++;
