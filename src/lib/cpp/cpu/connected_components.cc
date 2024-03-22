@@ -401,6 +401,7 @@ void apply_renaming(std::vector<int64_t> &img, std::vector<int64_t> &to_rename) 
 void apply_renaming(int64_t *__restrict__ img, const int64_t n, const std::vector<int64_t> &to_rename) {
     #pragma omp parallel for schedule(static)
     for (int64_t i = 0; i < n; i++) {
+        assert (img[i] < (int64_t) to_rename.size() && "Label out of bounds");
         if (img[i] < (int64_t) to_rename.size()) {
             img[i] = to_rename[img[i]];
         }
@@ -537,7 +538,7 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
     fclose(file);
 }
 
-std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
+std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose) {
     auto cc_start = std::chrono::high_resolution_clock::now();
     // Check if the call is well-formed
     int64_t chunks = n_labels.size();
@@ -556,7 +557,9 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
     // Generate the adjacency tree
     std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(chunks);
 
-    std::vector<std::vector<int64_t>> renames(chunks); // Rename LUTs, one for each chunk
+
+    std::vector<std::vector<std::vector<int64_t>>> renames(index_tree.size(), std::vector<std::vector<int64_t>>(chunks));
+    // Rename LUTs, one for each chunk
     for (int64_t i = 0; i < (int64_t) index_tree.size(); i++) {
         //#pragma omp parallel for
         for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
@@ -569,38 +572,44 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
             store_file_flat(a, base_path + "a_" + std::to_string(l) + ".int64", 0);
             store_file_flat(b, base_path + "b_" + std::to_string(r) + ".int64", 0);
 
-            if (i > 0) {
+            for (int64_t k = 0; k < i; k++) {
                 // Apply the renamings obtained from the previous layer
-                apply_renaming(a, renames[l]);
-                apply_renaming(b, renames[r]);
+                apply_renaming(a, renames[k][l]);
+                apply_renaming(b, renames[k][r]);
             }
-            std::cout << "l" << l << ":"; print_vector(renames[l]);
-            std::cout << "r" << r << ":"; print_vector(renames[r]);
-            auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, verbose);
+
+            auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, false);
             n_labels[l] = n_new_labels;
             n_labels[r] = n_new_labels;
-            std::cout << "n_new_labels: " << n_new_labels << std::endl;
-            std::cout << "l" << l << ":"; print_vector(rename_l);
-            std::cout << "r" << r << ":"; print_vector(rename_r);
 
+            // Store the renamings
+            renames[i][l] = rename_l;
+            renames[i][r] = rename_r;
             if (i > 0) {
+                int64_t subtrees = (int64_t) std::pow(2, i);
+
                 // Run through the left subtree
-                int64_t subtrees = i << 1;
                 for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
-                    apply_renaming(renames[k], rename_l);
+                    renames[i][k] = rename_l;
                     n_labels[k] = n_new_labels;
                 }
 
                 // Run through the right subtree
                 for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
-                    apply_renaming(renames[k], rename_r);
+                    renames[i][k] = rename_r;
                     n_labels[k] = n_new_labels;
                 }
-                std::cout << "l" << l << ":"; print_vector(rename_l);
-                std::cout << "r" << r << ":"; print_vector(rename_r);
-            } else {
-                renames[l] = rename_l;
-                renames[r] = rename_r;
+            }
+        }
+    }
+
+    std::vector<std::vector<int64_t>> renames_final(chunks);
+    for (int64_t i = 0; i < chunks; i++) {
+        renames_final[i] = renames[0][i];
+        for (int64_t j = 1; j < (int64_t) renames.size(); j++) {
+            print_vector(renames_final[i]);
+            for (int64_t k = 0; k < (int64_t) renames_final[i].size(); k++) {
+                renames_final[i][k] = renames[j][i][renames_final[i][k]];
             }
         }
     }
@@ -611,7 +620,7 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
         std::cout << "connected_components lut building: " << elapsed_cc.count() << " s" << std::endl;
     }
 
-    return renames;
+    return renames_final;
 }
 
 void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size) {
