@@ -8,7 +8,7 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
 }
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
+std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose) {
     throw std::runtime_error("Not implemented");
 }
 

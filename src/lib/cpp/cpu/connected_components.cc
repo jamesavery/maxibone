@@ -249,7 +249,6 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
         b_aligned_n_elements = e_aligned_n_elements * sizeof(T);
 
     if (b_offset % b_disk_block_size == 0 && b_n_elements % b_disk_block_size == 0 && (int64_t) src % b_disk_block_size == 0) {
-        std::cout << "ayo" << std::endl;
         int64_t e_n = store_flat_aligned(src, fp, e_offset, e_n_elements);
         return e_n;
     }
@@ -262,7 +261,7 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
 
     // Get the current_file_size
     fseek(fp, 0, SEEK_END);
-    int64_t b_current_file_size = ftell(fp), e_current_file_size = b_current_file_size / sizeof(T);
+    int64_t b_current_file_size = ftell(fp);
 
     T *buffer = (T *) aligned_alloc(b_disk_block_size, b_aligned_n_elements);
 
@@ -331,7 +330,7 @@ int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, 
 
     memcpy((char *) (buffer + e_buffer_start), (char *) src, b_n_elements);
 
-    int64_t e_n = store_flat_aligned(buffer, fp, e_aligned_start, e_aligned_n_elements);
+    store_flat_aligned(buffer, fp, e_aligned_start, e_aligned_n_elements);
 
     free(buffer);
 
@@ -421,10 +420,10 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
     std::string all_path = base_path + "all.int64";
     int64_t
         //largest_chunk = std::max(e_global_shape.z, (e_total_shape.z - (e_total_shape.z / e_global_shape.z) * e_global_shape.z) + e_global_shape.z),
-        e_disk_block_size = b_disk_block_size / sizeof(int64_t),
+        //e_disk_block_size = b_disk_block_size / sizeof(int64_t),
         e_largest_chunk = e_total_shape.z - ((chunks-1) * e_global_shape.z),
         e_chunk_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
-        b_chunk_size = e_chunk_size * sizeof(int64_t),
+        //b_chunk_size = e_chunk_size * sizeof(int64_t),
         e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
         b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
         b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size;
@@ -456,7 +455,7 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
@@ -464,7 +463,7 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         // TODO DEBUGGING
@@ -479,7 +478,7 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         auto store_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_store = store_end - store_start;
         if (verbose) {
-            std::cout << "store_partial: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "store_partial: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
         }
     }
     free(chunk);
@@ -514,7 +513,7 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
         load_flat(img, file, chunk*chunk_size, chunk_size);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "load_partial: " << (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
+        std::cout << "load_partial: " << (double) (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
         for (int64_t i = 0; i < chunk_size; i++) {
             int64_t label = img[i];
             if (label > n_labels || label < 0) {
@@ -657,7 +656,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
@@ -665,7 +664,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         // TODO DEBUGGING
@@ -683,7 +682,7 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         auto filter_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_filter = filter_end - filter_start;
         if (verbose) {
-            std::cout << "filter_largest: " << (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "filter_largest: " << (double) (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
         }
     }
 
@@ -747,7 +746,7 @@ std::vector<int64_t> get_sizes(std::vector<int64_t> &img, int64_t n_labels) {
 }
 
 std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks) {
-    int64_t log_chunks = std::ceil(std::log2(chunks));
+    int64_t log_chunks = (int64_t) std::ceil(std::log2(chunks));
     std::vector<std::vector<std::tuple<int64_t, int64_t>>> tree(log_chunks);
     for (int64_t layer = 0; layer < log_chunks; layer++) {
         int64_t n_elements = chunks >> (layer+1); // chunks / 2^layer
@@ -763,7 +762,6 @@ std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(c
 }
 
 int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
-    auto lc_start = std::chrono::high_resolution_clock::now();
 
     // Apply the renaming to a new global file
     int64_t
@@ -794,7 +792,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
         auto load_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_load = load_end - load_start;
         if (verbose) {
-            std::cout << "load_file: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto apply_start = std::chrono::high_resolution_clock::now();
@@ -802,7 +800,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
         auto apply_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
         if (verbose) {
-            std::cout << "apply_renaming: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
         auto sizes_start = std::chrono::high_resolution_clock::now();
@@ -810,7 +808,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
         auto sizes_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_sizes = sizes_end - sizes_start;
         if (verbose) {
-            std::cout << "count_sizes: " << (e_this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
+            std::cout << "count_sizes: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
         }
     }
 
@@ -824,7 +822,7 @@ int64_t largest_component(const std::string &base_path, const std::vector<std::v
     auto largest_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_largest = largest_end - largest_start;
     if (verbose) {
-        std::cout << "max_element: " << (n_labels*sizeof(int64_t)) / elapsed_largest.count() / 1e9 << " GB/s" << std::endl;
+        std::cout << "max_element: " << (double) (n_labels*sizeof(int64_t)) / elapsed_largest.count() / 1e9 << " GB/s" << std::endl;
         std::cout << "Largest element is: " << largest << std::endl;
         std::cout << "It occurs " << sizes[largest] << " times" << std::endl;
     }
