@@ -2,6 +2,7 @@ import h5py, sys, os.path, pathlib, numpy as np, scipy.ndimage as ndi, tqdm, mat
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
+import datetime
 from functools import partial
 from lib.py.helpers import commandline_args, update_hdf5_mask
 from lib.cpp.cpu.io import load_slice
@@ -38,7 +39,7 @@ implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
 layer_size = ny*nx
 hyperthreading = True # TODO check if hyperthreading is enabled
 n_cores = mp.cpu_count() // (2 if hyperthreading else 1) # Only count physical cores
-available_memory = 1024**3 * 1 * n_cores # 1 GB per core-ish
+available_memory = 1024**3 * 4 * n_cores # 1 GB per core-ish
 memory_per_core  = available_memory // n_cores
 elements_per_core = memory_per_core // 8 # 8 bytes per element
 layers_per_core = elements_per_core // layer_size
@@ -64,7 +65,7 @@ if verbose >= 1: print(f"""
 """)
 h5meta.close()
 
-if layers_per_core > nz:
+if layers_per_chunk == 0 or layers_per_chunk >= nz:
     voxels = np.empty((nz,ny,nx),dtype=np.uint16)
     load_slice(voxels, f"{binary_root}/voxels/{scale}x/{sample}.uint16", (0,0,0), (nz,ny,nx))
     noisy_implant = (voxels > implant_threshold_u16)
@@ -93,16 +94,20 @@ else:
             del label
             return n_features
 
+        start = datetime.datetime.now()
         with mp.Pool(n_cores) as pool:
             label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_", implant_threshold_u16=implant_threshold_u16, global_shape=(nz,ny,nx))
             n_labels = pool.map(label_chunk_partial, range(n_chunks))
+        end = datetime.datetime.now()
+        flat_size = nz*ny*nx
+        # load uint16, threshold (uint16 > uint8), label (int64), write int64
+        total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
+        gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
+        print (f'Loading and labelling took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
         np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
 
-    #new_labels = connected_components(f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
-    #print (new_labels)
     implant_mask = np.zeros((nz,ny,nx),dtype=bool)
-    print (implant_mask.size)
     largest_connected_component(implant_mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
 plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{intermediate_folder}/{sample}_yx_largest.png")
