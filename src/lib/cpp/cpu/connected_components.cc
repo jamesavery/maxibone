@@ -645,12 +645,13 @@ void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const i
     #pragma omp parallel
     {
         int64_t thread_id = omp_get_thread_num();
-        std::vector<int64_t> local_sizes = sizes_thread[thread_id];
+        std::vector<int64_t> local_sizes(n_labels+1, 0);
 
         #pragma omp for
         for (int64_t i = 0; i < size; i++) {
             local_sizes[img[i]]++;
         }
+        std::copy(local_sizes.begin(), local_sizes.end(), sizes_thread[thread_id].begin());
 
         #pragma omp for
         for (int64_t i = 0; i < n_labels+1; i++) {
