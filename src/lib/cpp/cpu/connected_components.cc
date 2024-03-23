@@ -641,10 +641,23 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
 }
 
 void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size) {
-    #pragma omp parallel for schedule(static)
-    for (int64_t i = 0; i < size; i++) {
-        assert (img[i] <= n_labels && "Label out of bounds");
-        sizes[img[i]]++;
+    std::vector<std::vector<int64_t>> sizes_thread(omp_get_max_threads(), std::vector<int64_t>(n_labels+1, 0));
+    #pragma omp parallel
+    {
+        int64_t thread_id = omp_get_thread_num();
+        std::vector<int64_t> local_sizes = sizes_thread[thread_id];
+
+        #pragma omp for
+        for (int64_t i = 0; i < size; i++) {
+            local_sizes[img[i]]++;
+        }
+
+        #pragma omp for
+        for (int64_t i = 0; i < n_labels+1; i++) {
+            for (int64_t j = 0; j < omp_get_num_threads(); j++) {
+                sizes[i] += sizes_thread[j][i];
+            }
+        }
     }
 }
 
