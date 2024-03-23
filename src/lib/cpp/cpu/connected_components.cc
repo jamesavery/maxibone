@@ -430,22 +430,27 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
         b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size;
 
     assert (e_largest_chunk >= e_global_shape.z && "The largest chunk is smaller than the global shape");
-    std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
-    std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
-    std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
-    std::cout << "Chunks: " << chunks << std::endl;
-    std::cout << "Chunk size: " << e_chunk_size << std::endl;
-    std::cout << "Largest chunk size: " << e_largest_chunk_size << std::endl;
     assert ((chunks-1) * e_global_shape.z + e_largest_chunk == e_total_shape.z && "The chunks don't add up to the total shape");
+
+    if (verbose) {
+        std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
+        std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
+        std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
+        std::cout << "Chunks: " << chunks << std::endl;
+        std::cout << "Chunk size: " << e_chunk_size << std::endl;
+        std::cout << "Largest chunk size: " << e_largest_chunk_size << std::endl;
+    }
 
     FILE *all_file = open_file_write(all_path);
 
-    // TODO DEBUGGING
     int64_t
+        *debug_image,
         e_img_size = e_total_shape.z * e_total_shape.y,
         b_img_size = e_img_size * sizeof(int64_t);
-    int64_t *debug_image = (int64_t *) malloc(b_img_size);
-    memset(debug_image, 0, b_img_size);
+    if (DEBUG) {
+        debug_image = (int64_t *) malloc(b_img_size);
+        memset(debug_image, 0, b_img_size);
+    }
 
     int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size * sizeof(int64_t));
     for (int64_t i = 0; i < chunks; i++) {
@@ -467,10 +472,11 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
             std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
-        // TODO DEBUGGING
-        for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
-            for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
-                debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+        if (DEBUG) {
+            for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
+                for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
+                    debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+                }
             }
         }
 
@@ -485,12 +491,13 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
     free(chunk);
     fclose(all_file);
 
-    // TODO DEBUGGING
-    FILE *debug_file = open_file_write(base_path + "debug.int64");
-    fseek(debug_file, 0, SEEK_SET);
-    fwrite((char *) debug_image, sizeof(int64_t), e_img_size, debug_file);
-    fclose(debug_file);
-    free(debug_image);
+    if (DEBUG) {
+        FILE *debug_file = open_file_write(base_path + "debug.int64");
+        fseek(debug_file, 0, SEEK_SET);
+        fwrite((char *) debug_image, sizeof(int64_t), e_img_size, debug_file);
+        fclose(debug_file);
+        free(debug_image);
+    }
 
     auto cc_app_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_cc_app = cc_app_end - cc_app_start;
@@ -501,7 +508,7 @@ int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_la
     return n_labels[0];
 }
 
-void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape) {
+void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
     std::vector<bool> found(n_labels+1, false);
     const idx3d strides = { global_shape.y * global_shape.x, global_shape.x, 1 };
     int64_t n_chunks = total_shape.z / global_shape.z; // Assuming that they are divisible
@@ -509,16 +516,25 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
     int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
     int64_t *img = (int64_t *) aligned_alloc(b_disk_block_size, chunk_size * sizeof(int64_t));
     for (int64_t chunk = 0; chunk < n_chunks; chunk++) {
-        std::cout << "Chunk " << chunk << " / " << n_chunks << std::endl;
+        if (verbose) {
+            std::cout << "Chunk " << chunk << " / " << n_chunks << std::endl;
+        }
+
         auto start = std::chrono::high_resolution_clock::now();
         load_flat(img, file, chunk*chunk_size, chunk_size);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
-        std::cout << "load_partial: " << (double) (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
+
+        if (verbose) {
+            std::cout << "load_partial: " << (double) (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
+        }
+
         for (int64_t i = 0; i < chunk_size; i++) {
             int64_t label = img[i];
             if (label > n_labels || label < 0) {
-                std::cout << "Label " << label << " in chunk " << chunk << " at index " << i <<" is outside of bounds 0:" << n_labels << std::endl;
+                if (verbose) {
+                    std::cout << "Label " << label << " in chunk " << chunk << " at index " << i <<" is outside of bounds 0:" << n_labels << std::endl;
+                }
                 continue;
             }
             if (!found[label]) {
@@ -564,13 +580,15 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
         #pragma omp parallel for
         for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
             auto [l, r] = index_tree[i][j];
-            // TODO Handle when all chunks doesn't have the same shape. Shouldn't be the case, as it's only the last block that differs, and we only read the first layer from that one.
+            // This doesn't handle the different chunk sizes, but it should be fine as the last chunk is the only one that differs and we only read the first layer from that one
             int64_t last_layer = (global_shape.z-1) * global_strides.z;
             std::vector<int64_t> a = load_file_flat<int64_t>(paths[l], last_layer, global_strides.z);
             std::vector<int64_t> b = load_file_flat<int64_t>(paths[r], 0, global_strides.z);
 
-            store_file_flat(a, base_path + "a_" + std::to_string(l) + ".int64", 0);
-            store_file_flat(b, base_path + "b_" + std::to_string(r) + ".int64", 0);
+            if (DEBUG) {
+                store_file_flat(a, base_path + "a_" + std::to_string(l) + ".int64", 0);
+                store_file_flat(b, base_path + "b_" + std::to_string(r) + ".int64", 0);
+            }
 
             for (int64_t k = 0; k < i; k++) {
                 // Apply the renamings obtained from the previous layer
@@ -607,7 +625,6 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
     for (int64_t i = 0; i < chunks; i++) {
         renames_final[i] = renames[0][i];
         for (int64_t j = 1; j < (int64_t) renames.size(); j++) {
-            print_vector(renames_final[i]);
             for (int64_t k = 0; k < (int64_t) renames_final[i].size(); k++) {
                 renames_final[i][k] = renames[j][i][renames_final[i][k]];
             }
@@ -650,12 +667,15 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
 
     int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size);
 
-    // TODO DEBUGGING
-    int64_t b_img_size = e_total_shape.z * e_total_shape.y * sizeof(int64_t);
-    int64_t b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size;
-    int64_t e_aligned_img_size = b_aligned_img_size / sizeof(int64_t);
-    int64_t *debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
-    memset(debug_image, 0, b_aligned_img_size);
+    int64_t
+        b_img_size = e_total_shape.z * e_total_shape.y * sizeof(int64_t),
+        b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size,
+        e_aligned_img_size = b_aligned_img_size / sizeof(int64_t),
+        *debug_image;
+    if (DEBUG) {
+        debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
+        memset(debug_image, 0, b_aligned_img_size);
+    }
 
     for (int64_t i = 0; i < chunks; i++) {
         int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
@@ -676,10 +696,11 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
             std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
         }
 
-        // TODO DEBUGGING
-        for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
-            for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
-                debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+        if (DEBUG) {
+            for (int64_t ii = i*e_global_shape.z; ii < (i*e_global_shape.z) + (e_this_chunk_size / (e_global_shape.y * e_global_shape.x)); ii++) {
+                for (int64_t jj = 0; jj < e_total_shape.y; jj++) {
+                    debug_image[ii*e_total_shape.y + jj] = chunk[(ii-i*e_global_shape.z)*e_global_shape.y*e_global_shape.x + jj*e_global_shape.x + (e_global_shape.x/2)];
+                }
             }
         }
 
@@ -695,11 +716,12 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         }
     }
 
-    // TODO DEBUGGING
-    FILE *debug_file = open_file_write(base_path + "debug_filter_largest.int64");
-    store_flat(debug_image, debug_file, 0, e_aligned_img_size);
-    free(debug_image);
-    fclose(debug_file);
+    if (DEBUG) {
+        FILE *debug_file = open_file_write(base_path + "debug_filter_largest.int64");
+        store_flat(debug_image, debug_file, 0, e_aligned_img_size);
+        free(debug_image);
+        fclose(debug_file);
+    }
 }
 
 std::tuple<mapping_t, mapping_t> get_mappings(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape) {
@@ -958,7 +980,6 @@ int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::ve
         to_rename_a[i] = new_rename_a[to_rename_a[i]];
     }
 
-    // TODO is this actually necessary? We'll see.
     // Update mapping_t b to use the new a labels
     for (int64_t i = 1; i < (int64_t) mapping_b.size(); i++) {
         auto entries = mapping_b[i];
