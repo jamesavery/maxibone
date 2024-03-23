@@ -719,8 +719,9 @@ void filter_largest(const std::string &base_path, bool *__restrict__ mask, const
         }
 
         auto filter_start = std::chrono::high_resolution_clock::now();
+        #pragma omp parallel for schedule(static)
         for (int64_t j = 0; j < e_this_chunk_size; j++) {
-            assert (i*e_global_size + j < (e_total_shape.z * e_total_shape.y * e_total_shape.x) && "Index out of bounds");
+            //assert (i*e_global_size + j < (e_total_shape.z * e_total_shape.y * e_total_shape.x) && "Index out of bounds");
             mask[i*e_global_size + j] = chunk[j] == largest;
         }
         auto filter_end = std::chrono::high_resolution_clock::now();
