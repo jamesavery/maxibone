@@ -206,7 +206,7 @@ std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, c
 
 template <typename T>
 void load_file_flat(T *__restrict__ dst, const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
-    FILE *fp = open_file_read(path);
+    FILE *fp = open_file_read_direct(path);
     int64_t e_n = load_flat(dst, fp, e_offset, e_n_elements);
     assert (e_n == e_n_elements && "Failed to read all elements");
     fclose(fp);
