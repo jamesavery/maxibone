@@ -34,33 +34,38 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
     return cpu_seq::cylinder_projection(edt, C, voxel_size, d_min, d_max, theta_min, theta_max, bbox, Muvw, image, count);
 }
 
-void fill_implant_mask(const input_ndarray<mask_type> mask,
+void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
                const matrix4x4 &Muvw,
-               output_ndarray<mask_type> solid_implant_mask,
-               output_ndarray<float> rsqr_maxs,
-               output_ndarray<float> profile) {
+               output_ndarray<real_t> thetas,
+               output_ndarray<float> rsqr_maxs) {
     UNPACK_NUMPY(mask)
 
-    real_t theta_min = real_t(M_PI), theta_max = real_t(-M_PI);
+    real_t *thetas_d = thetas.data;
+
+    if (thetas_d[0] == 0 && thetas_d[1] == 0) {
+        thetas_d[0] = real_t(M_PI);
+        thetas_d[1] = real_t(-M_PI);
+    }
     ssize_t n_segments = rsqr_maxs.shape[0];
     const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
     float     *rsqr_maxs_d     = rsqr_maxs.data;
-    float     *profile_d       = profile.data;
 
-    #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox) copy(rsqr_maxs_d[:n_segments], profile_d[:n_segments])
+    #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox) copy(rsqr_maxs_d[:n_segments])
     {
-        #pragma acc data copy(theta_min, theta_max)
+        #pragma acc data copy(thetas_d[:2])
         {
             for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
                 ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
                 mask_type *mask_buffer = (mask_type *) mask.data + mask_buffer_start;
+                real_t thetas_min = thetas_d[0], thetas_max = thetas_d[1];
                 #pragma acc data copyin(mask_buffer_start, mask_buffer[:mask_buffer_length])
                 {
+                    //Den her proever at allokere for meget memory
                     // TODO the reduction on rsqr_maxs_d kills performance, and allocates more memory than what's available on the GPU! The real solution would be using atomic, but OpenACC doesn't like it on that particular statement.
-                    #pragma acc parallel loop reduction(max:theta_max) reduction(min:theta_min) reduction(max:rsqr_maxs_d[:n_segments])
+                    #pragma acc parallel loop reduction(max:thetas_max) reduction(min:thetas_min) reduction(max:rsqr_maxs_d[:n_segments])
                     for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
                         int64_t
                             global_index = mask_buffer_start + flat_index,
@@ -85,59 +90,78 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
                             if ( in_bbox({{U,V,W}},bbox) ) {
                                 //#pragma acc atomic update
                                 rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-                                theta_min = min(theta_min, theta);
-                                theta_max = max(theta_max, theta);
+                                thetas_min = min(thetas_min, theta);
+                                thetas_max = max(thetas_max, theta);
                             } else {
                                 // Otherwise we've calculated it wrong!
                             }
                         }
                     }
                 }
+                thetas_d[0] = thetas_min;
+                thetas_d[1] = thetas_max;
             }
         }
+    }
+}
 
-        real_t theta_center = (theta_max + theta_min) / 2;
+void fill_implant_mask(const input_ndarray<mask_type> mask,
+               float voxel_size,
+               const array<float,6> &bbox,
+               float r_fraction,
+               const matrix4x4 &Muvw,
+               const input_ndarray<real_t> thetas,
+               const input_ndarray<float> rsqr_maxs,
+               output_ndarray<mask_type> solid_implant_mask,
+               output_ndarray<float> profile) {
+    UNPACK_NUMPY(mask)
 
-        #pragma acc data copyin(theta_center)
-        {
-            for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
-                mask_type *mask_buffer = (mask_type *) mask.data + mask_buffer_start;
-                ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
-                mask_type *solid_mask_buffer = solid_implant_mask.data + mask_buffer_start;
-                #pragma acc data copy(mask_buffer[:mask_buffer_length]) create(solid_mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
-                {
-                    #pragma acc parallel loop // reduction(+:profile_d[:n_segments])
-                    for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
-                        int64_t
-                            global_index = mask_buffer_start + flat_index,
-                            z = global_index / (mask_Ny * mask_Nx),
-                            y = (global_index / mask_Nx) % mask_Ny,
-                            x = global_index % mask_Nx;
-                        mask_type mask_value = mask_buffer[flat_index];
-                        std::array<real_t, 4> Xs = {
-                            real_t(x) * voxel_size,
-                            real_t(y) * voxel_size,
-                            real_t(z) * voxel_size,
-                            1 };
+    const real_t *thetas_d = thetas.data;
+    real_t theta_center = (thetas_d[1] + thetas_d[0]) / 2;
+    ssize_t n_segments = rsqr_maxs.shape[0];
+    const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+    const float     *rsqr_maxs_d     = rsqr_maxs.data;
+    float     *profile_d       = profile.data;
 
-                        // Second pass does the actual work
-                        auto [U,V,W,c] = hom_transform(Xs, Muvw);
-                        float r_sqr = V*V + W*W;
-                        float theta = atan2(V, W);
-                        int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+    #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox, theta_center, thetas_d[:2], rsqr_maxs_d[:n_segments]) copy(profile_d[:n_segments])
+    {
+        for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
+            mask_type *mask_buffer = (mask_type *) mask.data + mask_buffer_start;
+            ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
+            mask_type *solid_mask_buffer = solid_implant_mask.data + mask_buffer_start;
+            #pragma acc data copy(mask_buffer[:mask_buffer_length]) create(solid_mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
+            {
+                #pragma acc parallel loop // reduction(+:profile_d[:n_segments])
+                for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
+                    int64_t
+                        global_index = mask_buffer_start + flat_index,
+                        z = global_index / (mask_Ny * mask_Nx),
+                        y = (global_index / mask_Nx) % mask_Ny,
+                        x = global_index % mask_Nx;
+                    mask_type mask_value = mask_buffer[flat_index];
+                    std::array<real_t, 4> Xs = {
+                        real_t(x) * voxel_size,
+                        real_t(y) * voxel_size,
+                        real_t(z) * voxel_size,
+                        1 };
 
-                        bool solid_mask_value = false;
-                        if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
-                            solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
+                    // Second pass does the actual work
+                    auto [U,V,W,c] = hom_transform(Xs, Muvw);
+                    float r_sqr = V*V + W*W;
+                    float theta = atan2(V, W);
+                    int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-                            if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-                                ATOMIC()
-                                profile_d[U_i] += solid_mask_value;
-                            }
+                    bool solid_mask_value = false;
+                    if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
+                        solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
+
+                        if (theta >= thetas_d[0] && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
+                            #pragma acc atomic update
+                            profile_d[U_i] += solid_mask_value;
                         }
-
-                        solid_mask_buffer[flat_index] = solid_mask_value;
                     }
+
+                    solid_mask_buffer[flat_index] = solid_mask_value;
                 }
             }
         }

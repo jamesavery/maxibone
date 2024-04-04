@@ -117,13 +117,22 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
              output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
              );
 
-void fill_implant_mask(const input_ndarray<mask_type> implant_mask,
+void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
                const matrix4x4 &Muvw,
+               output_ndarray<real_t> thetas,
+               output_ndarray<float> rsqr_maxes);
+
+void fill_implant_mask(const input_ndarray<mask_type> mask,
+               float voxel_size,
+               const array<float,6> &bbox,
+               float r_fraction,
+               const matrix4x4 &Muvw,
+               const input_ndarray<real_t> thetas,
+               const input_ndarray<float> rsqr_maxs,
                output_ndarray<mask_type> solid_implant_mask,
-               output_ndarray<float> rsqr_maxs,
                output_ndarray<float> profile);
 
 /*

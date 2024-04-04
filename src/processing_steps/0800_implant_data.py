@@ -4,17 +4,18 @@ import h5py, sys, os, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu.geometry import fill_implant_mask, compute_front_mask
+from lib.cpp.gpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
 import matplotlib.pyplot as plt
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
 from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
 from numpy import array, newaxis as NA
 
-vedo.settings.start_xvfb()
+#vedo.settings.start_xvfb()
 
-sample, scale, verbose = commandline_args({"sample" : "<required>",
+sample, scale, block_size, verbose = commandline_args({"sample" : "<required>",
                                            "scale" : 2,
+                                           "block_size" : 256,
                                            "verbose" : 1})
 
 output_image_dir = f"{hdf5_root}/processed/implant-data/{sample}"
@@ -37,10 +38,9 @@ except Exception as e:
 if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
 try:
     implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
-    implant      = implant_file["implant/mask"][:]
+    implant      = implant_file["implant/mask"]
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
     nz,ny,nx     = implant.shape
-    implant_file.close()
 except Exception as e:
     print(f"Can't read implant mask {e}.\nDid you run segment-implant-cc.py?")
     sys.exit(-1)
@@ -57,14 +57,38 @@ profile            = np.zeros((n_bins,), dtype=np.float32)
 
 bbox_flat  = tuple(bbox.flatten())
 Muvwp_flat = tuple(Muvwp.flatten())
-if verbose >= 1: print(f"Filling implant mask")
-fill_implant_mask(implant.astype(np.uint8,copy=False),
-                  voxel_size,bbox_flat, rsqr_fraction,
-                  Muvwp_flat,
-                  solid_implant_mask, rsqr_maxs, profile)
+#if verbose >= 1: print(f"Filling implant mask")
+n_blocks = nz // block_size
+mask = np.zeros((block_size,ny,nx), np.uint8)
+thetas = np.zeros((2,), np.float32)
+
+for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask pre"):
+    z0 = i*block_size
+    z1 = (i+1)*block_size
+    if z1 > nz: z1 = nz
+    mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
+    fill_implant_mask_pre(mask[:z1-z0],
+                        voxel_size, bbox_flat, rsqr_fraction,
+                        Muvwp_flat, thetas, rsqr_maxs)
+
+for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask"):
+    z0 = i*block_size
+    z1 = (i+1)*block_size
+    if z1 > nz: z1 = nz
+    mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
+    fill_implant_mask(mask[:z1-z0],
+                        voxel_size, bbox_flat, rsqr_fraction,
+                        Muvwp_flat, thetas, rsqr_maxs, solid_implant_mask, profile)
+
+implant_file.close()
+
+#fill_implant_mask(implant.astype(np.uint8,copy=False),
+#                  voxel_size,bbox_flat, rsqr_fraction,
+#                  Muvwp_flat,
+#                  solid_implant_mask, rsqr_maxs, profile)
 
 front_mask = np.zeros_like(solid_implant_mask)
-compute_front_mask(solid_implant_mask,voxel_size,
+compute_front_mask(solid_implant_mask, voxel_size,
                    Muvwp_flat, bbox_flat, front_mask)
 
 # back_mask  = (Ws<0)
