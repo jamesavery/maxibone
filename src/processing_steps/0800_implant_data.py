@@ -58,7 +58,7 @@ profile            = np.zeros((n_bins,), dtype=np.float32)
 bbox_flat  = tuple(bbox.flatten())
 Muvwp_flat = tuple(Muvwp.flatten())
 #if verbose >= 1: print(f"Filling implant mask")
-n_blocks = nz // block_size
+n_blocks = (nz + block_size-1) // block_size
 mask = np.zeros((block_size,ny,nx), np.uint8)
 thetas = np.zeros((2,), np.float32)
 
