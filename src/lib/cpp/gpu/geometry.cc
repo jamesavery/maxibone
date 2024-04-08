@@ -74,9 +74,9 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                             x = global_index % mask_Nx;
                         mask_type mask_value = mask_buffer[flat_index];
                         std::array<real_t, 4> Xs = {
-                            real_t(x) * voxel_size,
-                            real_t(y) * voxel_size,
                             real_t(z) * voxel_size,
+                            real_t(y) * voxel_size,
+                            real_t(x) * voxel_size,
                             1 };
 
                         if (mask_value) {
