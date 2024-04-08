@@ -105,6 +105,7 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
 }
 
 void fill_implant_mask(const input_ndarray<mask_type> mask,
+               int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
@@ -125,23 +126,23 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
     #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox, theta_center, thetas_d[:2], rsqr_maxs_d[:n_segments]) copy(profile_d[:n_segments])
     {
         for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
-            mask_type *mask_buffer = (mask_type *) mask.data + mask_buffer_start;
+            const mask_type *mask_buffer = mask.data + mask_buffer_start;
             ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
-            mask_type *solid_mask_buffer = solid_implant_mask.data + mask_buffer_start;
+            mask_type *solid_mask_buffer = solid_implant_mask.data + offset + mask_buffer_start;
             #pragma acc data copy(mask_buffer[:mask_buffer_length]) create(solid_mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
             {
                 #pragma acc parallel loop // reduction(+:profile_d[:n_segments])
                 for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
                     int64_t
-                        global_index = mask_buffer_start + flat_index,
+                        global_index = offset + mask_buffer_start + flat_index,
                         z = global_index / (mask_Ny * mask_Nx),
                         y = (global_index / mask_Nx) % mask_Ny,
                         x = global_index % mask_Nx;
                     mask_type mask_value = mask_buffer[flat_index];
                     std::array<real_t, 4> Xs = {
-                        real_t(x) * voxel_size,
-                        real_t(y) * voxel_size,
                         real_t(z) * voxel_size,
+                        real_t(y) * voxel_size,
+                        real_t(x) * voxel_size,
                         1 };
 
                     // Second pass does the actual work
