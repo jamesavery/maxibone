@@ -82,21 +82,6 @@ for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask"):
 
 implant_file.close()
 
-#fill_implant_mask(implant.astype(np.uint8,copy=False),
-#                  voxel_size,bbox_flat, rsqr_fraction,
-#                  Muvwp_flat,
-#                  solid_implant_mask, rsqr_maxs, profile)
-
-front_mask = np.zeros_like(solid_implant_mask)
-compute_front_mask(solid_implant_mask, voxel_size,
-                   Muvwp_flat, bbox_flat, front_mask)
-
-# back_mask  = (Ws<0)
-# front_mask = largest_cc_of((Ws>50)*(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
-
-# # back_part = voxels*back_mask
-# front_part = voxels*front_mask
-
 update_hdf5(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",
             group_name="implant-data",
             datasets  = {"quarter_profile":profile,
@@ -113,6 +98,14 @@ update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
 plt.imshow(solid_implant_mask[solid_implant_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_yx.png")
 plt.imshow(solid_implant_mask[:, solid_implant_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zx.png")
 plt.imshow(solid_implant_mask[:, :, solid_implant_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zy.png")
+
+# Compute front mask
+print ("Computing front mask")
+front_mask = np.zeros_like(solid_implant_mask)
+compute_front_mask(solid_implant_mask, voxel_size,
+                   Muvwp_flat, bbox_flat, front_mask)
+
+del solid_implant_mask
 
 update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="cut_cylinder_bone",
