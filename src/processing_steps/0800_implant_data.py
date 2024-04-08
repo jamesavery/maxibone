@@ -68,7 +68,7 @@ for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask pre"):
     if z1 > nz: z1 = nz
     mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
     fill_implant_mask_pre(mask[:z1-z0],
-                        voxel_size, bbox_flat, rsqr_fraction,
+                        z0*ny*nx, voxel_size, bbox_flat, rsqr_fraction,
                         Muvwp_flat, thetas, rsqr_maxs)
 
 for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask"):

@@ -35,6 +35,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 }
 
 void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
+               int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
@@ -45,7 +46,7 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
 
     real_t *thetas_d = thetas.data;
 
-    if (thetas_d[0] == 0 && thetas_d[1] == 0) {
+    if (offset == 0) {
         thetas_d[0] = real_t(M_PI);
         thetas_d[1] = real_t(-M_PI);
     }
@@ -55,20 +56,19 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
 
     #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox) copy(rsqr_maxs_d[:n_segments])
     {
-        #pragma acc data copy(thetas_d[:2])
-        {
-            for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
-                ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
-                mask_type *mask_buffer = (mask_type *) mask.data + mask_buffer_start;
-                real_t thetas_min = thetas_d[0], thetas_max = thetas_d[1];
-                #pragma acc data copyin(mask_buffer_start, mask_buffer[:mask_buffer_length])
-                {
-                    //Den her proever at allokere for meget memory
-                    // TODO the reduction on rsqr_maxs_d kills performance, and allocates more memory than what's available on the GPU! The real solution would be using atomic, but OpenACC doesn't like it on that particular statement.
-                    #pragma acc parallel loop reduction(max:thetas_max) reduction(min:thetas_min) reduction(max:rsqr_maxs_d[:n_segments])
-                    for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
+        for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
+            ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
+            ssize_t num_threads = min(mask_buffer_length, gpu_threads);
+            const mask_type *mask_buffer = mask.data + mask_buffer_start;
+            real_t thetas_min = thetas_d[0], thetas_max = thetas_d[1];
+            #pragma acc data copyin(mask_buffer_start, mask_buffer[:mask_buffer_length]) copy(thetas_min, thetas_max)
+            {
+                #pragma acc parallel loop reduction(max:thetas_max) reduction(min:thetas_min) reduction(max:rsqr_maxs_d[:n_segments])
+                for (int64_t thread = 0; thread < num_threads; thread++) {
+                    for (int64_t thread_idx = 0; thread_idx < mask_buffer_length; thread_idx += gpu_threads) {
                         int64_t
-                            global_index = mask_buffer_start + flat_index,
+                            flat_index = thread_idx + thread,
+                            global_index = offset + mask_buffer_start + flat_index,
                             z = global_index / (mask_Ny * mask_Nx),
                             y = (global_index / mask_Nx) % mask_Ny,
                             x = global_index % mask_Nx;
@@ -88,7 +88,6 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                             int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                             if ( in_bbox({{U,V,W}},bbox) ) {
-                                //#pragma acc atomic update
                                 rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
                                 thetas_min = min(thetas_min, theta);
                                 thetas_max = max(thetas_max, theta);
@@ -98,9 +97,9 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                         }
                     }
                 }
-                thetas_d[0] = thetas_min;
-                thetas_d[1] = thetas_max;
             }
+            thetas_d[0] = thetas_min;
+            thetas_d[1] = thetas_max;
         }
     }
 }

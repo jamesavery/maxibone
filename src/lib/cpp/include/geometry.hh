@@ -118,6 +118,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
              );
 
 void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
+               int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
