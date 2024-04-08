@@ -45,8 +45,6 @@ except Exception as e:
     print(f"Can't read implant mask {e}.\nDid you run segment-implant-cc.py?")
     sys.exit(-1)
 
-
-
 ((Up_min,Up_max),(Vp_min,Vp_max),(Wp_min,Wp_max)) = bbox
 
 n_bins = 2048//scale
@@ -68,7 +66,7 @@ for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask pre"):
     if z1 > nz: z1 = nz
     mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
     fill_implant_mask_pre(mask[:z1-z0],
-                        z0*ny*nx, voxel_size, bbox_flat, rsqr_fraction,
+                        z0*ny*nx, voxel_size, bbox_flat,
                         Muvwp_flat, thetas, rsqr_maxs)
 
 for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask"):

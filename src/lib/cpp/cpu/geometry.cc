@@ -36,14 +36,26 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 }
 
 void fill_implant_mask(const input_ndarray<mask_type> mask,
+               int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
                const matrix4x4 &Muvw,
+               const input_ndarray<real_t> thetas,
+               const input_ndarray<float> rsqr_maxs,
                output_ndarray<mask_type> solid_implant_mask,
-               output_ndarray<float> rsqr_maxs,
                output_ndarray<float> profile) {
-    return cpu_seq::fill_implant_mask(mask, voxel_size, bbox, r_fraction, Muvw, solid_implant_mask, rsqr_maxs, profile);
+    return cpu_seq::fill_implant_mask(mask, offset, voxel_size, bbox, r_fraction, Muvw, thetas, rsqr_maxs, solid_implant_mask, profile);
+}
+
+void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
+               int64_t offset,
+               float voxel_size,
+               const array<float,6> &bbox,
+               const matrix4x4 &Muvw,
+               output_ndarray<real_t> thetas,
+               output_ndarray<float> rsqr_maxs) {
+    return cpu_seq::fill_implant_mask_pre(mask, offset, voxel_size, bbox, Muvw, thetas, rsqr_maxs);
 }
 
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {

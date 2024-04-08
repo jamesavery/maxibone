@@ -61,7 +61,6 @@ void fill_implant_mask_pre(const np_array<mask_type> mask,
                int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
-               float r_fraction,
                const matrix4x4 &Muvw,
                np_array<real_t> thetas,
                np_array<float> rsqr_maxs) {
@@ -71,7 +70,7 @@ void fill_implant_mask_pre(const np_array<mask_type> mask,
         rsqr_info    = rsqr_maxs.request();
 
     return NS::fill_implant_mask_pre({mask_info.ptr, mask_info.shape},
-                 offset, voxel_size, bbox, r_fraction, Muvw,
+                 offset, voxel_size, bbox, Muvw,
                  {thetas_info.ptr, thetas_info.shape},
                  {rsqr_info.ptr, rsqr_info.shape});
 }
@@ -146,8 +145,8 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix",       &python_api::inertia_matrix, py::arg("np_voxels"), py::arg("cm"));
     m.def("integrate_axes",       &python_api::integrate_axes, py::arg("np_voxels"), py::arg("x0"), py::arg("v_axis"), py::arg("w_axis"), py::arg("v_min"), py::arg("w_min"), py::arg("output").noconvert());
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox, py::arg("principal_axes"), py::arg("parameter_ranges"), py::arg("cm"), py::arg("np_voxels").noconvert());
-    m.def("fill_implant_mask_pre",&python_api::fill_implant_mask_pre, py::arg("np_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("r_fraction"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert());
     m.def("fill_implant_mask",    &python_api::fill_implant_mask, py::arg("np_implant_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("r_fraction"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert(), py::arg("np_solid_implant_mask").noconvert(), py::arg("np_profile").noconvert());
+    m.def("fill_implant_mask_pre",&python_api::fill_implant_mask_pre, py::arg("np_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert());
     m.def("cylinder_projection",  &python_api::cylinder_projection, py::arg("np_edt"), py::arg("np_Cs"), py::arg("Cs_voxel_size"), py::arg("d_min"), py::arg("d_max"), py::arg("theta_min"), py::arg("theta_max"), py::arg("bbox"), py::arg("Muvw"), py::arg("np_images").noconvert(), py::arg("np_counts").noconvert());
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());

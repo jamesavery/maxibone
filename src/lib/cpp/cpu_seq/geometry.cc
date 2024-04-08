@@ -127,7 +127,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
                 const float  x = float(Xl+1)*edx, y = float(Yl)*edy, z = float(Zl)*edy;
 
                 if (x > float(block_height)) {
-                    printf("Block number k=%lld.\nX,Y,Z=%lld,%lld,%lld\nXl,Yl,Zl=%lld,%lld,%lld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
+                    printf("Block number k=%ld.\nX,Y,Z=%ld,%ld,%ld\nXl,Yl,Zl=%ld,%ld,%ld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
                     abort();
                 }
 
@@ -182,64 +182,34 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 }
 
 void fill_implant_mask(const input_ndarray<mask_type> mask,
+               int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
                float r_fraction,
                const matrix4x4 &Muvw,
+               const input_ndarray<real_t> thetas,
+               const input_ndarray<float> rsqr_maxs,
                output_ndarray<mask_type> solid_implant_mask,
-               output_ndarray<float> rsqr_maxs,
                output_ndarray<float> profile) {
     UNPACK_NUMPY(mask)
 
-    real_t theta_min = real_t(M_PI), theta_max = real_t(-M_PI);
+    const real_t
+        *thetas_d = thetas.data,
+        theta_min = thetas_d[0],
+        theta_max = thetas_d[1],
+        theta_center = (theta_max + theta_min) / 2;
     ssize_t n_segments = rsqr_maxs.shape[0];
-    const auto [U_min,U_max,V_min,V_max,W_min,W_max] = bbox;
-    float     *rsqr_maxs_d     = rsqr_maxs.data;
+    const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+    const float     *rsqr_maxs_d     = rsqr_maxs.data;
     float     *profile_d       = profile.data;
-
-
-    #pragma omp parallel for collapse(3) reduction(max:rsqr_maxs_d[:n_segments], theta_max) reduction(min:theta_min)
-    for (int64_t z = 0; z < mask_Nz; z++) {
-        for (int64_t y = 0; y < mask_Ny; y++) {
-            for (int64_t x = 0; x < mask_Nx; x++) {
-                mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
-                std::array<real_t, 4> Xs = {
-                    real_t(z) * voxel_size,
-                    real_t(y) * voxel_size,
-                    real_t(x) * voxel_size,
-                    1 };
-
-                if (mask_value) {
-                    auto [U,V,W,c] = hom_transform(Xs, Muvw);
-
-                    real_t r_sqr = V*V + W*W;
-                    real_t theta = atan2(V, W);
-
-                    int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
-
-                //    if (U_i >= 0 && U_i < n_segments) {
-                    if ( in_bbox({{U, V, W}}, bbox) ) {
-                        rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-                        theta_min = min(theta_min, theta);
-                        theta_max = max(theta_max, theta);
-                    //      W_min     = min(W_min,     W);
-                    } else {
-                        // Otherwise we've calculated it wrong!
-                        //  fprintf(stderr,"U-coordinate out of bounds: U_i = %ld, U = %g, U_min = %g, U_max = %g\n",U_i,U,U_min,U_max);
-                    }
-                }
-            }
-        }
-    }
-
-    real_t theta_center = (theta_max + theta_min) / 2;
 
     #pragma omp parallel for collapse(3) reduction(+:profile_d[:n_segments])
     for (int64_t z = 0; z < mask_Nz; z++) {
         for (int64_t y = 0; y < mask_Ny; y++) {
             for (int64_t x = 0; x < mask_Nx; x++) {
+                int64_t z_offset = offset / (mask_Ny * mask_Nx);
                 std::array<real_t, 4> Xs = {
-                    real_t(z) * voxel_size,
+                    real_t(z + z_offset) * voxel_size,
                     real_t(y) * voxel_size,
                     real_t(x) * voxel_size,
                     1 };
@@ -261,7 +231,62 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
                     }
                 }
 
-                solid_implant_mask.data[flat_index] = solid_mask_value;
+                solid_implant_mask.data[offset + flat_index] = solid_mask_value;
+            }
+        }
+    }
+}
+
+void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
+               int64_t offset,
+               float voxel_size,
+               const array<float,6> &bbox,
+               const matrix4x4 &Muvw,
+               output_ndarray<real_t> thetas,
+               output_ndarray<float> rsqr_maxs) {
+    UNPACK_NUMPY(mask);
+
+    real_t *thetas_d = thetas.data,
+        theta_min = thetas_d[0],
+        theta_max = thetas_d[1];
+
+    if (offset == 0) {
+        thetas_d[0] = real_t(M_PI);
+        thetas_d[1] = real_t(-M_PI);
+    }
+    ssize_t n_segments = rsqr_maxs.shape[0];
+    const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
+    float     *rsqr_maxs_d     = rsqr_maxs.data;
+
+    #pragma omp parallel for collapse(3) reduction(max:rsqr_maxs_d[:n_segments], theta_max) reduction(min:theta_min)
+    for (int64_t z = 0; z < mask_Nz; z++) {
+        for (int64_t y = 0; y < mask_Ny; y++) {
+            for (int64_t x = 0; x < mask_Nx; x++) {
+                int64_t z_offset = offset / (mask_Ny * mask_Nx);
+                mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
+                std::array<real_t, 4> Xs = {
+                    real_t(z + z_offset) * voxel_size,
+                    real_t(y) * voxel_size,
+                    real_t(x) * voxel_size,
+                    1 };
+
+                if (mask_value) {
+                    auto [U,V,W,c] = hom_transform(Xs, Muvw);
+
+                    real_t r_sqr = V*V + W*W;
+                    real_t theta = atan2(V, W);
+
+                    int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+
+                //    if (U_i >= 0 && U_i < n_segments) {
+                    if ( in_bbox({{U, V, W}}, bbox) ) {
+                        rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
+                        theta_min = min(theta_min, theta);
+                        theta_max = max(theta_max, theta);
+                    } else {
+                        // Otherwise we've calculated it wrong!
+                    }
+                }
             }
         }
     }

@@ -121,7 +121,6 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                int64_t offset,
                float voxel_size,
                const array<float,6> &bbox,
-               float r_fraction,
                const matrix4x4 &Muvw,
                output_ndarray<real_t> thetas,
                output_ndarray<float> rsqr_maxes);
