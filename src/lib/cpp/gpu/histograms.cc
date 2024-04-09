@@ -136,8 +136,10 @@ namespace gpu {
         auto [nZ, nY, nX] = voxels_shape;
         auto [nz, ny, nx] = field_shape;
 
-        printf("voxels shape: %ld %ld %ld\n", nZ, nY, nX);
-        printf("field shape: %ld %ld %ld\n", nz, ny, nx);
+        if (verbose) {
+            printf("voxels shape: %ld %ld %ld\n", nZ, nY, nX);
+            printf("field shape: %ld %ld %ld\n", nz, ny, nx);
+        }
 
         double
             dz = (double)nz/((double)nZ),
@@ -156,22 +158,24 @@ namespace gpu {
 
         uint64_t gpu_block_size = 1 * GB_VOXEL;
 
-        uint64_t n_iterations = image_length / gpu_block_size;
-        if (n_iterations * gpu_block_size < image_length)
-            n_iterations++;
+        uint64_t n_iterations = (image_length + gpu_block_size-1) / gpu_block_size;
+
+        if (verbose) {
+            printf("n_iterations: %ld\n", n_iterations);
+        }
 
         auto start = std::chrono::steady_clock::now();
 
-        #pragma acc data copy(bins[:field_bins*voxel_bins])
+        #pragma acc data copy(bins[:bins_length])
         {
             // For each block
-            for (uint64_t i = 0; i < n_iterations; i++) {
+            for (uint64_t iter = 0; iter < n_iterations; iter++) {
                 // Compute the block indices
-                uint64_t this_block_start = i*gpu_block_size;
+                uint64_t this_block_start = iter*gpu_block_size;
                 uint64_t this_block_end = std::min(image_length, this_block_start + gpu_block_size);
                 uint64_t this_block_size = this_block_end-this_block_start;
                 const voxel_type *voxels_buffer = voxels + this_block_start;
-                const field_type *field_buffer = field + this_block_start;
+                const field_type *field_buffer = field + this_block_start; // TODO handle field of different size
 
                 // Copy the block to the GPU
                 #pragma acc data copyin(voxels_buffer[:this_block_size], field_buffer[:this_block_size])
@@ -179,10 +183,10 @@ namespace gpu {
                     #pragma acc parallel loop
                     for (uint64_t flat_index = 0; flat_index < this_block_size; flat_index++) {
                         uint64_t
-                            X = flat_index % nX,
+                            Z = (flat_index / (nX*nY)) + z_start,
                             Y = (flat_index / nX) % nY,
-                            Z = (flat_index / (nX*nY)) + z_start;
-                        voxel_type voxel = voxels[flat_index];
+                            X = flat_index % nX;
+                        voxel_type voxel = voxels_buffer[flat_index];
                         voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0; // Mask away voxels that are not in specified range
                         int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
 

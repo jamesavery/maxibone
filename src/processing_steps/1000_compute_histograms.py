@@ -130,10 +130,12 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     if (d < tolerance):
         par_cpu_verified = True
     else:
-        print (f'diff = {d}')
+        print (f'par cpu diff = {d}')
 
     print ('Field - Running parallel GPU version')
     pgh = field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+
+    Image.fromarray(tobyt(row_normalize(pgh))).save(f"{outpath}/field_verification_gpu.png")
 
     d = np.abs(sch - pgh).sum()
 
@@ -141,7 +143,7 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     if (d < tolerance):
         par_gpu_verified = True
     else:
-        print (f'diff = {d}')
+        print (f'gpu diff = {d}')
 
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
     if verified:
@@ -175,13 +177,11 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins
 def verify_and_benchmark(voxels, field, bins=4096):
     vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
     axes_verified = verify_axes_histogram(voxels, voxel_bins=bins, ranges=vrange)
+    assert axes_verified
     fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
+    assert fields_verified
     benchmark_axes_histograms(voxels, voxel_bins=bins)
     benchmark_field_histograms(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
-    if axes_verified and fields_verified:
-        print ('Verified')
-    else:
-        print ('Not verified')
 
 def tobyt(arr):
     mi, ma = arr.min(), arr.max()
