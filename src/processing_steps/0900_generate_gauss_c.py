@@ -86,9 +86,8 @@ if __name__ == '__main__':
 
         gigabyte = 1024**3
         gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
-        n_layers = int(np.floor((10 * gigabyte_internal) / (ny*nx)))
+        n_layers = int(np.floor((1 * gigabyte_internal) / (ny*nx)))
         n_layers = min(n_layers, nz)
-        n_layers = 100
 
         if verbose >= 1:
             print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
