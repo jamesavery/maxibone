@@ -153,6 +153,40 @@ namespace gpu {
         fclose(file_src);
     }
 
+    void convert_float_to_uint16(const float *__restrict__ src, uint16_t *__restrict__ dst, const int64_t total_flat_size) {
+        #pragma acc parallel loop
+        for (int64_t i = 0; i < total_flat_size; i++) {
+            dst[i] = (uint16_t) std::floor(src[i] * 65535.0f);
+        }
+    }
+
+    void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+        constexpr int64_t
+            disk_block_size = 4096,
+            chunk_size = 2048*disk_block_size;
+        FILE *file_src = open_file_read(src);
+        FILE *file_dst = open_file_write(dst, total_flat_size*sizeof(uint16_t));
+        float *buffer_src = (float *) aligned_alloc(disk_block_size, chunk_size*sizeof(float));
+        uint16_t *buffer_dst = (uint16_t *) aligned_alloc(disk_block_size, chunk_size*sizeof(uint16_t));
+
+        for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
+            std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            int64_t size = std::min(chunk_size, total_flat_size - chunk);
+            load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
+            #pragma acc data copyin(buffer_src[0:chunk_size]) create(buffer_dst[0:chunk_size]) copyout(buffer_dst[0:chunk_size])
+            {
+                convert_float_to_uint16(buffer_src, buffer_dst, size);
+            }
+            store_partial(file_dst, buffer_dst, chunk, size, 0);
+        }
+        std::cout << "\rConversion is complete!" << std::endl;
+
+        free(buffer_dst);
+        free(buffer_src);
+        fclose(file_dst);
+        fclose(file_src);
+    }
+
     void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const int64_t total_flat_size) {
         #pragma acc parallel loop
         for (int64_t i = 0; i < total_flat_size; i++) {
