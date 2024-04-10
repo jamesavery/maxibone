@@ -204,6 +204,7 @@ namespace gpu {
         float *buffer_dst = (float *) aligned_alloc(disk_block_size, chunk_size*sizeof(float));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
+            std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             #pragma acc data copyin(buffer_src[0:chunk_size]) create(buffer_dst[0:chunk_size]) copyout(buffer_dst[0:chunk_size])
@@ -212,6 +213,7 @@ namespace gpu {
             }
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
+        std::cout << "\rConversion is complete!" << std::endl;
 
         free(buffer_dst);
         free(buffer_src);
@@ -315,6 +317,7 @@ namespace gpu {
         {
             for (int64_t rep = 0; rep < repititions; rep++) {
                 for (int64_t global_block = 0; global_block < global_blocks; global_block++) {
+                    std::cout << "\rDiffusion: " << rep*global_blocks + global_block << "/" << repititions*global_blocks << std::flush;
                     int64_t this_block_size = std::min(global_shape.z, total_shape.z - global_block*global_shape.z) * layer_flat_size;
 
                     // Load the global block
@@ -334,6 +337,7 @@ namespace gpu {
                 std::swap(temp0, temp1);
                 std::swap(tmp0, tmp1);
             }
+            std::cout << "\rDiffusion is complete!" << std::endl;
         }
 
         // Convert to uint16
