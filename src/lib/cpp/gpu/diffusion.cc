@@ -222,10 +222,10 @@ namespace gpu {
     }
 
     void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size) {
-        #pragma acc parallel loop
-        for (int64_t i = 0; i < local_flat_size; i++) {
-            if (mask[i] > 0) {
-                output[i] = 1.0f;
+        #pragma acc parallel loop present(mask, output)
+        for (int64_t thread = 0; thread < gpu_threads; thread++) {
+            for (int64_t i = thread; i < local_flat_size; i += gpu_threads) {
+                output[i] = mask[i] ? 1.0f : output[i];
             }
         }
     }
@@ -239,9 +239,11 @@ namespace gpu {
     }
 
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
-        #pragma acc parallel loop
-        for (int64_t i = 0; i < local_flat_size; i++) {
-            mask[i] = input[i] == 1.0f ? 1 : 0; // The implant will always be 1.0f
+        #pragma acc parallel loop present(input, mask)
+        for (int64_t thread = 0; thread < gpu_threads; thread++) {
+            for (int64_t i = thread; i < local_flat_size; i += gpu_threads) {
+                mask[i] = (input[i] == 1.0f); // The implant will always be 1.0f
+            }
         }
     }
 
