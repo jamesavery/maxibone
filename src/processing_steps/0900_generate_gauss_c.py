@@ -14,7 +14,7 @@ from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
 
 internal_type = np.float32
-result_type = np.uint8
+result_type = np.uint16
 
 def toint(arr, dtype=np.uint8):
     vmin, vmax = arr.min(), arr.max()

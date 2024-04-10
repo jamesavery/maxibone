@@ -230,7 +230,7 @@ namespace gpu {
 
     void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const float *__restrict__ kernel, const int64_t radius) {
         for (int64_t dim = 0; dim < 3; dim++) {
-            diffusion_core(buf0, kernel, buf1, N, dim, radius, 0);
+            diffusion_core(buf0, kernel, buf1, N, dim, radius);
             std::swap(buf0, buf1);
         }
         illuminate(voxels, buf0, N.z*N.y*N.x);
@@ -243,7 +243,7 @@ namespace gpu {
         }
     }
 
-    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint8_t *__restrict__ output) {
+    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
         const int64_t
             total_size = N.z*N.y*N.x,
             radius = kernel_size / 2;
@@ -258,7 +258,7 @@ namespace gpu {
                 diffusion_step(voxels, buf0, buf1, N, kernel, radius);
                 std::swap(buf0, buf1);
             }
-            convert_float_to_uint8(buf0, output, total_size);
+            convert_float_to_uint16(buf0, output, total_size);
         }
 
         delete[] buf0;
@@ -336,8 +336,8 @@ namespace gpu {
             }
         }
 
-        // Convert to uint8
-        convert_float_to_uint8(temp0, output_file, total_flat_size);
+        // Convert to uint16
+        convert_float_to_uint16(temp0, output_file, total_flat_size);
 
         // Free memory
         free(buf0);
