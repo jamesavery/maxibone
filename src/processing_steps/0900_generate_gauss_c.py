@@ -62,10 +62,11 @@ if __name__ == '__main__':
 
     if verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r") as f:
-        implant_mask = f['implant_solid/mask'][:]
+        implant_solid = f['implant_solid/mask']
+        nz,ny,nx = implant_solid.shape
+        implant_mask = implant_solid[:]
 
-    nz,ny,nx = implant_mask.shape
-    if verbose >= 1: print(f"Implant mask has shape {implant_mask.shape}")
+    if verbose >= 1: print(f"Implant mask has shape {(nz,ny,nx)}")
 
     if verbose >= 2:
         print(f"Writing PNGs of implant mask slices to {output_dir}")
@@ -79,9 +80,9 @@ if __name__ == '__main__':
         # Dump the mask
         masks_dir = f"{binary_root}/masks/{scale}x"
         pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
-        input_path = f"{masks_dir}/{sample}-implant_solid.{np.dtype(result_type).name}"
-        output_path = f"{output_dir}/{sample}.{np.dtype(result_type).name}"
-        write_slice(implant_mask.astype(result_type), input_path, (0,0,0), implant_mask.shape)
+        input_path = f"{masks_dir}/{sample}-implant_solid.{np.dtype(np.uint8).name}"
+        output_path = f"{output_dir}/{sample}.{np.dtype(np.uint8).name}"
+        write_slice(implant_mask.astype(np.uint8), input_path, (0,0,0), implant_mask.shape)
 
         gigabyte = 1024**3
         gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
