@@ -5,15 +5,15 @@
 
 namespace gpu {
 
-    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius, const int64_t padding) {
+    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius) {
         #pragma acc parallel loop collapse(3) present(input, kernel, output)
-        for (int64_t i = 0; i < N.z+padding; i++) {
-            for (int64_t j = 0; j < N.y+padding; j++) {
-                for (int64_t k = 0; k < N.x+padding; k++) {
+        for (int64_t i = 0; i < N.z; i++) {
+            for (int64_t j = 0; j < N.y; j++) {
+                for (int64_t k = 0; k < N.x; k++) {
                     const int64_t
                         X[3] = {i, j, k},
-                        stride[3] = {(N.y+padding)*(N.x+padding), N.x+padding, 1},
-                        Ns[3] = {N.z+padding, N.y+padding, N.x+padding},
+                        stride[3] = {(N.y)*(N.x), N.x, 1},
+                        Ns[3] = {N.z, N.y, N.x},
                         ranges[2] = {
                             -std::min(radius, X[dim]), std::min(radius, Ns[dim]-X[dim]-1)
                         },
