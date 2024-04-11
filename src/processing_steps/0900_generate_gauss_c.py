@@ -121,17 +121,17 @@ if __name__ == '__main__':
     rs = np.sqrt(xs[NA,NA,:]**2 + xs[NA,:,NA]**2)
     cylinder_mask = (rs<=1)
 
-    if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
-    np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
-
     if verbose >= 2:
         print(f"Debug: Writing PNGs of result slices to {output_dir}")
         Image.fromarray(toint(result[nz//2,:,:])).save(f'{output_dir}/{sample}-gauss-xy.png')
         Image.fromarray(toint(result[:,ny//2,:])).save(f'{output_dir}/{sample}-gauss-xz.png')
         Image.fromarray(toint(result[:,:,nx//2])).save(f'{output_dir}/{sample}-gauss-yz.png')
-        Image.fromarray(toint((np.max(np.abs(result),axis=0)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-xy-nonzero.png')
-        Image.fromarray(toint((np.max(np.abs(result),axis=1)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
-        Image.fromarray(toint((np.max(np.abs(result),axis=2)!=0).astype(float))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
+        Image.fromarray(toint((np.abs(result[nz//2,:,:])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-xy-nonzero.png')
+        Image.fromarray(toint((np.abs(result[:,ny//2,:])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
+        Image.fromarray(toint((np.abs(result[:,:,nx//2])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
+
+    if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
+    np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
 
     if verify and scale > 1: # generate ndimage comparison, but only for scale > 1
         start = timeit.default_timer()
