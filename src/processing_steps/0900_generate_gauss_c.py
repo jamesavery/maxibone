@@ -130,6 +130,7 @@ if __name__ == '__main__':
         Image.fromarray(toint((np.abs(result[:,ny//2,:])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
         Image.fromarray(toint((np.abs(result[:,:,nx//2])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
 
+    # TODO this crashes for scale 1. Fix it.
     if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
     np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
 
