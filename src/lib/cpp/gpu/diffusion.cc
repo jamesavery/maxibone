@@ -315,7 +315,7 @@ namespace gpu {
 
         const shape_t global_shape_padded = {global_shape.z+padding, global_shape.y, global_shape.x};
 
-        if (verbose) {
+        if (DEBUG) {
             std::cout << "Radius: " << radius << std::endl;
             std::cout << "Padding: " << padding << std::endl;
             std::cout << "Disk block size: " << disk_block_size << std::endl;
@@ -342,7 +342,7 @@ namespace gpu {
         // Convert to float
         convert_uint8_to_float(input_file, temp0, total_flat_size);
 
-        #pragma acc data copyin(kernel[:kernel_size]) create(mask[:global_flat_size_padded], buf0[:global_flat_size_padded], buf1[:global_flat_size_padded])
+        #pragma acc data copyin(kernel[:kernel_size]) create(mask[:global_flat_size_padded])
         {
             for (int64_t rep = 0; rep < repititions; rep++) {
                 for (int64_t global_block = 0; global_block < global_blocks; global_block++) {
