@@ -3,6 +3,8 @@
 #include <iostream>
 #include <filesystem>
 
+constexpr bool DEBUG = false;
+
 namespace gpu {
 
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius) {
@@ -66,22 +68,44 @@ namespace gpu {
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
     void load_partial(FILE *f, T *__restrict__ buffer, const int64_t buffer_size, const int64_t offset, const int64_t size, const int64_t total_size, const int64_t padding) {
-        int64_t
+        const int64_t
             disk_begin = std::max((int64_t) 0, offset-padding),
             disk_end = std::min(offset+size+padding, total_size),
             read_size = disk_end - disk_begin,
-            buffer_begin = disk_begin == 0 ? padding : 0,
+            buffer_begin = (offset < padding) ? padding - offset : 0,
             buffer_written = buffer_begin + read_size,
             buffer_remaining = buffer_size - buffer_written;
 
+        assert (buffer_size >= buffer_written + buffer_remaining && "Buffer is too small");
+        assert (buffer_remaining >= 0 && "Something went wrong with the buffer size calculation");
+
+        if (DEBUG) {
+            std::cout << std::endl;
+            std::cout << "buffer_size: " << buffer_size << std::endl;
+            std::cout << "offset: " << offset << std::endl;
+            std::cout << "size: " << size << std::endl;
+            std::cout << "total_size: " << total_size << std::endl;
+            std::cout << "padding: " << padding << std::endl;
+            std::cout << "disk_begin: " << disk_begin << std::endl;
+            std::cout << "disk_end: " << disk_end << std::endl;
+            std::cout << "read_size: " << read_size << std::endl;
+            std::cout << "buffer_begin: " << buffer_begin << std::endl;
+            std::cout << "buffer_written: " << buffer_written << std::endl;
+            std::cout << "buffer_remaining: " << buffer_remaining << std::endl;
+            std::cout << std::endl;
+        }
+
+        // TODO rotate rather than read everything
+
         // Fill the start of the buffer with zeros
-        if (disk_begin == 0) {
-            memset(buffer, 0, padding*sizeof(T));
+        if (offset < padding) {
+            memset(buffer, 0, (padding - offset)*sizeof(T));
         }
 
         // Read the data
         fseek(f, disk_begin*sizeof(T), SEEK_SET);
-        fread(buffer+buffer_begin, sizeof(T), read_size, f);
+        int64_t n = fread(buffer+buffer_begin, sizeof(T), read_size, f);
+        assert (n == read_size);
 
         // Fill the rest of the buffer with zeros
         if (disk_end == total_size) {
@@ -287,47 +311,50 @@ namespace gpu {
             global_blocks = (int64_t) std::ceil((float)total_shape.z / (float)global_shape.z),
             global_flat_size = global_shape.z * global_shape.y * global_shape.x,
             global_flat_size_padded = (global_shape.z+padding) * global_shape.y * global_shape.x,
-            layer_flat_size = global_shape.y * global_shape.x,
-            disk_total_flat_size = ((total_flat_size*sizeof(float) / disk_block_size) + (total_flat_size*sizeof(float) % disk_block_size == 0 ? 0 : 1)) * disk_block_size,
-            disk_global_flat_size = ((global_flat_size_padded*sizeof(float) / disk_block_size) + (global_flat_size_padded*sizeof(float) % disk_block_size == 0 ? 0 : 1)) * disk_block_size,
-            disk_mask_flat_size = ((global_flat_size_padded*sizeof(bool) / disk_block_size) + (global_flat_size_padded*sizeof(bool) % disk_block_size == 0 ? 0 : 1)) * disk_block_size,
-            disk_global_flat_elements = disk_global_flat_size / sizeof(float),
-            disk_mask_flat_elements = disk_mask_flat_size / sizeof(uint8_t);
+            layer_flat_size = global_shape.y * global_shape.x;
 
         const shape_t global_shape_padded = {global_shape.z+padding, global_shape.y, global_shape.x};
 
         if (verbose) {
-            // Print the number of blocks
+            std::cout << "Radius: " << radius << std::endl;
+            std::cout << "Padding: " << padding << std::endl;
+            std::cout << "Disk block size: " << disk_block_size << std::endl;
+            std::cout << "Total flat size: " << total_flat_size << std::endl;
             std::cout << "Global blocks: " << global_blocks << std::endl;
+            std::cout << "Global flat size: " << global_flat_size << std::endl;
+            std::cout << "Global flat size padded: " << global_flat_size_padded << std::endl;
+            std::cout << "Layer flat size: " << layer_flat_size << std::endl;
         }
 
         // Allocate memory. Aligned to block_size, and should overallocate to ensure alignment.
         // TODO since the I/O functions handle alignment with buffers, the allocations doesn't need to be aligned. Although, it might make sense to do so anyways, since this can avoid the need for a buffer. However, checking this is complicated, and is left for later.
         float
-            *buf0 = (float *) aligned_alloc(disk_block_size, disk_global_flat_size),
-            *buf1 = (float *) aligned_alloc(disk_block_size, disk_global_flat_size);
-        uint8_t *mask = (uint8_t *) aligned_alloc(disk_block_size, disk_mask_flat_size);
+            *buf0 = (float *) malloc((global_flat_size_padded) * sizeof(float)),
+            *buf1 = (float *) malloc((global_flat_size_padded) * sizeof(float));
+            //*buf0 = (float *) aligned_alloc(disk_block_size, disk_global_padded_flat_size),
+            //*buf1 = (float *) aligned_alloc(disk_block_size, disk_global_padded_flat_size);
+        uint8_t *mask = (uint8_t *) malloc((global_flat_size_padded) * sizeof(uint8_t));
 
         FILE
-            *tmp0 = open_file_read_write(temp0, disk_total_flat_size),
-            *tmp1 = open_file_read_write(temp1, disk_total_flat_size);
+            *tmp0 = open_file_read_write(temp0, total_flat_size),
+            *tmp1 = open_file_read_write(temp1, total_flat_size);
 
         // Convert to float
         convert_uint8_to_float(input_file, temp0, total_flat_size);
 
-        #pragma acc data copyin(kernel[0:kernel_size])
+        #pragma acc data copyin(kernel[:kernel_size]) create(mask[:global_flat_size_padded], buf0[:global_flat_size_padded], buf1[:global_flat_size_padded])
         {
             for (int64_t rep = 0; rep < repititions; rep++) {
                 for (int64_t global_block = 0; global_block < global_blocks; global_block++) {
                     std::cout << "\rDiffusion: " << rep*global_blocks + global_block << "/" << repititions*global_blocks << std::flush;
                     int64_t this_block_size = std::min(global_shape.z, total_shape.z - global_block*global_shape.z) * layer_flat_size;
+                    assert (this_block_size <= global_flat_size_padded);
 
                     // Load the global block
-                    load_partial(tmp0, buf0, disk_global_flat_size/sizeof(float), global_block*global_shape.z*layer_flat_size, this_block_size, total_flat_size, radius*layer_flat_size);
+                    load_partial(tmp0, buf0, global_flat_size_padded, global_block*global_shape.z*layer_flat_size, this_block_size, total_flat_size, radius*layer_flat_size);
 
-                    #pragma acc data copyin(buf0[0:disk_global_flat_elements]) create(buf1[0:disk_global_flat_elements], mask[0:disk_mask_flat_elements]) copyout(buf1[0:disk_global_flat_elements])
+                    #pragma acc data copyin(buf0[:global_flat_size_padded]) copyout(buf1[:global_flat_size_padded])
                     {
-                        // Diffuse the global block
                         store_mask(buf0, mask, global_flat_size_padded);
                         diffusion_step(mask, buf0, buf1, global_shape_padded, kernel, radius);
                     }
