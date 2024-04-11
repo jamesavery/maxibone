@@ -76,18 +76,21 @@ if __name__ == '__main__':
 
     kernel = gauss_kernel(sigma_voxels)
 
-    if scale < 4:
+    if scale <= 8:
         # Dump the mask
         masks_dir = f"{binary_root}/masks/{scale}x"
         pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
         input_path = f"{masks_dir}/{sample}-implant_solid.{np.dtype(np.uint8).name}"
-        output_path = f"{output_dir}/{sample}.{np.dtype(np.uint8).name}"
+        output_path = f"{output_dir}/{sample}.{np.dtype(result_type).name}"
         write_slice(implant_mask.astype(np.uint8), input_path, (0,0,0), implant_mask.shape)
 
-        gigabyte = 1024**3
-        gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
-        n_layers = int(np.floor((1 * gigabyte_internal) / (ny*nx)))
-        n_layers = min(n_layers, nz)
+        if scale == 8:
+            n_layers = nz // 2 + 1
+        else:
+            gigabyte = 1024**3
+            gigabyte_internal = gigabyte / np.dtype(internal_type).itemsize
+            n_layers = int(np.floor((1 * gigabyte_internal) / (ny*nx)))
+            n_layers = min(n_layers, nz)
 
         if verbose >= 1:
             print(f"Repeated Gauss blurs ({reps} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
