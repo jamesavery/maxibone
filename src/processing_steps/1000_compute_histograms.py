@@ -154,25 +154,35 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=1)
     par_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
     par_gpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+
+    mean_seq_cpu = seq_cpu / 1
+    mean_par_cpu = par_cpu / runs
+    mean_par_gpu = par_gpu / runs
+
     print (f'Average of {runs} runs:')
-    print (f'Seq CPU: {seq_cpu / runs:9.04f}')
-    print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
-    print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
+    print (f'Seq CPU: {mean_seq_cpu:9.04f}')
+    print (f'Par CPU: {mean_par_cpu:9.04f} (speedup: {mean_seq_cpu / mean_par_cpu:7.02f}x)')
+    print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
 def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins=256, runs=10):
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=1)
     par_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
     par_gpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+
+    mean_seq_cpu = seq_cpu / 1
+    mean_par_cpu = par_cpu / runs
+    mean_par_gpu = par_gpu / runs
+
     print (f'Average of {runs} runs:')
-    print (f'Seq CPU: {seq_cpu / runs:9.04f}')
-    print (f'Par CPU: {par_cpu / runs:9.04f} (speedup: {seq_cpu / par_cpu:7.02f}x)')
-    print (f'Par GPU: {par_gpu / runs:9.04f} (speedup: {seq_cpu / par_gpu:7.02f}x)')
+    print (f'Seq CPU: {mean_seq_cpu:9.04f}')
+    print (f'Par CPU: {mean_par_cpu:9.04f} (speedup: {mean_seq_cpu / mean_par_cpu:7.02f}x)')
+    print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
 def verify_and_benchmark(voxels, field, bins=4096):
     vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
