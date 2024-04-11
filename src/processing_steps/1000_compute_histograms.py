@@ -3,7 +3,7 @@ import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 # TODO Move benchmarking out of this script.
 from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
-from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu, field_histogram_resample
+from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu
 from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
 from lib.cpp.cpu_seq.histograms import masked_minmax # TODO is it histogram specific?
 import numpy as np, h5py, timeit
@@ -230,11 +230,10 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
+            axis_histogram_par_gpu(voxels, (zstart, 0, 0), (Nz, Ny, Nx), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
         # TODO commented out during debugging
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            #field_histogram_resample(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz//2,Ny//2,Nx//2), voxels.shape[0], f_bins[i], (vmin, vmax), (fmin, fmax))
-            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), (Nz, Ny, Nx), (Nz, Ny, Nx), voxels.shape, f_bins[i], (vmin, vmax), (fmin, fmax), True)
+            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), voxels.shape, f_bins[i], (vmin, vmax), (fmin, fmax), True)
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -287,10 +286,10 @@ if __name__ == '__main__':
         end = datetime.now()
         # Align them
         voxels = voxels[:field.shape[0],:,:]
-        print (voxels.shape, field.shape, (Nz, Ny, Nx))
+        print (voxels.shape, field.shape, (Nz, Ny, Nx), field.dtype)
         gb = (voxels.nbytes + field.nbytes) / 1024**3
-        print(f"Loaded {gb}GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
-        verify_and_benchmark(voxels, field, 4096 // scale)
+        print(f"Loaded {gb:.02f} GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
+        verify_and_benchmark(voxels, field, voxel_bins // scale)
     else:
         implant_threshold_u16 = 32000 # TODO: use config.constants
         (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
