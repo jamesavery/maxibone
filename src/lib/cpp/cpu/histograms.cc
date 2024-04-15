@@ -4,7 +4,7 @@ namespace cpu_par {
 
     // On entry, np_*_bins are assumed to be pre allocated and zeroed.
     void axis_histogram(const voxel_type __restrict__* voxels,
-                        const shape_t &voxels_shape,
+                        const shape_t &global_shape,
                         const shape_t &offset,
                         const shape_t &block_size,
                         uint64_t __restrict__* x_bins,
@@ -23,14 +23,13 @@ namespace cpu_par {
             printf("Entered function at %02d:%02d:%02d\n", local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
         }
 
-        auto [Nz, Ny, Nx] = voxels_shape;
+        auto [Nz, Ny, Nx] = global_shape;
         auto [cy, cx] = center;
         auto [vmin, vmax] = vrange;
         auto [z_start, y_start, x_start] = offset;
 
         uint64_t
             z_end  = (uint64_t) std::min(z_start+block_size.z, Nz),
-            z_size = z_end - z_start,
             y_end  = Ny,
             x_end  = Nx;
 
@@ -47,7 +46,7 @@ namespace cpu_par {
         for (uint64_t z = z_start; z < z_end; z++) {
             for (uint64_t y = y_start; y < y_end; y++) {
                 for (uint64_t x = x_start; x < x_end; x++) {
-                    uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
+                    uint64_t flat_idx = (z-z_start)*Ny*Nx + y*Nx + x;
                     uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
                     auto voxel = voxels[flat_idx];
@@ -254,7 +253,7 @@ namespace cpu_par {
         {
             uint64_t *tmp_bins = (uint64_t*) calloc(bins_length, sizeof(uint64_t));
             #pragma omp for nowait
-            for (uint64_t Z = 0; Z < z_end-z_start; Z++) {
+            for (uint64_t Z = 0; Z < block_size.z; Z++) {
                 for (uint64_t Y = y_start; Y < y_end; Y++) {
                     for (uint64_t X = x_start; X < x_end; X++) {
                         uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;

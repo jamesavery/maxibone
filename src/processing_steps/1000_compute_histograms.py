@@ -36,7 +36,7 @@ def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, v
     else:
         vmin, vmax = ranges
     if verbose >= 1: print ("Entering call", datetime.now())
-    func(voxels, (0,0,0), voxels.shape, x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
+    func(voxels, (0,0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
     if verbose >= 1: print ("Exited call", datetime.now())
     return x_bins, y_bins, z_bins, r_bins
 
@@ -48,7 +48,7 @@ def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, range
         vrange, frange = ranges
 
     if verbose >= 1: print ("Entering call", datetime.now())
-    func(voxels, field, (0,0,0), voxels.shape, bins, vrange, frange, verbose >= 1)
+    func(voxels, field, (0,0,0), bins, vrange, frange, verbose >= 1)
     if verbose >= 1: print ("Exited call", datetime.now())
 
     return bins
@@ -185,12 +185,12 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins
     print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
 def verify_and_benchmark(voxels, field, bins=4096):
-    vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
+    vrange, frange = ( (1, 32000), (1, 2**16-1) )
     axes_verified = verify_axes_histogram(voxels, voxel_bins=bins, ranges=vrange)
     assert axes_verified
     fields_verified = verify_field_histogram(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
     assert fields_verified
-    benchmark_axes_histograms(voxels, voxel_bins=bins)
+    benchmark_axes_histograms(voxels, vrange, voxel_bins=bins)
     benchmark_field_histograms(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
 
 def tobyt(arr):
@@ -240,10 +240,10 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), (Nz, Ny, Nx), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
+            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
         # TODO commented out during debugging
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), voxels.shape, f_bins[i], (vmin, vmax), (fmin, fmax), True)
+            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), True)
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -292,17 +292,18 @@ if __name__ == '__main__':
         voxels = np.empty(scaled_shape, dtype=np.uint16)
         start = datetime.now()
         load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (0, 0, 0), scaled_shape)
-        field = np.load(f'{binary_root}/fields/implant-gauss/{scale}x/{sample}.npy')
+        field = np.load(f'{binary_root}/fields/implant-gauss/{scale*2}x/{sample}.npy')
         end = datetime.now()
         # Align them
-        voxels = voxels[:field.shape[0],:,:]
+        voxels = voxels[:field.shape[0]*2,:,:]
+
         print (voxels.shape, field.shape, (Nz, Ny, Nx), field.dtype)
         gb = (voxels.nbytes + field.nbytes) / 1024**3
         print(f"Loaded {gb:.02f} GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
         verify_and_benchmark(voxels, field, voxel_bins // scale)
     else:
         implant_threshold_u16 = 32000 # TODO: use config.constants
-        (vmin,vmax),(fmin,fmax) = ((1e4,3e4),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
+        (vmin,vmax),(fmin,fmax) = ((0,implant_threshold_u16),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
         field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
         xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,

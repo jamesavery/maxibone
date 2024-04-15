@@ -4,7 +4,7 @@ namespace gpu {
 
     // On entry, np_*_bins are assumed to be pre allocated and zeroed.
     void axis_histogram(const voxel_type __restrict__* voxels,
-                        const shape_t &voxels_shape,
+                        const shape_t &global_shape,
                         const shape_t &offset,
                         const shape_t &block_size,
                         uint64_t __restrict__* x_bins,
@@ -23,7 +23,7 @@ namespace gpu {
             printf("Entered function at %02d:%02d:%02d\n", local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
         }
 
-        auto [Nz, Ny, Nx] = voxels_shape;
+        auto [Nz, Ny, Nx] = global_shape;
         auto [cy, cx] = center;
         auto [vmin, vmax] = vrange;
         auto [z_start, y_start, x_start] = offset;
@@ -83,7 +83,7 @@ namespace gpu {
                             uint64_t z = (flat_idx / (Nx*Ny)) + z_start;
                             uint64_t r = floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
-                            int64_t voxel_index = floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                            int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                             #pragma acc atomic
                             ++x_bins[x*voxel_bins + voxel_index];
@@ -177,29 +177,30 @@ namespace gpu {
 
         auto start = std::chrono::steady_clock::now();
 
-        #pragma acc data copy(bins[:bins_length])
+        #pragma acc data copy(bins[:bins_length]) copyin(field[:nz*ny*nx])
         {
             // For each block
-            for (uint64_t iter = 0; iter < n_iterations; iter++) {
+            for (uint64_t i = 0; i < n_iterations; i++) {
                 // Compute the block indices
-                uint64_t this_block_start = iter*gpu_block_size;
+                uint64_t this_block_start = i*gpu_block_size;
                 uint64_t this_block_end = std::min(image_length, this_block_start + gpu_block_size);
                 uint64_t this_block_size = this_block_end-this_block_start;
                 const voxel_type *voxels_buffer = voxels + this_block_start;
-                const field_type *field_buffer = field + (this_block_start / flat_factor); // TODO handle field of different size
+                //const field_type *field_buffer = field + (this_block_start / flat_factor); // TODO handle field of different size
 
                 // Copy the block to the GPU
-                #pragma acc data copyin(voxels_buffer[:this_block_size], field_buffer[:(this_block_size/flat_factor)])
+                #pragma acc data copyin(voxels_buffer[:this_block_size])//, field_buffer[:(this_block_size/flat_factor)])
                 {
                     #pragma acc parallel loop
-                    for (uint64_t flat_index = 0; flat_index < this_block_size; flat_index++) {
+                    for (uint64_t j = 0; j < this_block_size; j++) {
+                        uint64_t flat_index = i * gpu_block_size + j;
                         uint64_t
                             Z = (flat_index / (nX*nY)),
                             Y = (flat_index / nX) % nY,
                             X = flat_index % nX;
-                        voxel_type voxel = voxels_buffer[flat_index];
+                        voxel_type voxel = voxels_buffer[j];
                         voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * (((double)voxel - v_min)/(v_max - v_min)) );
 
                         // What are the X,Y,Z indices corresponding to voxel basearray index I?
                         //uint64_t X = flat_index % nX, Y = (flat_index / nX) % nY, Z = (flat_index / (nX*nY)) + z_start;
@@ -210,8 +211,8 @@ namespace gpu {
                             z = (uint64_t) floor((double)Z*dz),
                             y = (uint64_t) floor((double)Y*dy),
                             x = (uint64_t) floor((double)X*dx);
-                        uint64_t i = z*ny*nx + y*nx + x;
-                        field_type field_value = field_buffer[i];
+                        uint64_t flat_index_field = z*ny*nx + y*nx + x;
+                        field_type field_value = field[flat_index_field];
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                         if ((voxel != 0) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)

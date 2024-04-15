@@ -10,7 +10,6 @@ namespace python_api {
 
     void axis_histograms(const np_array<voxel_type> np_voxels,
                          const tuple<int64_t,int64_t,int64_t> np_offset,
-                         const tuple<int64_t,int64_t,int64_t> np_block_size,
                          np_array<uint64_t> &np_x_bins,
                          np_array<uint64_t> &np_y_bins,
                          np_array<uint64_t> &np_z_bins,
@@ -29,8 +28,7 @@ namespace python_api {
         shape_t
             global_shape = { z_info.shape[0], y_info.shape[0], x_info.shape[0] },
             voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
-            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) },
-            block_size = { get<0>(np_block_size), get<1>(np_block_size), get<2>(np_block_size) };
+            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) };
 
         const uint64_t
             voxel_bins = x_info.shape[1],
@@ -51,7 +49,6 @@ namespace python_api {
     void field_histogram(const np_array<voxel_type> &np_voxels,
                          const np_array<field_type> &np_field,
                          const tuple<int64_t,int64_t,int64_t> np_offset,
-                         const tuple<int64_t,int64_t,int64_t> np_global_shape,
                          np_array<uint64_t> &np_bins,
                          const tuple<double, double> vrange,
                          const tuple<double, double> frange,
@@ -64,8 +61,7 @@ namespace python_api {
         shape_t
             voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
             field_shape = { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
-            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) },
-            global_shape = { get<0>(np_global_shape), get<1>(np_global_shape), get<2>(np_global_shape) };
+            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) };
 
         const uint64_t
             voxel_bins = bins_info.shape[1],
@@ -75,7 +71,7 @@ namespace python_api {
         const field_type *field = static_cast<field_type*>(field_info.ptr);
         uint64_t *bins = static_cast<uint64_t*>(bins_info.ptr);
 
-        NS::field_histogram(voxels, field, global_shape, field_shape, offset, voxels_shape, bins, voxel_bins, field_bins, vrange, frange, verbose);
+        NS::field_histogram(voxels, field, voxels_shape, field_shape, offset, voxels_shape, bins, voxel_bins, field_bins, vrange, frange, verbose);
     }
 
     pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
@@ -137,7 +133,6 @@ PYBIND11_MODULE(histograms, m) {
     m.def("axis_histograms", &python_api::axis_histograms,
         py::arg("np_voxels"),
         py::arg("np_offset"),
-        py::arg("np_block_size"),
         py::arg("np_x_bins").noconvert(),
         py::arg("np_y_bins").noconvert(),
         py::arg("np_z_bins").noconvert(),
@@ -149,7 +144,6 @@ PYBIND11_MODULE(histograms, m) {
         py::arg("np_voxels"),
         py::arg("np_field"),
         py::arg("np_offset"),
-        py::arg("np_global_shape"),
         py::arg("np_bins").noconvert(),
         py::arg("vrange"),
         py::arg("frange"),

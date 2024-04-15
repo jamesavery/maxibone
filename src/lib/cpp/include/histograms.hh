@@ -7,7 +7,7 @@
 namespace NS {
 
     void axis_histogram(const voxel_type __restrict__* voxels,
-                        const shape_t &voxels_shape,
+                        const shape_t &global_shape,
                         const shape_t &offset,
                         const shape_t &block_size,
                         uint64_t __restrict__* x_bins,
