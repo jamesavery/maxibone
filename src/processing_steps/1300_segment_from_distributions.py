@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import os, sys, pathlib, h5py, numpy as np, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 #import pybind_kernels.histograms as histograms
@@ -16,7 +18,7 @@ def load_probabilities(path, group, axes_names, field_names, m):
     try:
         prob_file = h5py.File(path, 'r')
         P_axes   = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in axes_names]
-        P_fields = [prob_file[f'{group}/{name}/P{m}'][:,:] for name in field_names]
+        P_fields = [prob_file[f'{group}/field_bins_{name}/P{m}'][:,:] for name in field_names]
         prob_file.close()
         return P_axes, P_fields
     except Exception as e:
@@ -43,7 +45,7 @@ if __name__ == '__main__':
                                                                                                        'region_mask' :  'bone_region',
                                                                                                        'group' :  'otsu_separation',
                                                                                                        'mask_scale' :  8,
-                                                                                                       'scheme' : "edt", #MIDLERTIDIG
+                                                                                                       'scheme' : "gauss", #MIDLERTIDIG
                                                                                                        'verbose' : 1})
 
     # Iterate over all subvolumes
@@ -51,12 +53,12 @@ if __name__ == '__main__':
     Nz, Ny, Nx = bi['dimensions'][:3]
     fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
-    field_names = ["edt"] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
+    field_names = [scheme] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
 #        if str(region_mask) == "None":
-        group_name = f"{group}/bone_region{b}/"            #TODO: two different masks from command line
+        group_name = f"{group}/bone_region/"            #TODO: two different masks from command line
 #        else:
 #            group_name = f"{group}/{region_mask}{b}/"
 
@@ -101,6 +103,15 @@ if __name__ == '__main__':
                                                 (vmin,vmax),(fmin,fmax),
                                                 (zstart,0,0), (zend,Ny,Nx));
 
+            if verbose >= 1:
+                print ('Plotting segmentation planes')
+                zmid = result.shape[0] // 2
+                plot_dir = f'{hdf5_root}/processed/segmentation/'
+                pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
+                plt.imshow(result[zmid, :, :]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_yx.png'); plt.clf()
+                plt.imshow(result[:, Ny//2, :]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_zx.png'); plt.clf()
+                plt.imshow(result[:, :, Nx//2]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_zy.png'); plt.clf()
+
             # label.material_prob(
             #     voxels, fields,
             #     P_axes, 0,#0b1111,
@@ -114,5 +125,5 @@ if __name__ == '__main__':
             if verbose >= 2: print (f'Segmentation has min {result.min()} and max {result.max()}')
 
             if verbose >= 1: print(f"Writing results from block {b}")
-            write_slice(result, zstart*Ny*Nx, output_file)
+            write_slice(result, output_file, (zstart,0,0), result.shape)
 
