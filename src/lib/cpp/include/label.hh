@@ -19,6 +19,11 @@ namespace NS {
                    const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
                    const std::tuple<uint64_t, uint64_t, uint64_t> &ranges);
 
+    void otsu(
+        const np_array<uint64_t> np_bins,
+        np_array<uint64_t> np_result,
+        uint64_t step_size);
+
 }
 
 #endif // label_h

@@ -14,4 +14,12 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     throw std::runtime_error("Not implemented");
 }
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+void otsu(
+    const np_array<uint64_t> np_bins,
+    np_array<uint64_t> np_result,
+    uint64_t step_size) {
+    throw std::runtime_error("Not implemented");
+}
+
 }

@@ -1,13 +1,15 @@
+import matplotlib
+matplotlib.use('Agg')
 import os,sys, pathlib, h5py, numpy as np
 sys.path.append(sys.path[0]+"/../")
-import pybind_kernels.histograms as histograms
-from config.paths import binary_root, hdf5_root_fast as hdf5_root, commandline_args
+from lib.cpp.cpu.label import otsu
+from config.paths import binary_root, hdf5_root as hdf5_root
 from tqdm import tqdm
 import matplotlib.pyplot as plt, matplotlib.cm as cm
-from histogram_processing.piecewise_cubic import piecewisecubic, piecewisecubic_matrix, smooth_fun
+from lib.py.piecewise_cubic import piecewisecubic, piecewisecubic_matrix, smooth_fun
 from PIL import Image
 from numpy import newaxis as NA
-import helper_functions
+from lib.py.helpers import commandline_args, row_normalize, update_hdf5
 
 def apply_otsu(bins, name=None):
     # Set up buffers
@@ -17,7 +19,7 @@ def apply_otsu(bins, name=None):
     threshes = np.empty(n_rows, dtype=np.uint64)
 
     # Compute otsu thresholds
-    histograms.otsu(bins, threshes, 1)
+    otsu(bins, threshes, 1)
 
     # Ignore insignificant rows
     threshes[bins.sum(axis=1) < 100] = 0
@@ -73,14 +75,14 @@ def extract_probabilities(labeled, axes_names, field_names):
 
 def save_probabilities(Ps, sample, subbins,value_ranges):
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
-    helper_functions.update_hdf5(
+    update_hdf5(
         output_path,
         group_name = f'otsu_separation/{subbins}',
         datasets = { 'value_ranges' : value_ranges },
         attributes = {}
     )
     for name, P0, P1, pc, valid_range, threshes, new_threshes in Ps:
-        helper_functions.update_hdf5(
+        update_hdf5(
             output_path,
             group_name = f'otsu_separation/{subbins}/{name}',
             datasets = {
