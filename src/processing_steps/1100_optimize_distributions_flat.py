@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import os, sys, tqdm, numpy as np, matplotlib.pyplot as plt, numpy.linalg as la, scipy.ndimage as ndi, scipy.optimize as opt, time
 sys.path.append(sys.path[0]+"/../")
 from lib.py.piecewise_cubic import piecewisecubic_matrix, piecewisecubic, smooth_fun
@@ -19,8 +21,8 @@ f_labels = np.load(f"{hist_path}/{sample}/bins-{region_mask}_labeled.npz")
 
 
 def material_points(labs,material_id):
-    mask = labs==material_id    
-    xs, ys = np.argwhere(mask).astype(float).T    
+    mask = labs==material_id
+    xs, ys = np.argwhere(mask).astype(float).T
     return xs,ys
 
 #TODO: Weight importance in piecewise cubic fitting
@@ -35,7 +37,7 @@ lab  = f_labels[field][::stride,::stride]
 if verbose >= 2:
     plt.imshow(lab)
     plt.show()
-    
+
 nmat    = lab.max()
 (nx,nv) = hist.shape
 xs = np.arange(0,nx*stride,stride)
@@ -69,7 +71,7 @@ if (verbose >= 3):
     line3, = ax.plot(vs, np.zeros_like(hist[0]), 'b:')
     line4, = ax.plot(vs, np.zeros_like(hist[0]), 'r:')
     line2, = ax.plot(vs, hist[0],  'black',linewidth=4)
-    
+
     plt.show()
 
 
@@ -78,7 +80,7 @@ def opt_bs(bs,*args):
     n = len(abcd0)//4
     abcd = abcd0.copy()
     abcd[n:2*n] = bs
-    ax.set_title(f"bs = {bs}")    
+    ax.set_title(f"bs = {bs}")
     return energy1d(abcd,args)
 
 def opt_bds(bds,*args):
@@ -86,11 +88,11 @@ def opt_bds(bds,*args):
     n = len(abcd0)//4
     abcd = abcd0.copy()
     abcd[n:2*n] = bds[:n]
-    abcd[3*n:4*n] = bds[n:]    
-    ax.set_title(f"bs = {bds[:n]}, ds = {bds[n:]}")    
+    abcd[3*n:4*n] = bds[n:]
+    ax.set_title(f"bs = {bds[:n]}, ds = {bds[n:]}")
     return energy1d(abcd,args)
 
-    
+
 def opt_all(abcd,*args):
     i, x, abcd0, vs, hist_x = args
     model     = np.sum(powers(vs,abcd), axis=0)
@@ -100,48 +102,48 @@ def opt_all(abcd,*args):
     E1 = dx*np.sum(residual*residual)
     E2 = dx*np.sum((residual<0)*residual*residual)
 
-    n = len(abcd)//4    
-    A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]    
+    n = len(abcd)//4
+    A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]
     Ecloseness = np.sum(1/(np.abs(C[1:]-C[:-1])+0.001))
-    
+
 #    print(np.round(E1,2), np.round(1e2*Ecloseness,2))
     if(verbose >= 3):
         line1.set_ydata(model)
         ax.set_title(f"{x}: a = {np.round(A*A,1)}, b = {np.round(B*B,1)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
         ax.relim()
-        ax.autoscale_view()    
+        ax.autoscale_view()
         fig.canvas.draw()
         fig.canvas.flush_events()
-    
+
     return E1 + 1e2*Ecloseness + E2
 
 
 good_xs = [[] for m in range(nmat)] # BE CAREFUL: [[]] * nmat makes MULTIPLE REFERENCES TO THE SAME LIST MEMORY. Two hours bughunting for that one.
-good_is = [[] for m in range(nmat)] 
-ABCDm   = [[] for m in range(nmat)] 
-ABCD    = [] 
-ABCD_ms = [] 
-ABCD_xs = [] 
+good_is = [[] for m in range(nmat)]
+ABCDm   = [[] for m in range(nmat)]
+ABCD    = []
+ABCD_ms = []
+ABCD_xs = []
 ABCD_is = []
 m_max   = 0
 
 # FLAT OPTIMIZATION
-for i,x in enumerate(xs):       
+for i,x in enumerate(xs):
     ms = np.array([m for m in range(nmat) if labm[m][i].max() > 0])
     n  = len(ms)
     if(n>0):
         abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
-        if (verbose == 2):
-            model = powers(vs,abcd0)        
+        if (verbose >= 2):
+            model = powers(vs,abcd0)
             line1.set_ydata(np.sum(model,axis=0))
             line2.set_ydata(hist[i])
             ax.relim()
-            ax.autoscale_view()    
+            ax.autoscale_view()
             fig.canvas.draw()
             fig.canvas.flush_events()
 
-        if(verbose == 3):
+        if(verbose >= 3):
             ax.set_title(f"x = {x}")
             line2.set_ydata(hist[i])
 
@@ -149,7 +151,7 @@ for i,x in enumerate(xs):
         midpoints = np.maximum(
             np.concatenate([(cmx[ms,i][1:] + cmx[ms,i][:-1])/2, [vs.max()]]),
             0.9*cmx[ms,i])
-            
+
         bounds = opt.Bounds(np.concatenate([0.3*amx[ms,i],
                                             np.minimum(0.5,np.maximum(0.1*bmx[ms,i],1e-3)),
                                             starts[ms,i], #0.9*cmx[ms,i],
@@ -170,22 +172,22 @@ for i,x in enumerate(xs):
             ABCD_xs   += [x]
             ABCD_is   += [i]
             m_max      = max(m_max, np.max(ms))
-            
-            for im,m in enumerate(ms):            
+
+            for im,m in enumerate(ms):
                 good_xs[m] += [x]
                 good_is[m] += [i]
                 ABCDm[m]    += [abcd.reshape(4,n)[:,im]]
                 print(f"ABCDm[{m}]    += {[abcd.reshape(4,n)[:,im]].copy()}")
 
 #            print(f"ABCDm = {ABCDm}")
-            
-        
-        if(verbose == 5):
+
+
+        if(verbose >= 5):
             colors = ['r','orange']
             lines  = [line3,line4]
             model = powers(vs,abcd)
-            n = len(abcd)//4    
-            A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]    
+            n = len(abcd)//4
+            A,B,C,D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]
 
             fig.suptitle(f"x = {x}, ms = {ms}")
             line1.set_ydata(np.sum(model,axis=0))
@@ -193,19 +195,19 @@ for i,x in enumerate(xs):
             ax.collections.clear()
             ax.fill_between(vs,np.sum(model,axis=0),color='grey',alpha=0.5)
             for i,m in enumerate(ms):
-                lines[m].set_ydata(model[i])                
+                lines[m].set_ydata(model[i])
                 ax.fill_between(vs,model[i],color=colors[m],alpha=0.7)
-                
+
             ax.set_title(f"a = {np.round(A*A,1)}, 1/b = {np.round(1/(B*B),3)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
             ax.relim()
-            ax.autoscale_view()    
+            ax.autoscale_view()
             fig.canvas.draw()
             fig.canvas.flush_events()
             fig.savefig(f"opt_debug-{i:03}.png")
 
 hist_modeled = np.zeros_like(hist)
 hist_m = np.zeros((m_max+1,)+hist.shape,dtype=float)
-            
+
 for i,gi in enumerate(ABCD_is):
     abcd = ABCD[i]
     ms   = ABCD_ms[i]
@@ -213,7 +215,7 @@ for i,gi in enumerate(ABCD_is):
     hist_modeled[gi] = np.sum(model,axis=0)
     hist_m[ms,gi] = model
 
-if (verbose == 6):
+if (verbose >= 6):
     fig = plt.figure(figsize=(10,10))
     axarr = fig.subplots(2,2)
     fig.suptitle(f'{sample} {region_mask}') # or plt.suptitle('Main title')
@@ -237,8 +239,8 @@ update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
                 "histogram": f_hist["field_bins"][field_id[field]][:],
                 "labels": f_labels[field][:],
                 "good_xs0":np.array(good_xs[0]),
-                "good_xs1":np.array(good_xs[1]),                      
+                "good_xs1":np.array(good_xs[1]),
                 "ABCD0":   np.array(ABCDm[0]),
                 "ABCD1":   np.array(ABCDm[1])
-            })        
+            })
 

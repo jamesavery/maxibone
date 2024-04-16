@@ -6,3 +6,8 @@
 0600 - Verified! (for 770c_pag)
 0700 - Verified! (for 770c_pag)
 0800 - Verified! (for 770c_pag)
+0900 - Verified! (for 770c_pag)
+1000 - Verified! (for 770c_pag)
+1050 - Verified! (for 770c_pag)
+1100 - Verified! (for 770c_pag)
+1200 - Verified! (for 770c_pag)
