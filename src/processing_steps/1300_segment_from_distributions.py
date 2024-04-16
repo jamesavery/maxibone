@@ -2,9 +2,9 @@ import os, sys, pathlib, h5py, numpy as np, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 #import pybind_kernels.histograms as histograms
 #import pybind_kernels.label as label
-from lib.cpp.gpu.label import material_prob_justonefieldthx
+from lib.cpp.cpu.label import material_prob_justonefieldthx
 from lib.cpp.cpu.io import write_slice
-from config.paths import binary_root, hdf5_root_fast as hdf5_root
+from config.paths import binary_root, hdf5_root as hdf5_root
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -31,12 +31,12 @@ def load_value_ranges(path, group):
     except Exception as e:
         print(f"Couldn't load {group}/value_ranges from {path}: {e}")
         sys.exit(-1)
-    
+
 
 def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     sample, block_start, n_blocks, region_mask, group, mask_scale, scheme, verbose = commandline_args({'sample' : '<required>',
                                                                                                        "block_start" : 0,
                                                                                                        "n_blocks" : 0,
@@ -53,22 +53,22 @@ if __name__ == '__main__':
     axes_names =  []     # ["x", "y", "z", "r"] # For later
     field_names = ["edt"] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
 
-    probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'    
+    probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
 #        if str(region_mask) == "None":
         group_name = f"{group}/bone_region{b}/"            #TODO: two different masks from command line
 #        else:
 #            group_name = f"{group}/{region_mask}{b}/"
-        
+
         block_size = bi['subvolume_nzs'][b]
         zstart = bi['subvolume_starts'][b]
 
         # zstart     = 400        # DEBUGGING
         # block_size = 200        # DEBBUGGING
-        
+
         zend = zstart + block_size
         fzstart, fzend = zstart // 2, zend // 2
-        
+
         voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
             solid_implant   = f["implant_solid/mask"][zstart//2:zstart//2+block_size//2]
             (nz,ny,nx) = solid_implant.shape
             f.close()
-            
+
             # solid_implant1x = np.broadcast_to(solid_implant[:,na,:,na,:,na],(nz,2,ny,2,nx,2)).reshape(2*nz,2*ny,2*nx)
             # solid_implant1x = ndi.grey_dilation(solid_implant1x,2)
             # voxels[:2*nz,:2*ny,:2*nx] *= ~solid_implant1x
@@ -86,7 +86,7 @@ if __name__ == '__main__':
             # del solid_implant, solid_implant1x
         except Exception as e:
             print(f"Couldn't remove dilated solid implant: {e}")
-            
+
         for m in [0,1]:
             output_dir  = f'{binary_root}/segmented/{scheme}/P{m}/1x/'
             output_file = f"{output_dir}/{sample}.uint16";
