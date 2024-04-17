@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import cv2
 import numpy as np
 from scipy import signal
@@ -28,7 +30,7 @@ def batch():
         tmp = dict()
         axis_names  = ["x","y","z","r"] # TODO: Skriv i compute_histograms
         field_names = f["field_names"]
-        
+
         for name in axis_names:
             bins = f[f"{name}_bins"]
             rng = _range(0,bins.shape[1],0,bins.shape[0])
@@ -47,7 +49,7 @@ def batch():
             mask[py, px] = 255
             dilated, eroded = process_closing(mask, config)
             labeled, _ = process_contours(eroded, rng, config)
-            tmp[name] = labeled       
+            tmp[name] = labeled
 
         np.savez(f'{args.output}/{sample}_labeled', **tmp)
         #np.save(f'{args.output}/{sample}_{name}_labeled', labeled)
@@ -113,7 +115,7 @@ class _range:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="""Computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.
-    
+
 Example command for running with default configuration:
 python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histograms/770c_pag/bins-bone_region3.npz -b -o $BONE_DATA/processed/histograms/770c_pag/
 """)
@@ -124,7 +126,7 @@ python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histogram
         help='Specifies one or more histogram files (usually *.npz) to process. If in GUI mode, only the first will be processed. Glob is currently not supported.')
     parser.add_argument('-b', '--batch', action='store_true',
         help='Toggles whether the script should be run in batch mode. In this mode, the GUI isn\'t launched, but the provided histograms will be stored in the specified output folder.')
-    parser.add_argument('-c', '--config', default='config.json', type=str,
+    parser.add_argument('-c', '--config', default='config_compute_ridges.json', type=str,
         help='The configuration file storing the parameters. If in GUI mode, this will be overwritten with the values on the trackbars (unless the -b flag is provided). If it doesn\'t exist, the default values inside this script will be used. NOTE: there\'s an error in libxkbcommon.so, which crashes OpenCV whenever any other key than escape is used. So to save it, close the GUI with the escape button.')
     parser.add_argument('-d', '--dry_run', action='store_true',
         help='Toggles whether the configuration should be saved, when running in GUI mode.')
@@ -171,6 +173,7 @@ def process_contours(hist, rng: _range, config):
     contours_filtered = [contours[i] for i, size in enumerate(contours_sizes) if size > config['min contour size']]
     result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
     bounding_boxes = [cv2.boundingRect(c) for c in contours_filtered]
+    print (len(contours_filtered), len(bounding_boxes))
     (contours_filtered, _) = zip(*sorted(zip(contours_filtered, bounding_boxes), key=lambda b:b[1][0]))
     for i in np.arange(len(contours_filtered)):
         result = cv2.drawContours(result, contours_filtered, i, int(i+1), -1)
@@ -224,6 +227,7 @@ def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial
     box_y_start = int(rng.y.start * scale_y)
     box_x_stop = int(rng.x.stop * scale_x)
     box_y_stop = int(rng.y.stop * scale_y)
+    print (partial_size)
     resized = cv2.resize(display, partial_size)
     colored = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
     colored = cv2.rectangle(colored, (box_x_start, box_y_start), (box_x_stop, box_y_stop), (0, 255, 0), 1)
@@ -247,7 +251,10 @@ def scatter_peaks(hist, config):
     return flatten(peaks_x), flatten(peaks_y)
 
 def gui():
-    global last, args
+    global last, args, ready
+
+    ready = False
+
     def update_image(_):
         hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
         cv2.setTrackbarMax('range start x', 'Histogram lines', hist_shape[1]-1)
@@ -258,7 +265,7 @@ def gui():
         cv2.setTrackbarPos('range start y', 'Histogram lines', min(cv2.getTrackbarPos('range start y', 'Histogram lines'), hist_shape[0]-1))
         cv2.setTrackbarMax('range stop y', 'Histogram lines', hist_shape[0]-1)
         cv2.setTrackbarPos('range stop y', 'Histogram lines', min(cv2.getTrackbarPos('range stop y', 'Histogram lines'), hist_shape[0]-1))
-        update(42)
+        update(True)
 
     def update_line(event, x, y, flags, param):
         global mx, my, scale_x, scale_y, disable_matplotlib
@@ -308,15 +315,16 @@ def gui():
 
     # TODO Only do recomputation, whenever parameters that have an effect are changed.
     def update(force=False): # Note: all colors are in BGR format, as this is what OpenCV uses
-        global last, config, scale_x, scale_y, disable_matplotlib
+        global last, config, scale_x, scale_y, disable_matplotlib, ready
 
         times = []
-        if not update_config():
+        modified = update_config() or force
+        print ('----- ready', ready, modified, force)
+        if not ready or not modified:
             return
         times.append(('init',time.time()))
 
         # Check if trackbar ranges should be updated
-        modified = force or False
         bin = cv2.getTrackbarPos('bins', 'Histogram lines')
         hist = hists[bin]
         if bin != last['bin']:
@@ -369,7 +377,7 @@ def gui():
         line_params = ['line smooth', 'min peak height']
         line_changed = [last[param] != config[param] for param in line_params]
         if any(line_changed) or modified:
-            #modified = True # TODO this should not affect the later ones...? It should actually. 
+            #modified = True # TODO this should not affect the later ones...? It should actually.
             line_plot = plot_line(hist[selected_line, :], rng)
             lp_resized = cv2.resize(line_plot, partial_size)
             last['lp_resized'] = lp_resized
@@ -461,13 +469,19 @@ def gui():
             print (label, tim - times[i-1][1])
 
     def update_config():
-        global config
+        global config, ready
 
-        changed = False
+        if not ready:
+            return False
+
+        changed : bool = False
         for entry in config.keys():
             tmp = config[entry]
             config[entry] = cv2.getTrackbarPos(entry, 'Histogram lines')
-            changed |= tmp == config[entry]
+            print (entry, tmp, config[entry])
+            changed = changed or (tmp != config[entry])
+
+        if changed: print ('Changed!');
 
         return changed
 
@@ -475,7 +489,7 @@ def gui():
     keys = [key for key in f.keys() if key.endswith('_bins') and not key == 'field_bins']
     hists = [f[key] for key in keys]
     hists += list(f['field_bins'])
-    
+
     first_hist = hists[0]
     last = {
         # Trackbars
@@ -488,10 +502,10 @@ def gui():
         'iter dilate': None,
         'iter erode': None,
         'min contour size': None,
-        'line smooth': None, 
+        'line smooth': None,
         'min peak height': None,
 
-        # First row 
+        # First row
         'px': None,
         'py': None,
         'colored': None,
@@ -508,8 +522,8 @@ def gui():
     cv2.createTrackbar('range stop x', 'Histogram lines', first_hist.shape[1]-1, first_hist.shape[1]-1, update)
     cv2.createTrackbar('range start y', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('range stop y', 'Histogram lines', first_hist.shape[0]-1, first_hist.shape[0]-1, update)
-    cv2.createTrackbar('size x', 'Histogram lines', 1920, 1920, update)
-    cv2.createTrackbar('size y', 'Histogram lines', 1080, 1080, update)
+    cv2.createTrackbar('size x', 'Histogram lines', 1280, 1920, update)
+    cv2.createTrackbar('size y', 'Histogram lines', 720, 1080, update)
     cv2.createTrackbar('bins', 'Histogram lines', 0, len(hists)-1, update_image)
     cv2.createTrackbar('line', 'Histogram lines', 0, first_hist.shape[0]-1, update)
     cv2.createTrackbar('line smooth', 'Histogram lines', config['line smooth'], 50, update)
@@ -521,7 +535,8 @@ def gui():
     cv2.createTrackbar('min contour size', 'Histogram lines', config['min contour size'], 10000, update)
     cv2.createTrackbar('joint kernel size', 'Histogram lines', config['joint kernel size'], 100, update)
     cv2.setMouseCallback('Histogram lines', update_line)
-    update(42)
+    ready = True
+    update(True)
 
     while True:
         key = cv2.waitKey(16)
