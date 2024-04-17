@@ -9,8 +9,6 @@ CPP_FOLDER=lib/cpp
 CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++20 -O3
 # To enable address sanitizer:
 #CXXFLAGS += -fsanitize=address
-# To allow for valgrind:
-CXXFLAGS += -mno-tbm
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
 cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion #-Weffc++
@@ -26,6 +24,9 @@ PIP_INSTALL = pip_generic
 ifeq ($(shell uname -s), Darwin) # Mac OSX
 CXX = g++-13 # Use homebrew gcc, as system gcc is an alias for clang
 CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
+else
+# To allow for valgrind (and the mac doesn't like this):
+CXXFLAGS += -mno-tbm
 endif
 
 # Detect if OpenACC can be used
