@@ -169,7 +169,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 void otsu(
         const np_array<uint64_t> np_bins,
         np_array<uint64_t> np_result,
-        uint64_t step_size) {
+        const uint64_t step_size) {
     py::buffer_info
         bins_info = np_bins.request(),
         result_info = np_result.request();
@@ -190,58 +190,52 @@ void otsu(
             uint64_t w0 = 0, w1 = 0, th = guess * step_size;
 
             // w0 = row[:th].sum()
-            #pragma omp simd reduction(+:w0)
             for (uint64_t j = 0; j < th; j++) {
                 w0 += row[j];
             }
 
             // w1 = row[th:].sum()
-            #pragma omp simd reduction(+:w1)
             for (uint64_t j = th; j < N_cols; j++) {
                 w1 += row[j];
             }
-            float_t fw0 = 1.0f / w0, fw1 = 1.0f / w1;
 
             //if w0 <= 0 or w1 <= 0:
             //    return np.inf
             if (w0 == 0 || w1 == 0) {
                 guesses[guess] = (uint64_t) -1;
             } else {
-                float_t m0 = 0, m1 = 0;
+                double fw0 = 1.0 / (double) w0, fw1 = 1.0 / (double) w1;
+                uint64_t tm0 = 0, tm1 = 0;
+
                 // m0 = (1/w0) * (np.arange(th)*row[:th]).sum()
-                #pragma omp simd reduction(+:m0)
                 for (uint64_t j = 0; j < th; j++) {
-                    m0 += j * row[j];
+                    tm0 += j * row[j];
                 }
-                m0 *= fw0;
+                double m0 = fw0 * ((double)tm0);
 
-                // m1 = (1/w1) * (np.arange(row.shape[0]-th)*row[th:]).sum()
-                #pragma omp simd reduction(+:m1)
+                // m1 = (1/w1) * (np.arange(th,row.shape[0])*row[th:]).sum()
                 for (uint64_t j = th; j < N_cols; j++) {
-                    m1 += j * row[j];
+                    tm1 += j * row[j];
                 }
-                m1 *= fw1;
+                double m1 = fw1 * ((double)tm1);
 
-
-                float_t s0 = 0, s1 = 0;
+                double s0 = 0.0, s1 = 0.0;
                 // s0 = (1/w0) * (((np.arange(th)-m0)**2)*row[:th]).sum()
-                #pragma omp simd reduction(+:s0)
                 for (uint64_t j = 0; j < th; j++) {
-                    uint64_t im0 = j - m0;
-                    s0 += (im0*im0) * row[j];
+                    double im0 = (double)j - m0;
+                    s0 += (im0*im0) * (double)row[j];
                 }
                 s0 *= fw0;
 
                 // s1 = (1/w1) * (((np.arange(row.shape[0]-th)-m1)**2)*row[th:]).sum()
-                #pragma omp simd reduction(+:s1)
                 for (uint64_t j = th; j < N_cols; j++) {
-                    uint64_t im1 = j - m1;
-                    s1 += (im1*im1) * row[j];
+                    double im1 = (double)j - m1;
+                    s1 += (im1*im1) * (double)row[j];
                 }
                 s1 *= fw1;
 
                 // return w0*s0 + w1*s1
-                guesses[guess] = (uint64_t) floor(w0*s0 + w1*s1);
+                guesses[guess] = (uint64_t) floor((double)w0*s0 + (double)w1*s1);
             }
         }
 

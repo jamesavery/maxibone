@@ -22,7 +22,7 @@ namespace NS {
     void otsu(
         const np_array<uint64_t> np_bins,
         np_array<uint64_t> np_result,
-        uint64_t step_size);
+        const uint64_t step_size);
 
 }
 
