@@ -206,7 +206,8 @@ def row_normalize(A):
 def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
                     mask=None, mask_scale=8, voxel_bins=4096,
                     implant_threshold=32000, field_names=["gauss","edt","gauss+edt"],
-                    value_ranges=((1e4,3e4),(1,2**16-1))
+                    value_ranges=((1e4,3e4),(1,2**16-1)),
+                    verbose=1
 ):
 
 
@@ -240,10 +241,10 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
         voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), True)
+            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
         # TODO commented out during debugging
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), True)
+            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), verbose >= 1)
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -279,7 +280,7 @@ if __name__ == '__main__':
                             "voxel_bins" : 4096,
                             "field_bins" : 2048,
                             "benchmark" : False,
-                            "verbose" : 1})
+                            "verbose" : 0})
 
     outpath = f'{hdf5_root}/processed/histograms/{sample}/'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
@@ -308,7 +309,8 @@ if __name__ == '__main__':
 
         xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
                                             None if mask=="None" else mask, mask_scale, voxel_bins,
-                                            implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)))
+                                            implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)),
+                                            verbose)
 
         Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb{suffix}.png")
         Image.fromarray(tobyt(row_normalize(yb))).save(f"{outpath}/yb{suffix}.png")
