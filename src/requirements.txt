@@ -7,3 +7,4 @@ vedo==2023.4.3
 h5py==3.8.0
 pybind11==2.11.1
 opencv-python==4.9.0.80
+scikit-image==0.23.1
