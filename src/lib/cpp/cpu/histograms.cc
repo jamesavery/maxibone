@@ -34,7 +34,7 @@ namespace cpu_par {
             x_end  = Nx;
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld,%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
             printf("Starting calculation\n");
             fflush(stdout);
         }
@@ -54,7 +54,7 @@ namespace cpu_par {
                     int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                         #pragma omp atomic
                         x_bins[x*voxel_bins + voxel_index]++;
@@ -93,7 +93,7 @@ namespace cpu_par {
                         int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
-                            fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                            fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                         } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                             tmp[voxel_index]++;
                         }
@@ -124,7 +124,7 @@ namespace cpu_par {
                         int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
-                            fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                            fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                         } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                             tmp[voxel_index]++;
                         }
@@ -155,7 +155,7 @@ namespace cpu_par {
                         int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
-                            fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                            fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                         } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                             tmp[voxel_index]++;
                         }
@@ -189,7 +189,7 @@ namespace cpu_par {
                         int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
-                            fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                            fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                         } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                             tmp[voxel_index]++;
                         }
@@ -245,15 +245,24 @@ namespace cpu_par {
         auto [z_start, y_start, x_start] = offset;
         uint64_t
             bins_length = field_bins * voxel_bins,
-            z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
+            //z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
             y_end = nY,
             x_end = nX;
+
+        if (verbose) {
+            printf("\nStarting calculation\n");
+            printf("nZ, nY, nX = %ld, %ld, %ld\n", nZ, nY, nX);
+            printf("nz, ny, nx = %ld, %ld, %ld\n", nz, ny, nx);
+            printf("dz, dy, dx = %g, %g, %g\n", dz, dy, dx);
+            printf("vrange = (%g, %g), frange = (%g, %g)\n", v_min, v_max, f_min, f_max);
+            fflush(stdout);
+        }
 
         #pragma omp parallel
         {
             uint64_t *tmp_bins = (uint64_t*) calloc(bins_length, sizeof(uint64_t));
             #pragma omp for nowait
-            for (uint64_t Z = 0; Z < block_size.z; Z++) {
+            for (uint64_t Z = 0; Z < (uint64_t) block_size.z; Z++) {
                 for (uint64_t Y = y_start; Y < y_end; Y++) {
                     for (uint64_t X = x_start; X < x_end; X++) {
                         uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
@@ -312,6 +321,15 @@ namespace cpu_par {
         auto [v_min, v_max] = vrange;
         auto [z_start, y_start, x_start] = offset;
 
+        if (verbose) {
+            printf("\nStarting calculation\n");
+            printf("nZ, nY, nX = %ld, %ld, %ld\n", nZ, nY, nX);
+            printf("nz, ny, nx = %ld, %ld, %ld\n", nz, ny, nx);
+            printf("dz, dy, dx = %g, %g, %g\n", dz, dy, dx);
+            printf("vrange = (%g, %g), frange = (%g, %g)\n", v_min, v_max, f_min, f_max);
+            fflush(stdout);
+        }
+
         uint64_t
             // TODO maybe make into a parameter? These values are derived from 1000_compute_histograms.py, the original was bins_info.size, which is the flat total amount of elements in the bins array.
             bins_length = nz*(voxel_bins/2)*field_bins,
@@ -346,11 +364,11 @@ namespace cpu_par {
 
 
                             if (field_index < 0 || (uint64_t) field_index >= field_bins) {
-                                fprintf(stderr,"field value out of bounds at X,Y,Z = %lld,%lld,%lld, x,y,z = %.1f,%.1f,%.1f:\n"
-                                "\t field_value = %d (%.3f), field_index = %lld, voxel_value = %d, field[%lld] = %d\n",
+                                fprintf(stderr,"field value out of bounds at X,Y,Z = %ld,%ld,%ld, x,y,z = %.1f,%.1f,%.1f:\n"
+                                "\t field_value = %d (%.3f), field_index = %ld, voxel_value = %d, field[%ld] = %d\n",
                                 X,Y,Z,x,y,z,
                                 field_value, floor(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
-                                printf("nx,ny,nz = %lld,%lld,%lld. %lld*%lld + %lld*%lld + %lld = %lld\n",
+                                printf("nx,ny,nz = %ld,%ld,%ld. %ld*%ld + %ld*%ld + %ld = %ld\n",
                                     nx,ny,nz,
                                     (uint64_t) floor(x),ny*nz,
                                     (uint64_t) floor(y),nz,

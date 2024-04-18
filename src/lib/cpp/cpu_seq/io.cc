@@ -68,9 +68,9 @@ void write_contiguous_slice(const T *data,
             exit(-1);
         }
         // Check if the correct number of bytes were written
-        if (file.tellp() != (offset * sizeof(T) + block * block_size + this_block_size)) {
+        if ((uint64_t) file.tellp() != (offset * sizeof(T) + block * block_size + this_block_size)) {
             fprintf(stderr, "write_slice: Error writing block %lu to %s.\n", block, filename.c_str());
-            fprintf(stderr, "write_slice: Wrote %lu bytes, expected %lu.\n", file.tellp(), offset * sizeof(T) + block * block_size + this_block_size);
+            fprintf(stderr, "write_slice: Wrote %ld bytes, expected %lu.\n", (int64_t) file.tellp(), offset * sizeof(T) + block * block_size + this_block_size);
             file.close();
             exit(-1);
         }

@@ -2,24 +2,24 @@
 
 namespace cpu_par {
 
-inline float resample2x2x2(const field_type *voxels,
+inline double resample2x2x2(const field_type *voxels,
             const std::tuple<uint64_t,uint64_t,uint64_t> &shape,
-            const std::array<float,3>    &X) {
+            const std::array<double, 3>    &X) {
     auto  [Nz,Ny,Nx] = shape;	// Eller omvendt?
     // assert(X[0]>=0.5      && X[1]>=0.5      && X[2]>= 0.5);
     // assert(X[0]<=(Nx-0.5) && X[1]<=(Ny-0.5) && X[2]<= (Nz-0.5));
 
-    float   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
+    double   Xfrac[2][3];	// {Xminus[3], Xplus[3]}
     int64_t  Xint[2][3];	// {Iminus[3], Iplus[3]}
-    float   value = 0;
+    double   value = 0;
 
     for(int i = 0; i < 3; i++) {
         double Iminus, Iplus;
-        Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-        Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+        Xfrac[0][i] = 1-modf((double)X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+        Xfrac[1][i] =   modf((double)X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
-        Xint[0][i] = Iminus;
-        Xint[1][i] = Iplus;
+        Xint[0][i] = (int64_t) Iminus;
+        Xint[1][i] = (int64_t) Iplus;
     }
 
     // Resample voxel in 2x2x2 neighbourhood
@@ -33,7 +33,7 @@ inline float resample2x2x2(const field_type *voxels,
     //111 +++
 
     for(int ijk = 0; ijk <= 7; ijk++) {
-        float  weight = 1;
+        double  weight = 1;
         int64_t IJK[3] = {0,0,0};
 
         for(int axis = 0; axis < 3; axis++) { // x-1/2 or x+1/2
@@ -79,8 +79,8 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     const prob_type  *prob   = static_cast<prob_type*>(prob_info.ptr);
     result_type      *result = static_cast<result_type*>(result_info.ptr);
 
-    const uint32_t Nfield_bins = prob_info.shape[0],
-                   Nvoxel_bins = prob_info.shape[1];
+    const uint64_t Nfield_bins = (uint64_t) prob_info.shape[0],
+                   Nvoxel_bins = (uint64_t) prob_info.shape[1];
 
     auto [sz, sy, sx] = offset;
     auto [Nz, Ny, Nx] = ranges;
@@ -93,7 +93,9 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n",v_min,v_max, f_min,f_max);
 
     #pragma omp parallel for
-    for(size_t i=0;i<result_info.size;i++) result[i] = 0;
+    for(size_t i = 0; i < (uint64_t) result_info.size; i++) {
+        result[i] = 0;
+    }
 
     #pragma omp parallel for collapse(3)
     for (uint64_t z = sz; z < Nz; z++) {
@@ -110,7 +112,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 
                 // assert(voxel >= v_min && voxel <= v_max);
 
-                int64_t voxel_index = floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/double(v_max - v_min)) );
+                int64_t voxel_index = (int64_t) floor(static_cast<double>(Nvoxel_bins-1) * ((voxel - v_min)/double(v_max - v_min)) );
 
                 // if(!(voxel_index >= 0 && voxel_index < Nvoxel_bins)){
                 //     fprintf(stderr,"voxel = %d, voxel_index = %ld, Nvoxel_bins = %ld\n",
@@ -122,17 +124,26 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 
                 field_type  field_value = 0;
                 {
-                    auto nZ = voxels_info.shape[0], nY = voxels_info.shape[1], nX = voxels_info.shape[2];
-                    auto nz = field_info.shape[0],  ny = field_info.shape[1],  nx = field_info.shape[2];
+                    double
+                        dz = (double) fz / ((double) nz),
+                        dy = (double) fy / ((double) ny),
+                        dx = (double) fx / ((double) nx);
 
-                    float dz = nz/((float)nZ), dy = ny/((float)nY), dx = nx/((float)nX);
-
-                    std::array<float,3> XYZ = {x*dx, y*dy, (z-sz)*dz};
+                    std::array<double, 3> XYZ = {
+                        (double) x      * dx,
+                        (double) y      * dy,
+                        (double) (z-sz) * dz
+                    };
                     auto [X,Y,Z] = XYZ;
-                    if(X>=0.5 && Y>=0.5 && Z>=0.5 && (X+0.5)<nx && (Y+0.5)<ny && (Z+0.5)<nz) {
-                        field_value = round(resample2x2x2(field, {field_info.shape[0],field_info.shape[1],field_info.shape[2]},XYZ));
+                    if (X>=0.5 && Y>=0.5 && Z>=0.5 &&
+                            (X+0.5)<(double)nx && (Y+0.5)<(double)ny && (Z+0.5)<(double)nz) {
+                        field_value = (field_type) round(resample2x2x2(
+                            field,
+                            { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
+                            XYZ
+                        ));
                     } else {
-                        uint64_t i = floor(Z)*ny*nx + floor(Y)*nx + floor(X);
+                        uint64_t i = (uint64_t) floor(Z)*ny*nx + (uint64_t) floor(Y)*nx + (uint64_t) floor(X);
                         field_value = field[i];
                     }
                 }
@@ -141,7 +152,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                 field_value = std::max(f_min, field_value);
                 field_value = std::min(f_max, field_value);
 
-                int32_t field_index = floor(static_cast<double>(Nfield_bins-1) * (double(field_value - f_min)/double(f_max - f_min)) );
+                int64_t field_index = (int64_t) floor(static_cast<double>(Nfield_bins-1) * (double(field_value - f_min)/double(f_max - f_min)) );
 
                 // if(!(field_index >= 0 && field_index < Nfield_bins)){
                 //     fprintf(stderr,"field_value = %d, field_index = %ld, Nfield_bins = %ld\n",
@@ -149,13 +160,13 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                 //     abort();
                 // }
 
-                result[flat_index] = voxel_index;
+                result[flat_index] = (result_type) voxel_index;
                 prob_type p = prob[field_index*Nvoxel_bins + voxel_index]; //* weights[i + n_axes];
                 // if(p<0 || p>1){
                 //     fprintf(stderr,"p = %g; field_v = %d; voxel_voxel = %d\n",p, field_value,voxel);
                 //     abort();
                 // }
-                result[flat_index] = round(p * std::numeric_limits<result_type>::max());
+                result[flat_index] = (result_type) round(p * std::numeric_limits<result_type>::max());
                 // result[flat_index] = p;
             }
         }

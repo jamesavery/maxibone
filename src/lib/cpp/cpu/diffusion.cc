@@ -56,7 +56,11 @@ namespace cpu_par {
 
         // Read the data
         fseek(f, disk_begin*sizeof(T), SEEK_SET);
-        fread(buffer+buffer_begin, sizeof(T), read_size, f);
+        auto n = fread(buffer+buffer_begin, sizeof(T), read_size, f);
+
+        if (n != (uint64_t) read_size) {
+            throw std::runtime_error("Could not read the entire buffer");
+        }
 
         // Fill the rest of the buffer with zeros
         if (disk_end == total_size) {
@@ -83,7 +87,10 @@ namespace cpu_par {
         if (file == NULL) {
             throw std::runtime_error("Could not open file: " + path);
         }
-        ftruncate(fileno(file), size);
+        auto ret = ftruncate(fileno(file), size);
+        if (ret != 0) {
+            throw std::runtime_error("Could not truncate file: " + path);
+        }
         return file;
     }
 
@@ -92,7 +99,10 @@ namespace cpu_par {
         if (file == NULL) {
             throw std::runtime_error("Could not open file: " + path);
         }
-        ftruncate(fileno(file), size);
+        auto ret = ftruncate(fileno(file), size);
+        if (ret != 0) {
+            throw std::runtime_error("Could not truncate file: " + path);
+        }
         return file;
     }
 

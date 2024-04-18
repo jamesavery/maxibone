@@ -94,13 +94,13 @@ inline float resample2x2x2(const field_type __restrict__* voxels,
 
         auto [I,J,K] = IJK;
         if(I<0 || J<0 || K<0) {
-            printf("(I,J,K) = (%lld,%lld,%lld)\n", I, J, K);
+            printf("(I,J,K) = (%ld,%ld,%ld)\n", I, J, K);
 
             abort();
         }
 
         if (I >= int(Nx) || J >= int(Ny) || K >= int(Nz)) {
-            printf("(I,J,K) = (%lld,%lld,%lld), (Nx,Ny,Nz) = (%lld,%lld,%lld)\n", I, J, K, Nx, Ny, Nz);
+            printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n", I, J, K, Nx, Ny, Nz);
             abort();
         }
 

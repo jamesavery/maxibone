@@ -36,7 +36,7 @@ namespace cpu_seq {
             x_end   = Nx;
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%lld,%lld,%lld,%lld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
             printf("Starting calculation\n");
             fflush(stdout);
         }
@@ -54,7 +54,7 @@ namespace cpu_seq {
                     int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
-                        fprintf(stderr,"Out-of-bounds error for index %lld: %lld > %lld:\n", flat_idx, voxel_index, voxel_bins);
+                        fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
                     } else if (voxel != 0) { // Voxel not masked, and within vmin,vmax range
                         x_bins[x*voxel_bins + voxel_index]++;
                         y_bins[y*voxel_bins + voxel_index]++;
@@ -78,7 +78,6 @@ namespace cpu_seq {
         }
     }
 
-    // TODO: Allow field to be lower resolution than voxel data
     void field_histogram(const voxel_type *__restrict__ voxels,
                          const field_type *__restrict__ field,
                          const shape_t &voxels_shape,
@@ -104,12 +103,21 @@ namespace cpu_seq {
         auto [v_min, v_max] = vrange;
         auto [z_start, y_start, x_start] = offset;
         uint64_t
-            z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
+            //z_end = (uint64_t) std::min(z_start+block_size.z, nZ),
             y_end = nY,
             x_end = nX;
 
+        if (verbose) {
+            printf("\nStarting calculation\n");
+            printf("nZ, nY, nX = %ld, %ld, %ld\n", nZ, nY, nX);
+            printf("nz, ny, nx = %ld, %ld, %ld\n", nz, ny, nx);
+            printf("dz, dy, dx = %g, %g, %g\n", dz, dy, dx);
+            printf("vrange = (%g, %g), frange = (%g, %g)\n", v_min, v_max, f_min, f_max);
+            fflush(stdout);
+        }
+
         uint64_t flat_index = 0;
-        for (uint64_t Z = 0; Z < block_size.z; Z++) {
+        for (uint64_t Z = 0; Z < (uint64_t) block_size.z; Z++) {
             for (uint64_t Y = y_start; Y < y_end; Y++) {
                 for (uint64_t X = x_start; X < x_end; X++) {
                     auto voxel = voxels[flat_index];
