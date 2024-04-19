@@ -7,24 +7,29 @@ constexpr bool DEBUG = false;
 
 namespace gpu {
 
-    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius) {
+    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
+        // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices to the arrays can be.
+
+        const int32_t
+            strides[3] = {(N.y)*(N.x), N.x, 1},
+            stride = strides[dim],
+            Ns[3] = {N.z, N.y, N.x};
+
         #pragma acc parallel loop collapse(3) present(input, kernel, output)
-        for (int64_t i = 0; i < N.z; i++) {
-            for (int64_t j = 0; j < N.y; j++) {
-                for (int64_t k = 0; k < N.x; k++) {
-                    const int64_t
+        for (int32_t i = 0; i < N.z; i++) {
+            for (int32_t j = 0; j < N.y; j++) {
+                for (int32_t k = 0; k < N.x; k++) {
+                    const int32_t
                         X[3] = {i, j, k},
-                        stride[3] = {(N.y)*(N.x), N.x, 1},
-                        Ns[3] = {N.z, N.y, N.x},
                         ranges[2] = {
                             -std::min(radius, X[dim]), std::min(radius, Ns[dim]-X[dim]-1)
-                        },
-                        output_index = i*stride[0] + j*stride[1] + k*stride[2];
+                        };
+                    const int64_t output_index = (uint64_t)i*(uint64_t)strides[0] + (uint64_t)j*(uint64_t)strides[1] + (uint64_t)k*(uint64_t)strides[2];
 
                     float sum = 0.0f;
 
-                    for (int64_t r = -radius; r <= radius; r++) {
-                        const int64_t input_index = output_index + r*stride[dim];
+                    for (int32_t r = -radius; r <= radius; r++) {
+                        const int64_t input_index = output_index + (int64_t)r*(int64_t)stride;
                         // If the loop ranges guards the accesses
                         //float val = input[input_index];
                         //sum += val * kernel[radius+r];
@@ -35,6 +40,9 @@ namespace gpu {
                         mask &= mask >> 31;
                         int64_t index = (mask & input_index) | (~mask & output_index);
                         float val = input[index];
+
+                        // Branchfree version - Multiplication
+                        //val *= (float) cond;
 
                         // Branch free version - pointer casting
                         int32_t *vali = (int32_t*) &val;
@@ -47,6 +55,10 @@ namespace gpu {
                         //std::memcpy(&val, &vali, sizeof(val));
 
                         // Branch free version - union
+                        //union raw32 {
+                        //    float f;
+                        //    int32_t i;
+                        //};
                         //raw32 val32;
                         //val32.f = val;
                         //val32.i &= mask;
