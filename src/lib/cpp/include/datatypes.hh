@@ -40,7 +40,7 @@ typedef py::array_t<uint8_t,   py::array::c_style | py::array::forcecast> np_byt
 
 template <typename T>
 constexpr ssize_t acc_block_size = 1024 * 1024 * 1024 / sizeof(T); // 1 GB
-constexpr ssize_t gpu_threads = 16384; // 4090
+constexpr ssize_t gpu_threads = 16384*4; // 4090
 
 struct plane_t {
   std::array<real_t,3> cm, u_axis, v_axis;
