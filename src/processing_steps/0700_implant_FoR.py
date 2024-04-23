@@ -15,7 +15,7 @@ from numpy import array, newaxis as NA
 
 verbose = 1
 
-vedo.settings.start_xvfb()
+#vedo.settings.start_xvfb()
 
 # Hvor skal disse hen?
 def circle_center(p0,p1,p2):
@@ -299,12 +299,19 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
-    plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png')
-    plt.imshow(implant[:,implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png')
-    plt.imshow(implant[:,:,implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png')
-    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png')
-    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png')
-    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png')
+    if verbose >= 1: print(f'Plotting sanity images')
+    plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png'); plt.clf()
+    plt.imshow(implant[:,implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png'); plt.clf()
+    plt.imshow(implant[:,:,implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png'); plt.clf()
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png'); plt.clf()
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png'); plt.clf()
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png'); plt.clf()
+    voxels_without_implant = voxels.copy()
+    voxels_without_implant[implant.astype(bool)] = 0
+    plt.imshow(voxels_without_implant[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xy.png'); plt.clf()
+    plt.imshow(voxels_without_implant[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xz.png'); plt.clf()
+    plt.imshow(voxels_without_implant[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-without-implant-yz.png'); plt.clf()
+    del voxels_without_implant
 
     nz,ny,nx = implant.shape
 
@@ -591,6 +598,11 @@ if __name__ == "__main__":
         plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
         plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
         plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
+        voxels_boned = voxels.copy()
+        voxels_boned[~bone_region_mask] = 0
+        plt.imshow(voxels_boned[voxels_boned.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
+        plt.imshow(voxels_boned[:,voxels_boned.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
+        plt.imshow(voxels_boned[:,:,voxels_boned.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
 
         if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
         update_hdf5_mask(f"{output_dir}/{sample}.h5",
