@@ -9,7 +9,7 @@ sys.path.append(sys.path[0]+"/../")
 #import bohrium as bh # TODO: Get rid of Bohrium dependence without losing too much performance
 from lib.py.esrf_read import *
 import numpy   as np, matplotlib.pyplot as plt
-from config.paths import hdf5_root_fast as hdf5_root, esrf_implants_root
+from config.paths import hdf5_root as hdf5_root, esrf_implants_root
 from lib.py.helpers import commandline_args
 from PIL import Image
 
