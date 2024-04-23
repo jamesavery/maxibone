@@ -103,7 +103,7 @@ if __name__ == '__main__':
     sample, subbins, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'debug_output': None})
     output_folder = f'{hdf5_root}/processed/probabilities/'
     debug = True
-    debug_output = output_folder if not debug_output else debug_output
+    debug_output = f'{output_folder}/{sample}' if not debug_output else debug_output
 
 
     pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
