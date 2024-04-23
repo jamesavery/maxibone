@@ -110,9 +110,8 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                 // assert(flat_index < voxels_info.size);
                 voxel_type voxel = voxels[flat_index];
 
+                voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0;
                 if(voxel == 0) continue;
-                voxel = std::max(v_min, voxel);
-                voxel = std::min(v_max, voxel);
 
                 // assert(voxel >= v_min && voxel <= v_max);
 
