@@ -15,8 +15,8 @@ inline double resample2x2x2(const field_type *voxels,
 
     for(int i = 0; i < 3; i++) {
         double Iminus, Iplus;
-        Xfrac[0][i] = 1-modf((double)X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
-        Xfrac[1][i] =   modf((double)X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
+        Xfrac[0][i] = 1-modf(X[i]-0.5, &Iminus); // 1-{X[i]-1/2}, floor(X[i]-1/2)
+        Xfrac[1][i] =   modf(X[i]+0.5, &Iplus);  // {X[i]+1/2}, floor(X[i]+1/2)
 
         Xint[0][i] = (int64_t) Iminus;
         Xint[1][i] = (int64_t) Iplus;
@@ -48,7 +48,7 @@ inline double resample2x2x2(const field_type *voxels,
             abort();
         }
         if(I>=int(Nx) || J>=int(Ny) || K>=int(Nz)) {
-            printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld)\n",I,J,K,Nx,Ny,Nz);
+            printf("(I,J,K) = (%ld,%ld,%ld), (Nx,Ny,Nz) = (%ld,%ld,%ld), (X,Y,Z) = (%g,%g,%g)\n",I,J,K,Nx,Ny,Nz,X[0],X[1],X[2]);
             abort();
         }
         uint64_t voxel_index = I+J*Nx+K*Nx*Ny;
@@ -136,14 +136,14 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                     };
                     auto [X,Y,Z] = XYZ;
                     if (X>=0.5 && Y>=0.5 && Z>=0.5 &&
-                            (X+0.5)<(double)nx && (Y+0.5)<(double)ny && (Z+0.5)<(double)nz) {
-                        field_value = (field_type) round(resample2x2x2(
+                            (X+0.5)<(double)fx && (Y+0.5)<(double)fy && (Z+0.5)<(double)fz) {
+                        field_value = (field_type) floor(resample2x2x2(
                             field,
                             { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
                             XYZ
                         ));
                     } else {
-                        uint64_t i = (uint64_t) floor(Z)*ny*nx + (uint64_t) floor(Y)*nx + (uint64_t) floor(X);
+                        uint64_t i = (uint64_t) floor(Z)*fy*fx + (uint64_t) floor(Y)*fx + (uint64_t) floor(X);
                         field_value = field[i];
                     }
                 }
