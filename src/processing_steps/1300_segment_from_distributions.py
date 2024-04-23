@@ -91,6 +91,23 @@ if __name__ == '__main__':
         #    # del solid_implant, solid_implant1x
         #except Exception as e:
         #    print(f"Couldn't remove dilated solid implant: {e}")
+        this_z = zend - zstart
+        zmid = this_z // 2
+        if verbose >= 1:
+            plot_dir = f'{hdf5_root}/processed/segmentation/{sample}'
+            pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
+            combined_yx = np.zeros((Ny,Nx,3), dtype=np.uint8)
+            combined_zy = np.zeros((this_z,Ny,3), dtype=np.uint8)
+            combined_zx = np.zeros((this_z,Nx,3), dtype=np.uint8)
+
+            plt.imshow(voxels[zmid,:,:]); plt.savefig(f'{plot_dir}/{b}_voxels_yx.png'); plt.clf()
+            plt.imshow(voxels[:,Ny//2,:]); plt.savefig(f'{plot_dir}/{b}_voxels_zx.png'); plt.clf()
+            plt.imshow(voxels[:,:,Nx//2]); plt.savefig(f'{plot_dir}/{b}_voxels_zy.png'); plt.clf()
+
+            plt.imshow(fields[0][zmid//2,:,:]); plt.savefig(f'{plot_dir}/{b}_field_yx.png'); plt.clf()
+            plt.imshow(fields[0][:,Ny//4,:]); plt.savefig(f'{plot_dir}/{b}_field_zx.png'); plt.clf()
+            plt.imshow(fields[0][:,:,Nx//4]); plt.savefig(f'{plot_dir}/{b}_field_zy.png'); plt.clf()
+
 
         for m in [0,1]:
             output_dir  = f'{binary_root}/segmented/{scheme}/P{m}/1x/'
@@ -107,13 +124,16 @@ if __name__ == '__main__':
                                                 (zstart,0,0), (zend,Ny,Nx));
 
             if verbose >= 1:
+                yx = result[zmid,:,:]
+                zx = result[:,Ny//2,:]
+                zy = result[:,:,Nx//2]
+                combined_yx[yx > 0] = [255,0,0] if m == 0 else [255,255,0]
+                combined_zx[zx > 0] = [255,0,0] if m == 0 else [255,255,0]
+                combined_zy[zy > 0] = [255,0,0] if m == 0 else [255,255,0]
                 print ('Plotting segmentation planes')
-                zmid = result.shape[0] // 2
-                plot_dir = f'{hdf5_root}/processed/segmentation/'
-                pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
-                plt.imshow(result[zmid, :, :]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_yx.png'); plt.clf()
-                plt.imshow(result[:, Ny//2, :]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_zx.png'); plt.clf()
-                plt.imshow(result[:, :, Nx//2]); plt.savefig(f'{plot_dir}/{sample}_{b}_{scheme}_P{m}_zy.png'); plt.clf()
+                plt.imshow(yx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_yx.png'); plt.clf()
+                plt.imshow(zx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zx.png'); plt.clf()
+                plt.imshow(zy); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zy.png'); plt.clf()
 
             # label.material_prob(
             #     voxels, fields,
@@ -130,3 +150,28 @@ if __name__ == '__main__':
             if verbose >= 1: print(f"Writing results from block {b}")
             write_slice(result, output_file, (zstart,0,0), result.shape)
 
+        if verbose >= 1:
+            # Draw two plots in one, one above and one below
+            fig = plt.figure(figsize=(10,10))
+            plt.subplot(2,1,1)
+            plt.imshow(combined_yx)
+            plt.subplot(2,1,2)
+            plt.imshow(voxels[zmid,:,:])
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_yx.png')
+            plt.clf()
+
+            fig = plt.figure(figsize=(10,10))
+            plt.subplot(2,1,1)
+            plt.imshow(combined_zx)
+            plt.subplot(2,1,2)
+            plt.imshow(voxels[:,Ny//2,:])
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zx.png')
+            plt.clf()
+
+            fig = plt.figure(figsize=(10,10))
+            plt.subplot(2,1,1)
+            plt.imshow(combined_zy)
+            plt.subplot(2,1,2)
+            plt.imshow(voxels[:,:,Nx//2])
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zy.png')
+            plt.clf()
