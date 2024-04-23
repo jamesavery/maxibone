@@ -39,9 +39,9 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__':
-    sample, block_start, n_blocks, region_mask, group, mask_scale, scheme, verbose = commandline_args({'sample' : '<required>',
+    sample, block_start, block_size, region_mask, group, mask_scale, scheme, verbose = commandline_args({'sample' : '<required>',
                                                                                                        "block_start" : 0,
-                                                                                                       "n_blocks" : 0,
+                                                                                                       "block_size" : 0,
                                                                                                        'region_mask' :  'bone_region',
                                                                                                        'group' :  'otsu_separation',
                                                                                                        'mask_scale' :  8,
@@ -49,7 +49,7 @@ if __name__ == '__main__':
                                                                                                        'verbose' : 1})
 
     # Iterate over all subvolumes
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=0, n_blocks=n_blocks, z_offset=block_start)
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=block_size, n_blocks=0, z_offset=block_start)
     Nz, Ny, Nx = bi['dimensions'][:3]
     fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
@@ -58,17 +58,20 @@ if __name__ == '__main__':
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'
     for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
 #        if str(region_mask) == "None":
-        group_name = f"{group}/bone_region/"            #TODO: two different masks from command line
+        group_name = f"{group}/{region_mask}/"            #TODO: two different masks from command line
 #        else:
 #            group_name = f"{group}/{region_mask}{b}/"
 
-        block_size = bi['subvolume_nzs'][b]
-        zstart = bi['subvolume_starts'][b]
+        block_size = bi['block_size']
+        zstart = b*block_size
+
+        #block_size = bi['subvolume_nzs'][b]
+        #zstart = bi['subvolume_starts'][b]
 
         # zstart     = 400        # DEBUGGING
         # block_size = 200        # DEBBUGGING
 
-        zend = zstart + block_size
+        zend = min(zstart + block_size, Nz)
         fzstart, fzend = zstart // 2, zend // 2
 
         voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
