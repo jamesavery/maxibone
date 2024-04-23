@@ -78,19 +78,19 @@ if __name__ == '__main__':
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         # TODO: Flyt til generering af figurer - hører ikke til her
-        try:
-            f = h5py.File(f"{hdf5_root}/masks/2x/{sample}.h5","r")
-            solid_implant   = f["implant_solid/mask"][zstart//2:zstart//2+block_size//2]
-            (nz,ny,nx) = solid_implant.shape
-            f.close()
+        #try:
+        #    f = h5py.File(f"{hdf5_root}/masks/2x/{sample}.h5","r")
+        #    solid_implant   = f["implant_solid/mask"][zstart//2:zstart//2+block_size//2]
+        #    (nz,ny,nx) = solid_implant.shape
+        #    f.close()
 
-            # solid_implant1x = np.broadcast_to(solid_implant[:,na,:,na,:,na],(nz,2,ny,2,nx,2)).reshape(2*nz,2*ny,2*nx)
-            # solid_implant1x = ndi.grey_dilation(solid_implant1x,2)
-            # voxels[:2*nz,:2*ny,:2*nx] *= ~solid_implant1x
+        #    # solid_implant1x = np.broadcast_to(solid_implant[:,na,:,na,:,na],(nz,2,ny,2,nx,2)).reshape(2*nz,2*ny,2*nx)
+        #    # solid_implant1x = ndi.grey_dilation(solid_implant1x,2)
+        #    # voxels[:2*nz,:2*ny,:2*nx] *= ~solid_implant1x
 
-            # del solid_implant, solid_implant1x
-        except Exception as e:
-            print(f"Couldn't remove dilated solid implant: {e}")
+        #    # del solid_implant, solid_implant1x
+        #except Exception as e:
+        #    print(f"Couldn't remove dilated solid implant: {e}")
 
         for m in [0,1]:
             output_dir  = f'{binary_root}/segmented/{scheme}/P{m}/1x/'
