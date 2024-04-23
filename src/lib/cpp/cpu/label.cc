@@ -86,6 +86,10 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     auto [Nz, Ny, Nx] = ranges;
     const auto nz = voxels_info.shape[0], ny = voxels_info.shape[1], nx = voxels_info.shape[2];
     const auto fz = field_info.shape[0],  fy = field_info.shape[1],  fx = field_info.shape[2];
+    const double
+        dz = (double) fz / (double) nz,
+        dy = (double) fy / (double) ny,
+        dx = (double) fx / (double) nx;
 
     auto [v_min, v_max] = vrange;
     auto [f_min, f_max] = frange;
@@ -124,11 +128,6 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
 
                 field_type  field_value = 0;
                 {
-                    double
-                        dz = (double) fz / ((double) nz),
-                        dy = (double) fy / ((double) ny),
-                        dx = (double) fx / ((double) nx);
-
                     std::array<double, 3> XYZ = {
                         (double) x      * dx,
                         (double) y      * dy,
