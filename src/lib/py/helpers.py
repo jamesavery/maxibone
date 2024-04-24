@@ -97,8 +97,6 @@ def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
         vm_shifts  = h5meta["volume_matching_shifts"][:]
         Nz, Ny, Nx = h5meta['voxels'].shape
         Nz -= np.sum(vm_shifts)
-        if Nz % 2 != 0:
-            Nz -= 1
         Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
 
         subvolume_dimensions =  h5meta['subvolume_dimensions'][:]
@@ -140,7 +138,6 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names):
     h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
     Nz, Ny, Nx = h5meta['voxels'].shape
     Nz -= np.sum(h5meta["volume_matching_shifts"][:])
-    Nz -= 1 if Nz % 2 != 0 else 0 # Has to be even due to field being scale 2x
     h5meta.close()
 #    print(block_size,Nz,offset)
     block_size       = min(block_size, Nz-offset)

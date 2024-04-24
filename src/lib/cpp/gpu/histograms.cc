@@ -211,6 +211,7 @@ namespace gpu {
                             z = (uint64_t) floor((double)Z*dz),
                             y = (uint64_t) floor((double)Y*dy),
                             x = (uint64_t) floor((double)X*dx);
+                        z = std::min((uint64_t)(nz-1), z); // Clamp when nZ % 2 != 0
                         uint64_t flat_index_field = z*ny*nx + y*nx + x;
                         field_type field_value = field[flat_index_field];
 

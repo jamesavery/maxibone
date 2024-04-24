@@ -141,6 +141,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                             XYZ
                         ));
                     } else {
+                        Z = std::min((double)(fz-1), Z); // Clamp when nz % 2 != 0
                         uint64_t i = (uint64_t) floor(Z)*fy*fx + (uint64_t) floor(Y)*fx + (uint64_t) floor(X);
                         field_value = field[i];
                     }

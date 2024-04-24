@@ -276,6 +276,7 @@ namespace cpu_par {
                             z = (uint64_t) floor((double)Z*dz),
                             y = (uint64_t) floor((double)Y*dy),
                             x = (uint64_t) floor((double)X*dx);
+                        z = std::min((uint64_t)(nz-1), z); // Clamp when nZ % 2 != 0
                         uint64_t i = z*ny*nx + y*nx + x;
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
