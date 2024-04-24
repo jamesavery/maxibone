@@ -27,6 +27,9 @@ Nz         = full_Nz - np.sum(vm_shifts)    # Full volume matched image resoluti
 nz,ny,nx   = np.array([Nz,Ny,Nx])//scale    # Volume matched image resolution at chosen scale
 intermediate_folder = f"{binary_root}/labels/{scale}x/"
 os.makedirs(intermediate_folder, exist_ok=True)
+if verbose >= 1:
+    plot_dir = f"{hdf5_root}/processed/implant_mask/"
+    pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
 
 voxel_size   = h5meta['voxels'].attrs['voxelsize'] * scale
 global_vmin = np.min(h5meta['subvolume_range'][:,0])
@@ -110,9 +113,9 @@ else:
     implant_mask = np.zeros((nz,ny,nx),dtype=bool)
     largest_connected_component(implant_mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
-plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{intermediate_folder}/{sample}_yx_largest.png")
-plt.imshow(implant_mask[:,ny//2,:]); plt.savefig(f"{intermediate_folder}/{sample}_zx_largest.png")
-plt.imshow(implant_mask[:,:,nx//2]); plt.savefig(f"{intermediate_folder}/{sample}_zy_largest.png")
+plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_yx_largest.png")
+plt.imshow(implant_mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_zx_largest.png")
+plt.imshow(implant_mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_zy_largest.png")
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
