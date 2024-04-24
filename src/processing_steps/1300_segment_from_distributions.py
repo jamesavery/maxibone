@@ -4,7 +4,7 @@ import os, sys, pathlib, h5py, numpy as np, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 #import pybind_kernels.histograms as histograms
 #import pybind_kernels.label as label
-from lib.cpp.cpu.label import material_prob_justonefieldthx
+from lib.cpp.gpu.label import material_prob_justonefieldthx
 from lib.cpp.cpu.io import write_slice
 from config.paths import binary_root, hdf5_root as hdf5_root
 from tqdm import tqdm
@@ -104,9 +104,9 @@ if __name__ == '__main__':
             plt.imshow(voxels[:,Ny//2,:]); plt.savefig(f'{plot_dir}/{b}_voxels_zx.png'); plt.clf()
             plt.imshow(voxels[:,:,Nx//2]); plt.savefig(f'{plot_dir}/{b}_voxels_zy.png'); plt.clf()
 
-            plt.imshow(fields[0][zmid//2,:,:]); plt.savefig(f'{plot_dir}/{b}_field_yx.png'); plt.clf()
-            plt.imshow(fields[0][:,Ny//4,:]); plt.savefig(f'{plot_dir}/{b}_field_zx.png'); plt.clf()
-            plt.imshow(fields[0][:,:,Nx//4]); plt.savefig(f'{plot_dir}/{b}_field_zy.png'); plt.clf()
+            plt.imshow(fields[0][zmid//2,:,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_yx.png'); plt.clf()
+            plt.imshow(fields[0][:,Ny//4,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zx.png'); plt.clf()
+            plt.imshow(fields[0][:,:,Nx//4]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zy.png'); plt.clf()
 
 
         for m in [0,1]:
@@ -152,26 +152,35 @@ if __name__ == '__main__':
 
         if verbose >= 1:
             # Draw two plots in one, one above and one below
-            fig = plt.figure(figsize=(10,10))
+            fig = plt.figure(figsize=(34,34*2))
+            fig.subplots_adjust(wspace=0, hspace=0)
             plt.subplot(2,1,1)
             plt.imshow(combined_yx)
             plt.subplot(2,1,2)
             plt.imshow(voxels[zmid,:,:])
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_yx.png')
+            fig.clear()
             plt.clf()
+            plt.cla()
 
-            fig = plt.figure(figsize=(10,10))
+            fig = plt.figure(figsize=(34,10))
+            fig.subplots_adjust(wspace=0, hspace=0)
             plt.subplot(2,1,1)
             plt.imshow(combined_zx)
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,Ny//2,:])
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zx.png')
+            fig.clear()
             plt.clf()
+            plt.cla()
 
-            fig = plt.figure(figsize=(10,10))
+            fig = plt.figure(figsize=(34,10))
+            fig.subplots_adjust(wspace=0, hspace=0)
             plt.subplot(2,1,1)
             plt.imshow(combined_zy)
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,:,Nx//2])
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zy.png')
+            fig.clear()
             plt.clf()
+            plt.cla()
