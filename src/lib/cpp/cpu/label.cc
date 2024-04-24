@@ -136,9 +136,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                     if (X>=0.5 && Y>=0.5 && Z>=0.5 &&
                             (X+0.5)<(double)fx && (Y+0.5)<(double)fy && (Z+0.5)<(double)fz) {
                         field_value = (field_type) floor(resample2x2x2(
-                            field,
-                            { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
-                            XYZ
+                            field, { fz, fy, fx }, XYZ
                         ));
                     } else {
                         Z = std::min((double)(fz-1), Z); // Clamp when nz % 2 != 0
