@@ -607,7 +607,11 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 256)
     hist[0] = 0
-    peaks, info = signal.find_peaks(hist,height=0.5*hist.max())
+    peaks, info = signal.find_peaks(hist,height=0.1*hist.max())
+
+
+    if verbose >= 1: plt.clf(); plt.plot(bins[1:],hist); plt.savefig(f'{image_output_dir}/bone_histogram.png')
+    print (f'peaks: {peaks}')
 
     try:
         p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
