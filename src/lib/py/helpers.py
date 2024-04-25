@@ -75,7 +75,7 @@ def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
 
 #TODO: Use this for masks, no compression and no chunking default for small metadata datasets
 def update_hdf5_mask(filename,group_name,datasets={},attributes={},dimensions=None,
-                     compression="lzf",chunk_shape=(64,64,64)):
+                     compression="lzf",chunk_shape=None):
     update_hdf5(filename,group_name,datasets,attributes,dimensions,compression,chunk_shape)
 
 
