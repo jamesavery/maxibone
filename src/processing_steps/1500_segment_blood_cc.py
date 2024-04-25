@@ -20,7 +20,7 @@ sample, m, scheme, chunk_size, verbose = commandline_args({"sample" : "<required
                                                            "chunk_size" : 256,
                                                            "verbose" : 2})
 
-#scales = [32, 16, 8, 4, 2, 1]
+#scales = [32, 16, 8, 4]#, 2, 1]
 scales = [1]
 
 bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
@@ -59,7 +59,7 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
         largest_cc = np.argmax(counts)
         mask = (label == largest_cc)
     else:
-        intermediate_folder = f"{binary_root}/labels_blood/{scale}x/"
+        intermediate_folder = f"/tmp/maxibone/labels_blood/{scale}x/"
         os.makedirs(intermediate_folder, exist_ok=True)
 
         def label_chunk(i, chunk_size, chunk_prefix, global_shape):
