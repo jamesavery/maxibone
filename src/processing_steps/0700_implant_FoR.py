@@ -312,12 +312,14 @@ if __name__ == "__main__":
     del voxels_without_implant
 
     nz,ny,nx = implant.shape
+    if verbose >= 1: print (f'Implant shape is {implant.shape}')
 
     ### STEP 1: COMPUTE IMPLANT PRINCIPAL AXES FRAME OF REFERENCE
     ## STEP1A: DIAGONALIZE MOMENT OF INTERTIA MATRIX TO GET PRINCIPAL AXES
     cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
     if verbose >= 1: print(f"Center of mass is: {cm}")
     IM    = np.array(inertia_matrix(implant,cm)).reshape(3,3)
+    if verbose >= 1: print (f'IM: {IM}')
     ls,E  = la.eigh(IM)
 
     ## STEP 1B: PRINCIPAL AXES ARE ONLY DEFINED UP TO A SIGN.
@@ -328,15 +330,51 @@ if __name__ == "__main__":
     ##  - w-direction: find round direction (largest midpoint between theta_integrals peaks).
     ##    w-direction with positive dot-product is the right one
     ##  - v-direction: Either one works, but choose according to right-hand rule
-    if sample == "770c_pag":
-        E[:,0] *= -1
-    if sample == "770_pag":
-        E[:,2] *= -1
+    # TODO old hand held values:
+    #if sample == "770c_pag":
+    #    E[:,0] *= -1
+    #    E[:,1] *= -1
+    #if sample == "770c_pag_sub2":
+    #    E[:,:] *= -1
+    #    Ec = E.copy()
+    #    lsc = ls.copy()
+    #    E[:,0] = Ec[:,1]
+    #    ls[0] = lsc[1]
+    #    E[:,1] = Ec[:,0]
+    #    ls[1] = ls[0]
+    #if sample == "770_pag":
+    #    E[:,2] *= -1
 
-    ix = np.argsort(np.abs(ls));
-    ls, E = ls[ix], E[:,ix]
+    assert(len(ls) == 3) # Automatic only works for 3 eigenvectors. TODO the 3 biggest should be the ones we need?
+
+    # Shuffle
+    maxs = np.argmax(np.abs(E), axis=0)
+    assert (len(set(maxs)) == 3) # All axes should be different
+    ui = np.argwhere(maxs == 0)[0][0]
+    vi = np.argwhere(maxs == 2)[0][0]
+    wi = np.argwhere(maxs == 1)[0][0]
+    shift_is = [ui,vi,wi]
+    Ec = E.copy()
+    lsc = ls.copy()
+    E[:,:] = Ec[:,shift_is]
+    ls = lsc[shift_is]
+
+    # Sign flipping
+    # Assumes that head is pointing "up" - i.e. negative z, and that x and y should be positive
+    E[:,0] *= -np.sign(E[0,0])
+    E[:,1] *= np.sign(E[2,1])
+    E[:,2] *= np.sign(E[1,2])
+
+    #ix = np.argsort(np.abs(ls));
+    #ls, E = ls[ix], E[:,ix]
     UVW = E.T
     u_vec,v_vec,w_vec = UVW
+
+    if verbose >= 1:
+        print (f'u_vec {u_vec}')
+        print (f'v_vec {v_vec}')
+        print (f'w_vec {w_vec}')
+    #quit()
 
     figure_FoR_UVW(verbose)
 
