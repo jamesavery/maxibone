@@ -15,8 +15,6 @@ from numpy import array, newaxis as NA
 
 verbose = 1
 
-#vedo.settings.start_xvfb()
-
 # Hvor skal disse hen?
 def circle_center(p0,p1,p2):
     m1, m2               = (p0+p1)/2, (p0+p2)/2   # Midpoints
@@ -123,7 +121,7 @@ vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.)
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
 
 def figure_FoR_UVW(debug=2):
-    if debug >= 1:
+    if debug >= 2:
         vol = vedo.Volume(implant)
         vol.alpha([0,0,0.05,0.2])
         u_arrow = vedo.Arrow(cm[::-1],cm[::-1]+1/np.sqrt(ls[0]/ls[2])*100*u_vec[::-1],c='r',s=0.7)
@@ -140,7 +138,7 @@ def figure_FoR_UVW(debug=2):
 
             pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
 
-        if debug >= 2:
+        if debug >= 3:
             pl = vedo.Plotter(offscreen=False, interactive=True)
             pl.show([vol,u_arrow,v_arrow,w_arrow],camera={
                 'pos': np.array((nz/2,ny/2,nx/2)) + 2.5*ny*daxis[axis],
@@ -150,7 +148,7 @@ def figure_FoR_UVW(debug=2):
 
 # TODO: Fix lengths (voxel_size times...)
 def figure_FoR_UVWp(debug=2):
-    if debug >= 1:
+    if debug >= 2:
         implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
         pts = pc.Points(implant_uvwps[:,:3])
 
@@ -168,7 +166,7 @@ def figure_FoR_UVWp(debug=2):
 
             pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
 
-        if debug >= 2:
+        if debug >= 3:
             vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)
 
 def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
@@ -234,7 +232,7 @@ def figure_FoR_profiles(debug):
         plt.show()
 
 def figure_FoR_cylinder(debug=2):
-    if debug >= 1:
+    if debug >= 2:
     #    center_line = vedo.Arrow(C1,C2)
         center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
         cylinder = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels,height=implant_length_voxels, axis=(C2-C1),alpha=0.3)
@@ -256,11 +254,11 @@ def figure_FoR_cylinder(debug=2):
 
             pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
 
-        if debug >= 2:
+        if debug >= 3:
             vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
 
 def figure_FoR_voxels(name, voxels, debug=2):
-    if debug >= 1:
+    if debug >= 2:
         vol = vedo.Volume(voxels)
         vol.alpha([0,0,0.05,0.1])
 
@@ -273,7 +271,7 @@ def figure_FoR_voxels(name, voxels, debug=2):
             })
             pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
 
-        if debug >= 2:
+        if debug >= 3:
             vedo.show([vol],interactive=True)
 
 if __name__ == "__main__":
