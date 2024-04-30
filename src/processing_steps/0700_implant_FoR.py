@@ -628,9 +628,10 @@ if __name__ == "__main__":
         opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
 
-        for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
+        for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
             bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
 
+        for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
             bone_region_mask = open_3d(bone_region_mask, opening_voxels//2)
 
         for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
