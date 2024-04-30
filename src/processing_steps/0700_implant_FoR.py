@@ -623,18 +623,24 @@ if __name__ == "__main__":
         plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
         plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
 
-        closing_diameter, opening_diameter = 400, 300           # micrometers
+        closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 10           # micrometers
         closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
         opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+        implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
 
         for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.\n"):
             bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
 
-        for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.\n"):
-            bone_region_mask &= (~solid_implant).astype(bool) #~open_3d(implant_shell_mask, opening_voxels)
-            bone_region_mask = open_3d(bone_region_mask,opening_voxels//2)
+            bone_region_mask = open_3d(bone_region_mask, opening_voxels//2)
+
+        for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
+            dilated_implant = np.empty(solid_implant.shape, dtype=np.uint8)
+            dilate_3d(solid_implant, implant_dilate_voxels, dilated_implant)
+            bone_region_mask &= ~(dilated_implant.astype(bool))
 
         bone_region_mask = largest_cc_of(bone_region_mask)
+        voxels_implanted = voxels.copy()
+        voxels_implanted[~dilated_implant.astype(bool)] = 0
         plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
         plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
         plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
