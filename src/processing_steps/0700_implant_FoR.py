@@ -613,63 +613,50 @@ if __name__ == "__main__":
     if verbose >= 1: plt.clf(); plt.plot(bins[1:],hist); plt.savefig(f'{image_output_dir}/bone_histogram.png')
     print (f'peaks: {peaks}')
 
-    try:
-        p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
-        midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
-        if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
+    p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
+    midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
+    if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
-        bone_mask1 = front_part > midpoint
-        plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png')
-        plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
-        plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
+    bone_mask1 = front_part > midpoint
+    plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png')
+    plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
+    plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
 
-        closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 10           # micrometers
-        closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-        opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-        implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 10           # micrometers
+    closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
 
-        for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
-            bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
+    for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
+        bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
 
-        for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
-            bone_region_mask = open_3d(bone_region_mask, opening_voxels//2)
+    for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
+        bone_region_mask = open_3d(bone_region_mask, opening_voxels//2)
 
-        for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
-            dilated_implant = np.empty(solid_implant.shape, dtype=np.uint8)
-            dilate_3d(solid_implant, implant_dilate_voxels, dilated_implant)
-            bone_region_mask &= ~(dilated_implant.astype(bool))
+    for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
+        dilated_implant = np.empty(solid_implant.shape, dtype=np.uint8)
+        dilate_3d(solid_implant, implant_dilate_voxels, dilated_implant)
+        bone_region_mask &= ~(dilated_implant.astype(bool))
 
-        bone_region_mask = largest_cc_of(bone_region_mask)
-        voxels_implanted = voxels.copy()
-        voxels_implanted[~dilated_implant.astype(bool)] = 0
+    bone_region_mask = largest_cc_of(bone_region_mask)
+    voxels_implanted = voxels.copy()
+    voxels_implanted[~dilated_implant.astype(bool)] = 0
 
-        plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
-        plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
-        plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
+    plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
+    plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
+    plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
 
-        plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
-        plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
-        plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
-        voxels_boned = voxels.copy()
-        voxels_boned[~bone_region_mask] = 0
-        plt.imshow(voxels_boned[voxels_boned.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
-        plt.imshow(voxels_boned[:,voxels_boned.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
-        plt.imshow(voxels_boned[:,:,voxels_boned.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
+    plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
+    plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
+    plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
+    voxels_boned = voxels.copy()
+    voxels_boned[~bone_region_mask] = 0
+    plt.imshow(voxels_boned[voxels_boned.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
+    plt.imshow(voxels_boned[:,voxels_boned.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
+    plt.imshow(voxels_boned[:,:,voxels_boned.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
 
-        if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
-        update_hdf5_mask(f"{output_dir}/{sample}.h5",
-                         group_name="bone_region",
-                         datasets={"mask":bone_region_mask},
-                         attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
-    except:
-        if verbose >= 1: print(f"Wasnt able to separate into resin and bone region. Assuming all is bone region.")
-        bone_region_mask = front_mask
-
-        if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
-        update_hdf5_mask(f"{output_dir}/{sample}.h5",
-                         group_name="bone_region",
-                         datasets={"mask":bone_region_mask},
-                         attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
-        plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
-        plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
-        plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
+    if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+                        group_name="bone_region",
+                        datasets={"mask":bone_region_mask},
+                        attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
