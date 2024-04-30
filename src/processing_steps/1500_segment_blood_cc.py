@@ -20,7 +20,7 @@ sample, m, scheme, chunk_size, verbose = commandline_args({"sample" : "<required
                                                            "chunk_size" : 256,
                                                            "verbose" : 2})
 
-#scales = [32, 16, 8, 4]#, 2, 1]
+#scales = [32, 16, 8, 4, 2, 1]
 scales = [1]
 
 bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
@@ -95,10 +95,11 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
         largest_connected_component(mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
     if verbose >= 1:
+        snz, sny, snx = max(10, nz // 100), max(10, ny // 100), max(10, nx // 100)
         print(f"Writing mask to {output_dir}/{sample}.h5")
-        plt.imshow(mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_yx.png"); plt.clf()
-        plt.imshow(mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zx.png"); plt.clf()
-        plt.imshow(mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zy.png"); plt.clf()
+        plt.figure(figsize=(snx,sny)); plt.imshow(mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_yx_{scheme}.png"); plt.clf()
+        plt.figure(figsize=(snx,snz)); plt.imshow(mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zx_{scheme}.png"); plt.clf()
+        plt.figure(figsize=(sny,snz)); plt.imshow(mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zy_{scheme}.png"); plt.clf()
 
     update_hdf5(f"{output_dir}/{sample}.h5",
                 group_name=f"blood",
