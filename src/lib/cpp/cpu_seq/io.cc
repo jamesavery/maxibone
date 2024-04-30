@@ -41,14 +41,12 @@ void write_contiguous_slice(const T *data,
     }
     //file.seekp(offset * sizeof(T), ios::beg);
     uint64_t
+        byte_size = size * sizeof(T),
         block_size = 4096 * 1024,
-        blocks = (size * sizeof(T)) / block_size;
-    blocks = (size * sizeof(T)) % block_size == 0 ? blocks : blocks + 1;
+        blocks = byte_size / block_size;
+    blocks = byte_size % block_size == 0 ? blocks : blocks + 1;
     for (uint64_t block = 0; block < blocks; block++) {
-        uint64_t this_block_size = block_size;
-        if (block == blocks - 1) {
-            this_block_size = (size * sizeof(T)) % block_size;
-        }
+        uint64_t this_block_size = std::min(block_size, byte_size - block * block_size);
         if (file.write((char*) data + block * block_size, this_block_size).fail()) {
             fprintf(stderr, "write_slice: Error writing block %ld to %s.\n", block, filename.c_str());
             // Print reason for failure
