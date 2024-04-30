@@ -18,6 +18,8 @@ void load_slice(py::array_t<T> &np_data, const string filename,
     auto [oz, oy, ox] = offset;
     uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
 
+    assert (data_info.size >= (int64_t) (Nz*Ny*Nx));
+
     NS::load_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
 }
 
@@ -31,6 +33,8 @@ void write_slice(const py::array_t<T> &np_data,
     auto [Nz, Ny, Nx] = shape;
     auto [oz, oy, ox] = offset;
     uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
+
+    assert(data_info.size >= (int64_t) (Nz*Ny*Nx));
 
     NS::write_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
 }

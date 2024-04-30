@@ -19,6 +19,8 @@ void load_contiguous_slice(T *data,
     }
     file.seekg(offset * sizeof(T), ios::beg);
     file.read((char*) data, size * sizeof(T));
+    uint64_t n = file.tellg() - offset * sizeof(T);
+    assert (n == size * sizeof(T) && "Error reading the correct amount of bytes.");
     file.close();
 }
 
@@ -45,6 +47,7 @@ void write_contiguous_slice(const T *data,
         block_size = 4096 * 1024,
         blocks = byte_size / block_size;
     blocks = byte_size % block_size == 0 ? blocks : blocks + 1;
+    assert(blocks * block_size >= byte_size && "Error calculating the amount of blocks to write.");
     for (uint64_t block = 0; block < blocks; block++) {
         uint64_t this_block_size = std::min(block_size, byte_size - block * block_size);
         if (file.write((char*) data + block * block_size, this_block_size).fail()) {
@@ -74,6 +77,7 @@ void write_contiguous_slice(const T *data,
         }
 
     }
+    assert ((uint64_t) file.tellp() == offset * sizeof(T) + size * sizeof(T) && "Error writing the correct amount of bytes.");
     //if (file.write((char*) data, size * sizeof(T)).fail()) {
     //    fprintf(stderr, "write_slice: Error writing to %s.\n", filename.c_str());
     //    file.close();
