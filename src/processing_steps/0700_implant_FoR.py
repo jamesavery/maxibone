@@ -641,6 +641,11 @@ if __name__ == "__main__":
         bone_region_mask = largest_cc_of(bone_region_mask)
         voxels_implanted = voxels.copy()
         voxels_implanted[~dilated_implant.astype(bool)] = 0
+
+        plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
+        plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
+        plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
+
         plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
         plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
         plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
