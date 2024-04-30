@@ -89,7 +89,7 @@ else:
             end   = (i+1)*chunk_size if i < n_chunks-1 else nz # Last chunk gets the rest
             chunk_length = end-start
             voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
-            load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16", (start,0,0), global_shape)
+            load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16", (start,0,0), voxel_chunk.shape)
             noisy_implant = (voxel_chunk > implant_threshold_u16)
             del voxel_chunk
             label, n_features = ndi.label(noisy_implant, output=np.int64)
