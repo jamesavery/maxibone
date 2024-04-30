@@ -67,8 +67,8 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
             end   = (i+1)*chunk_size if i < n_chunks-1 else nz # Last chunk gets the rest
             chunk_length = end-start
             voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
-            load_slice(voxel_chunk, data, (start,0,0), global_shape)
-            if verbose >= 2:
+            load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
+            if verbose >= 3:
                 plt.imshow(voxel_chunk[chunk_length//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_yx.png"); plt.clf()
                 plt.imshow(voxel_chunk[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zx.png"); plt.clf()
                 plt.imshow(voxel_chunk[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zy.png"); plt.clf()
