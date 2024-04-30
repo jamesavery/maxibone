@@ -81,7 +81,7 @@ def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
         # TODO For some reason, when 'output_zstarts' is a numpy type, 'combined' gets interpreted as an uint8 array through pybind. It is therefore important that it is converted to a python integer. This should be investigated, as it doesn't make sense that arguments should affect each other in this manner! Especially since it's only the first argument that's templated. Note: it's not due to mixed types in the tuple, as giving it three numpy values also breaks it.
         write_slice(combined, outfile, (np.uint64(output_zstarts[i]), 0, 0), combined.shape)
 
-        written += np.product(combined.shape)
+        written += np.prod(combined.shape)
 
         del combined
 
