@@ -14,10 +14,20 @@ namespace python_api {
 
         const shape_t N = {voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2]};
         const int64_t kernel_size = kernel_info.shape[0];
-        const shape_t global_shape = {N.z / 4, N.y, N.x};
 
-        //NS::diffusion_in_memory(voxels, N, kernel, kernel_size, repititions, output);
-        NS::diffusion_out_of_core(voxels, N, global_shape, kernel, kernel_size, repititions, output);
+#ifdef _OPENACC
+        const int64_t total_size = N.x * N.y * N.z;
+        if (total_size * sizeof(float) * 2 > 8 * 1e9) { // TODO make automatic
+            const shape_t global_shape = {128, N.y, N.x};
+            NS::diffusion_out_of_core(voxels, N, global_shape, kernel, kernel_size, repititions, output);
+        } else {
+#endif
+            NS::diffusion_in_memory(voxels, N, kernel, kernel_size, repititions, output);
+#ifdef _OPENACC
+        }
+#endif
+
+
     }
 
     void diffusion_on_disk(const std::string &input_file, const np_array<float> &np_kernel, const std::string &output_file, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const int64_t repititions, const bool verbose = false) {

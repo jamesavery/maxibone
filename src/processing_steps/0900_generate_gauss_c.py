@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import matplotlib
+matplotlib.use('Agg')
 import sys, pathlib, datetime, numpy as np, h5py, timeit, matplotlib.pyplot as plt, edt
 sys.path.append(sys.path[0]+"/../")
 from matplotlib import image
@@ -76,7 +78,7 @@ if __name__ == '__main__':
 
     kernel = gauss_kernel(sigma_voxels)
 
-    if scale <= 8:
+    if scale == 1:
         # Dump the mask
         masks_dir = f"{binary_root}/masks/{scale}x"
         pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
@@ -149,7 +151,7 @@ if __name__ == '__main__':
             Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
             Image.fromarray(toint(control[:,ny//2,:])).save(f'{output_dir}/{sample}-control-xz.png')
             Image.fromarray(toint(control[:,:,nx//2])).save(f'{output_dir}/{sample}-control-yz.png')
-        if result_type == np.uint8:
+        if result_type == np.uint8 or result_type == np.uint16:
             diff = result.astype(np.int32) - control.astype(np.int32)
         else:
             diff = result - control
