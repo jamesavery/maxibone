@@ -1,9 +1,12 @@
 #include "diffusion.hh"
 
+#include <chrono>
 #include <iostream>
 #include <filesystem>
 
-constexpr bool DEBUG = false;
+constexpr bool
+    DEBUG = false,
+    PROFILE = true;
 
 namespace gpu {
 
@@ -359,6 +362,16 @@ namespace gpu {
             *tmp0 = open_file_read_write(temp0, total_flat_size),
             *tmp1 = open_file_read_write(temp1, total_flat_size);
 
+        double *loads, *diffusions, *stores;
+        uint64_t *sizes;
+        if (PROFILE) {
+            std::cout << "Profiling enabled" << std::endl;
+            loads = (double *) malloc(repititions * global_blocks * sizeof(double));
+            diffusions = (double *) malloc(repititions * global_blocks * sizeof(double));
+            stores = (double *) malloc(repititions * global_blocks * sizeof(double));
+            sizes = (uint64_t *) malloc(repititions * global_blocks * sizeof(uint64_t));
+        }
+
         // Convert to float
         convert_uint8_to_float(input_file, temp0, total_flat_size);
 
@@ -371,22 +384,60 @@ namespace gpu {
                     assert (this_block_size <= global_flat_size_padded);
 
                     // Load the global block
+                    auto load_start = std::chrono::high_resolution_clock::now();
                     load_partial(tmp0, buf0, global_flat_size_padded, global_block*global_shape.z*layer_flat_size, this_block_size, total_flat_size, radius*layer_flat_size);
+                    auto load_end = std::chrono::high_resolution_clock::now();
 
+                    auto diffusion_start = std::chrono::high_resolution_clock::now();
                     #pragma acc data copyin(buf0[:global_flat_size_padded]) copyout(buf1[:global_flat_size_padded])
                     {
                         store_mask(buf0, mask, global_flat_size_padded);
                         diffusion_step(mask, buf0, buf1, global_shape_padded, kernel, radius);
                     }
                     std::swap(buf0, buf1);
+                    auto diffusion_end = std::chrono::high_resolution_clock::now();
 
+                    auto store_start = std::chrono::high_resolution_clock::now();
                     // Store the global block
                     store_partial(tmp1, buf0, global_block*global_flat_size, this_block_size, radius*layer_flat_size);
+                    auto store_end = std::chrono::high_resolution_clock::now();
+
+                    if (PROFILE) {
+                        loads[rep*global_blocks + global_block] = std::chrono::duration_cast<std::chrono::nanoseconds>(load_end - load_start).count() / 1e9;
+                        diffusions[rep*global_blocks + global_block] = std::chrono::duration_cast<std::chrono::nanoseconds>(diffusion_end - diffusion_start).count() / 1e9;
+                        stores[rep*global_blocks + global_block] = std::chrono::duration_cast<std::chrono::nanoseconds>(store_end - store_start).count() / 1e9;
+                        sizes[rep*global_blocks + global_block] = this_block_size;
+                    }
                 }
                 std::swap(temp0, temp1);
                 std::swap(tmp0, tmp1);
             }
             std::cout << "\rDiffusion is complete!" << std::endl;
+
+            if (PROFILE) {
+                double
+                    mean_load = 0.0, mean_diffusion = 0.0, mean_store = 0.0,
+                    mean_load_gbps = 0.0, mean_store_gbps = 0.0;
+                for (int64_t i = 0; i < repititions*global_blocks; i++) {
+                    double
+                        bytes = (double) (sizes[i] * sizeof(float)),
+                        gigabytes = bytes / (double)1e9;
+                    mean_load += loads[i];
+                    mean_diffusion += diffusions[i];
+                    mean_store += stores[i];
+                    mean_load_gbps += gigabytes / loads[i];
+                    mean_store_gbps += gigabytes / stores[i];
+                }
+                mean_load /= (double)(repititions*global_blocks);
+                mean_diffusion /= (double)(repititions*global_blocks);
+                mean_store /= (double)(repititions*global_blocks);
+                mean_load_gbps /= (double)(repititions*global_blocks);
+                mean_store_gbps /= (double)(repititions*global_blocks);
+
+                std::cout << "Mean load: " << mean_load << " (" << mean_load_gbps << " GB/s)" << std::endl;
+                std::cout << "Mean diffusion: " << mean_diffusion << std::endl;
+                std::cout << "Mean store: " << mean_store << " (" << mean_store_gbps << " GB/s)" << std::endl;
+            }
         }
 
         // Convert to uint16
