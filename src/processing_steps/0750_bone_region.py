@@ -13,16 +13,35 @@ from lib.py.helpers import update_hdf5, update_hdf5_mask, commandline_args
 from numpy import array, newaxis as NA
 from scipy.ndimage import gaussian_filter1d
 
+# close = dilate then erode
+# open = erode then dilate
+def morph_3d(image, r, fa, fb):
+    I1 = image.copy().astype(np.uint8)
+    I2 = np.empty(image.shape, dtype=np.uint8)
+    rmin = 16
+    rmins = r // rmin
+    rrest = r % rmin
+    for _ in range(rmins):
+        dilate_3d(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        dilate_3d(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    for i in range(rmins):
+        erode_3d(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        erode_3d(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    return I1
+
 def close_3d(image, r):
-    (Nz,Ny,Nx) = image.shape
-    I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I1[r:-r,r:-r,r:-r] = image
+    return morph_3d(image, r, dilate_3d, erode_3d)
 
-    dilate_3d(I1,r,I2)
-    erode_3d (I2,r,I1)
-
-    return I1[r:-r,r:-r,r:-r].astype(image.dtype)
+def open_3d(image, r):
+    return morph_3d(image, r, erode_3d, dilate_3d)
 
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
@@ -40,17 +59,6 @@ def largest_cc_of(mask):
 
     largest_cc_ix   = np.argmax(bincnts)
     return (label==largest_cc_ix)
-
-def open_3d(image, r):
-    (Nz,Ny,Nx) = image.shape
-    I1 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I2 = np.zeros((Nz+2*r,Ny+2*r,Nx+2*r), dtype=np.uint8)
-    I1[r:-r,r:-r,r:-r] = image
-
-    erode_3d (I1,r,I2)
-    dilate_3d(I2,r,I1)
-
-    return I1[r:-r,r:-r,r:-r].astype(image.dtype)
 
 if __name__ == "__main__":
     sample, scale, verbose = commandline_args({"sample" : "<required>",
