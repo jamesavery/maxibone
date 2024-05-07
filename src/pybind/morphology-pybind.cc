@@ -23,7 +23,12 @@ void morphology_3d_sphere_wrapper(
     const mask_type *voxels = static_cast<const mask_type*>(voxels_info.ptr);
     mask_type *result = static_cast<mask_type*>(result_info.ptr);
 
+    if (radius == (int64_t) 16) {
+        morphology_3d_sphere_r16<Op, neutral>(voxels, N, strides, result);
+    } else {
     morphology_3d_sphere<Op, neutral>(voxels, radius, N, strides, result);
+    }
+}
 }
 
 PYBIND11_MODULE(morphology, m) {
