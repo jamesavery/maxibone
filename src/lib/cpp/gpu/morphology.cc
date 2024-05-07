@@ -10,31 +10,34 @@ void morphology_3d_sphere(
         mask_type *result) {
 #ifdef _OPENACC
     Op op;
-    int64_t sqradius = radius * radius;
+    const int32_t sqradius = (int32_t)radius * (int32_t)radius;
+    const int32_t nz = (int32_t)N[0], ny = (int32_t)N[1], nx = (int32_t)N[2];
+    const int64_t sz = strides[0], sy = strides[1], sx = strides[2];
 
-    #pragma acc data copyin(voxels[:N[0]*N[1]*N[2]], N[:3], strides[:3], sqradius) copyout(result[:N[0]*N[1]*N[2]])
+    #pragma acc data copyin(voxels[:nz*ny*nx]) copyout(result[:nz*ny*nx])
     {
         #pragma acc parallel loop collapse(3)
-        for (int64_t z = 0; z < N[0]; z++) {
-            for (int64_t y = 0; y < N[1]; y++) {
-                for (int64_t x = 0; x < N[2]; x++) {
+        for (int64_t z = 0; z < nz; z++) {
+            for (int64_t y = 0; y < ny; y++) {
+                for (int64_t x = 0; x < nx; x++) {
                     // Compute boundaries
-                    int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
-                    int64_t X[3] = {z, y, x};
-                    int64_t limits[6];
-                    for (int axis = 0; axis < 3; axis++) {
-                        limits[(axis*2)] = -min(radius, X[axis]);
-                        limits[(axis*2)+1] = min(radius, N[axis] - X[axis] - 1);
-                    }
+                    int64_t flat_index = z*sz + y*sy + x*sx;
 
                     // Apply the spherical kernel
                     bool value = neutral;
-                    //#pragma omp simd collapse(3) reduction(op:value)
-                    for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
-                        for (int64_t py = limits[2]; py <= limits[3]; py++) {
-                            for (int64_t px = limits[4]; px <= limits[5]; px++) {
+
+                    for (int32_t pz = -radius; pz <= radius; pz++) {
+                        for (int32_t py = -radius; py <= radius; py++) {
+                            for (int32_t px = -radius; px <= radius; px++) {
                                 bool within = px*px + py*py + pz*pz <= sqradius; // sphere kernel
-                                int64_t offset = pz*strides[0] + py*strides[1] + px*strides[2];
+                                within &= (z+pz >= 0);
+                                within &= (z+pz < nz);
+                                within &= (y+py >= 0);
+                                within &= (y+py < ny);
+                                within &= (x+px >= 0);
+                                within &= (x+px < nx);
+                                int64_t offset = (int64_t)pz*sz + (int64_t)py*sy + sx;
+
                                 value = within ? op(value, voxels[flat_index+offset]) : value;
                             }
                         }
