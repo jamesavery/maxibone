@@ -19,9 +19,9 @@ namespace python_api {
         assert(packed_info.size * T_bits  >= (uint64_t) mask_info.size);
 
         const uint8_t *mask = static_cast<const uint8_t*>(mask_info.ptr);
-        T *packed = static_cast<T*>(packed_info.ptr);
+        uint8_t *packed = static_cast<uint8_t*>(packed_info.ptr);
 
-        NS::encode<T>(mask, mask_info.size, packed);
+        NS::encode(mask, mask_info.size, packed);
     }
 
     template <typename T>
@@ -33,10 +33,10 @@ namespace python_api {
 
         assert(packed_info.size * T_bits  >= (uint64_t) mask_info.size);
 
-        const T *packed = static_cast<const T*>(packed_info.ptr);
+        const uint8_t *packed = static_cast<const uint8_t*>(packed_info.ptr);
         uint8_t *mask = static_cast<uint8_t*>(mask_info.ptr);
 
-        NS::decode<T>(packed, mask_info.size, mask);
+        NS::decode(packed, mask_info.size, mask);
     }
 
 }
