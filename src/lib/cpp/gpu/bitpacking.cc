@@ -5,6 +5,12 @@ namespace gpu {
 
     // TODO Introduce bounding; currently assumes that n is a multiple of T_bits*vec_size*worker_size
 
+    // The following GPU specific optimizations have been applied:
+    // 1. Coalesced gloabl memory access (A warp reads consecutive global memory)
+    // 2. Caching in shared memory (To allow for faster small transactions) (First edition had padding to resolve bank conflicts)
+    // 3. Coalesced shared memory access (A warp reads consecutive shared memory)
+    // 4. Resolving bank conflicts in shared memory (By cyclically accessing a byte with an offset, rather than consecutive bytes)
+
     template <typename T>
     void encode(const uint8_t *mask, const uint64_t n, T *packed) {
         constexpr uint64_t
@@ -23,15 +29,11 @@ namespace gpu {
                     int64_t offset = i + j*vec_size*T_bits;
                     #pragma acc cache(local)
                     {
-                        // TODO Option 0 produces load bank conflicts in the second pass, whereas option 1 produces store bank conflicts in the first pass.
                         // Load mask into shared memory with coalesced access to mask
                         #pragma acc loop vector
                         for (uint64_t k = 0; k < vec_size; k++) {
                             for (uint64_t l = 0; l < T_bits; l++) {
-                                // 0 Coalesced:
-                                //local[l*vec_size + k] = mask[offset + l*vec_size + k];
-                                // 1 Coalesced read, uncoalesced write:
-                                local[k*T_bits + l] = (uint32_t) mask[offset + l*vec_size + k];
+                                local[l*vec_size + k] = mask[offset + l*vec_size + k];
                             }
                         }
 
@@ -40,10 +42,10 @@ namespace gpu {
                         for (uint64_t k = 0; k < vec_size; k++) {
                             T packed_value = 0;
                             for (uint64_t l = 0; l < T_bits; l++) {
-                                // 0 Coalesced:
-                                //packed_value |= (local[k*T_bits + l] & 1) << ((T_bits-1)-l);
-                                // 1 Coalesced read, uncoalesced write:
-                                packed_value |= (local[l*vec_size + k] & 1) << ((T_bits-1)-l);
+                                uint32_t val;
+                                uint64_t bank_offset = ((k+l) % T_bits);
+                                val = local[k*T_bits + bank_offset] & 1;
+                                packed_value |= val << ((T_bits-1)-(bank_offset));
                             }
                             packed[offset/T_bits + k] = packed_value;
                         }
