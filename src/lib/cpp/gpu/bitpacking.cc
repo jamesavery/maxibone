@@ -10,44 +10,51 @@ namespace gpu {
     // 2. Caching in shared memory (To allow for faster small transactions) (First edition had padding to resolve bank conflicts)
     // 3. Coalesced shared memory access (A warp reads consecutive shared memory)
     // 4. Resolving bank conflicts in shared memory (By cyclically accessing a byte with an offset, rather than consecutive bytes)
+    // 5. Bitwidth reduction (e.g. addresses are 32-bit when possible - this reduces both number of registers and number of instructions)
 
     template <typename T>
     void encode(const uint8_t *mask, const uint64_t n, T *packed) {
-        constexpr uint64_t
+        constexpr uint8_t
             T_bits = sizeof(T)*8,
             vec_size = 32,
             worker_size = 1;
+        constexpr uint32_t
+            buffer_size = (uint32_t)vec_size*(uint32_t)T_bits,
+            block_size = (uint32_t)worker_size*buffer_size;
 
-        #pragma acc data copyin(mask[0:n]) copyout(packed[0:n/T_bits])
+        uint32_t n_blocks = (uint32_t) ((n + (uint64_t)block_size - 1) / (uint64_t)block_size);
+
+        // TODO handle block_size unalignment
+
+        #pragma acc data copyin(mask[0:n]) copyout(packed[0:n/(uint64_t)T_bits])
         #pragma acc parallel vector_length(vec_size) num_workers(worker_size)
         {
             #pragma acc loop gang
-            for (uint64_t i = 0; i < n; i += worker_size*vec_size*T_bits) {
+            for (uint32_t i = 0; i < n_blocks; i++) {
                 #pragma acc loop worker
-                for (uint64_t j = 0; j < worker_size; j++) {
-                    uint32_t local[vec_size*T_bits]; // Shared memory
-                    int64_t offset = i + j*vec_size*T_bits;
+                for (uint32_t j = 0; j < worker_size; j++) {
+                    uint32_t local[(uint16_t)vec_size*(uint16_t)T_bits]; // Shared memory
+                    uint64_t offset = ((uint64_t)i * (uint64_t)block_size) + (uint64_t)j*(uint64_t)vec_size*(uint64_t)T_bits;
                     #pragma acc cache(local)
                     {
                         // Load mask into shared memory with coalesced access to mask
                         #pragma acc loop vector
-                        for (uint64_t k = 0; k < vec_size; k++) {
-                            for (uint64_t l = 0; l < T_bits; l++) {
-                                local[l*vec_size + k] = mask[offset + l*vec_size + k];
+                        for (uint32_t k = 0; k < vec_size; k++) {
+                            for (uint32_t l = 0; l < T_bits; l++) {
+                                local[(uint16_t)l*(uint16_t)vec_size + (uint16_t)k] = (uint32_t) mask[offset + (uint64_t)l*(uint64_t)vec_size + (uint64_t)k];
                             }
                         }
 
                         // Pack bits into T
                         #pragma acc loop vector
-                        for (uint64_t k = 0; k < vec_size; k++) {
+                        for (uint32_t k = 0; k < vec_size; k++) {
                             T packed_value = 0;
-                            for (uint64_t l = 0; l < T_bits; l++) {
-                                uint32_t val;
-                                uint64_t bank_offset = ((k+l) % T_bits);
-                                val = local[k*T_bits + bank_offset] & 1;
-                                packed_value |= val << ((T_bits-1)-(bank_offset));
+                            for (uint32_t l = 0; l < T_bits; l++) {
+                                uint8_t bank_offset = (uint8_t) (((uint16_t)k+(uint16_t)l) % (uint16_t)T_bits);
+                                uint32_t val = local[(uint16_t)k*(uint16_t)T_bits + (uint16_t)bank_offset] & 1;
+                                packed_value |= val << (((uint16_t)T_bits-1)-((uint16_t)bank_offset));
                             }
-                            packed[offset/T_bits + k] = packed_value;
+                            packed[offset/(uint64_t)T_bits + (uint64_t)k] = packed_value;
                         }
                     }
                 }
