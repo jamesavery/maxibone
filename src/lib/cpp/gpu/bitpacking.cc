@@ -55,15 +55,43 @@ namespace gpu {
 
     template <typename T>
     void decode(const T *packed, const uint64_t n, mask_type *mask) {
-        constexpr uint64_t T_bits = sizeof(T)*8;
+        constexpr uint64_t
+            T_bits = sizeof(T)*8,
+            vec_size = 32,
+            worker_size = 1;
 
         #pragma acc data copyin(packed[0:n/T_bits]) copyout(mask[0:n])
+        #pragma acc parallel vector_length(vec_size) num_workers(worker_size)
         {
-            #pragma acc parallel loop
-            for (uint64_t i = 0; i < n; i += T_bits) {
-                T packed_value = packed[i/T_bits];
-                for (uint64_t j = 0; j < T_bits; j++) {
-                    mask[i+j] = (packed_value >> ((T_bits-1)-j)) & 1;
+            #pragma acc loop gang
+            for (uint64_t i = 0; i < n; i += worker_size*vec_size*T_bits) {
+                #pragma acc loop worker
+                for (uint64_t j = 0; j < worker_size; j++) {
+                    uint32_t local[vec_size*T_bits]; // Shared memory
+                    int64_t offset = i + j*vec_size*T_bits;
+                    #pragma acc cache(local)
+                    {
+                        #pragma acc loop vector
+                        for (uint64_t k = 0; k < vec_size; k++) {
+                            T packed_value = packed[offset/T_bits + k];
+                            for (uint64_t l = 0; l < T_bits; l++) {
+                                // Option 0
+                                local[k*T_bits + l] = (packed_value >> ((T_bits-1)-l)) & 1;
+                                // Option 1
+                                //local[l*vec_size + k] = (packed_value >> ((T_bits-1)-l)) & 1;
+                            }
+                        }
+
+                        #pragma acc loop vector
+                        for (uint64_t k = 0; k < vec_size; k++) {
+                            for (uint64_t l = 0; l < T_bits; l++) {
+                                // Option 0
+                                mask[offset + l*vec_size + k] = local[l*vec_size + k];
+                                // Option 1
+                                //mask[offset + l*vec_size + k] = local[k*T_bits + l];
+                            }
+                        }
+                    }
                 }
             }
         }
