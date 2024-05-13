@@ -12,6 +12,7 @@ namespace gpu {
     // 4. Resolving bank conflicts in shared memory (By cyclically accessing a byte with an offset, rather than consecutive bytes)
     // 5. Bitwidth reduction (e.g. addresses are 32-bit when possible - this reduces both number of registers and number of instructions)
     // 6. Loading 32 bits per thread, rather than 1 byte per thread (This reduces the number of instructions and memory transactions)
+    // 7. Using num_workers to allow for more threads per block (This allows for more threads to be executed in parallel) This shouldn't be applied, since it congests the memory.
 
     template <typename T>
     void encode(const uint8_t *mask, const uint64_t n, T *packed) {
@@ -28,6 +29,7 @@ namespace gpu {
         uint32_t n_blocks = (uint32_t) ((n/sizeof(uint32_t) + (uint64_t)block_size - 1) / (uint64_t)block_size);
 
         const uint32_t *mask32 = (const uint32_t *) mask;
+        uint32_t local[buffer_size]; // Shared memory
 
         // TODO handle block_size unalignment
 
@@ -36,10 +38,9 @@ namespace gpu {
         {
             #pragma acc loop gang
             for (uint32_t i = 0; i < n_blocks; i++) {
-                #pragma acc loop worker
+                #pragma acc loop worker private(local)
                 for (uint32_t j = 0; j < worker_size; j++) {
-                    uint32_t local[buffer_size]; // Shared memory
-                    uint64_t offset = ((uint64_t)i * (uint64_t)block_size) + (uint64_t)j*(uint64_t)vec_size*(uint64_t)T_words;
+                    uint64_t offset = ((uint64_t)i * (uint64_t)block_size) + (uint64_t)j*(uint64_t)buffer_size;
                     #pragma acc cache(local)
                     {
                         // Load mask into shared memory with coalesced access to mask
