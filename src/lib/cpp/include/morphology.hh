@@ -3,6 +3,8 @@
 
 #include "datatypes.hh"
 
+namespace NS {
+
 template <typename Op, bool neutral>
 void morphology_3d_sphere(
         const mask_type *voxels,
@@ -11,4 +13,6 @@ void morphology_3d_sphere(
         const int64_t strides[3],
         mask_type *result);
 
+
+} // namespace NS
 #endif

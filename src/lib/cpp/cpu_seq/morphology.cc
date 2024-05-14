@@ -1,6 +1,8 @@
 #include "morphology.hh"
 #include "datatypes.hh"
 
+namespace cpu_seq {
+
 template <typename Op, bool neutral>
 void morphology_3d_sphere(
         const mask_type *voxels,
@@ -42,3 +44,5 @@ void morphology_3d_sphere(
         }
     }
 }
+
+} // namespace cpu_seq
