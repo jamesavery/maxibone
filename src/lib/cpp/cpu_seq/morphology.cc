@@ -13,6 +13,7 @@ void morphology_3d_sphere(
     Op op;
     int64_t sqradius = radius * radius;
 
+    #pragma omp parallel for collapse(3)
     for (int64_t z = 0; z < N[0]; z++) {
         for (int64_t y = 0; y < N[1]; y++) {
             for (int64_t x = 0; x < N[2]; x++) {
