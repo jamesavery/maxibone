@@ -13,6 +13,14 @@ void morphology_3d_sphere(
         const int64_t strides[3],
         mask_type *result);
 
+template <typename Op, uint32_t neutral>
+void morphology_3d_sphere_bitpacked(
+        const uint32_t *voxels,
+        const int64_t radius,
+        const int64_t N[3],
+        const int64_t strides[3],
+        uint32_t *result);
 
 } // namespace NS
+
 #endif
