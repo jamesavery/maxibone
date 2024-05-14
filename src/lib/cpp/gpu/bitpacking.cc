@@ -31,8 +31,6 @@ namespace gpu {
         const uint32_t *mask32 = (const uint32_t *) mask;
         uint32_t local[buffer_size]; // Shared memory
 
-        // TODO handle block_size unalignment
-
         #pragma acc data copyin(mask32[0:n/sizeof(uint32_t)]) copyout(packed[0:n/(uint64_t)T_bits])
         #pragma acc parallel vector_length(vec_size) num_workers(worker_size)
         {
@@ -129,7 +127,6 @@ namespace gpu {
         for (uint64_t z = 0; z < sz; z++) {
             for (uint64_t y = 0; y < sy; y++) {
                 for (uint64_t x = 0; x < sx; x++) {
-                    // TODO Handle unalignment
                     uint64_t packed_offset = (oz+z)*Ny*Nx + (oy+y)*Nx + ox+x;
                     uint64_t slice_offset = z*sy*sx + y*sx + x;
                     slice[slice_offset] = packed[packed_offset];
