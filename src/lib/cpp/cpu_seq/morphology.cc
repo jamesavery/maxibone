@@ -95,8 +95,9 @@ void morphology_3d_sphere_bitpacked(
                 uint32_t value = neutral & 1;
                 for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
                     for (int64_t py = limits[2]; py <= limits[3]; py++) {
+                        int64_t this_flat_index = flat_index + pz*strides[0] + py*strides[1];
                         uint32_t
-                            voxels_row = voxels[flat_index / 32],
+                            voxels_row = voxels[this_flat_index],
                             kernel_row = kernel[(pz+radius)*k + (py+radius)];
 
                         int64_t
@@ -114,7 +115,7 @@ void morphology_3d_sphere_bitpacked(
                             int64_t
                                 mask1_shift = beginning % 32,
                                 mask0_shift = 32 - mask1_shift;
-                            uint32_t voxels1 = voxels[(flat_index / 32) - 1];
+                            uint32_t voxels1 = voxels[this_flat_index - 1];
                             voxels_row = (voxels1 << mask1_shift) | (voxels_row >> mask0_shift);
                         } else if (beginning / 32 == end / 32) { // Case 3
                             int64_t
@@ -125,7 +126,7 @@ void morphology_3d_sphere_bitpacked(
                             int64_t
                                 mask0_shift = beginning % 32,
                                 mask1_shift = 32 - mask0_shift;
-                            uint32_t voxels1 = voxels[(flat_index / 32) + 1];
+                            uint32_t voxels1 = voxels[this_flat_index + 1];
                             voxels_row = (voxels_row << mask0_shift) | (voxels1 >> mask1_shift);
                         } else {
                             assert (false && "Should not reach this point - some case is missing.");
