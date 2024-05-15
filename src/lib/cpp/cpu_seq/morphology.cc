@@ -106,9 +106,11 @@ void morphology_3d_sphere_bitpacked(
                             int64_t
                                 mask_shift = std::abs(beginning),
                                 neutral_shift = 32 - mask_shift;
-                            //if (z == 16 && y == 16) printf("Case 1: %ld %08x %08x %08x %08x\n", x, voxels_row, kernel_row, voxels_row >> mask_shift, neutral << neutral_shift);
-                            voxels_row = voxels_row >> mask_shift | neutral << neutral_shift;
-                        } else if (beginning / 32 != x / 32) { // Case 2
+                        } else if (end >= N[2]) { // Case 5
+                            int64_t
+                                mask_shift = beginning % 32,
+                                neutral_shift = 32 - mask_shift;
+                            voxels_row = (voxels_row << mask_shift) | (neutral >> neutral_shift);
                             int64_t
                                 mask1_shift = beginning % 32,
                                 mask0_shift = 32 - mask1_shift;
@@ -125,11 +127,6 @@ void morphology_3d_sphere_bitpacked(
                                 mask1_shift = 32 - mask0_shift;
                             uint32_t voxels1 = voxels[(flat_index / 32) + 1];
                             voxels_row = (voxels_row << mask0_shift) | (voxels1 >> mask1_shift);
-                        } else if (end >= N[2]) { // Case 5
-                            int64_t
-                                mask_shift = beginning % 32,
-                                neutral_shift = 32 - mask_shift;
-                            voxels_row = voxels_row << mask_shift | neutral >> neutral_shift;
                         } else {
                             assert (false && "Should not reach this point - some case is missing.");
                         }
