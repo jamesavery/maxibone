@@ -73,9 +73,7 @@ void morphology_3d_sphere_bitpacked(
                 row |= element << (31 - x);
             }
             kernel[(z+radius)*k + y+radius] = row;
-            //printf("%08x ", row);
         }
-        //printf("\n");
     }
 
     #pragma omp parallel for collapse(3)
