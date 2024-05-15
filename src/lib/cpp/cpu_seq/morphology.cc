@@ -83,7 +83,7 @@ void morphology_3d_sphere_bitpacked(
         for (int64_t y = 0; y < N[1]; y++) {
             for (int64_t x = 0; x < N[2]; x++) {
                 // Compute boundaries
-                int64_t flat_index = z*strides[0] + y*strides[1] + x*strides[2];
+                int64_t flat_index = z*strides[0] + y*strides[1] + (x/32)*strides[2];
                 int64_t X[3] = {z, y, x};
                 int64_t limits[6];
                 for (int axis = 0; axis < 3; axis++) {
@@ -92,7 +92,7 @@ void morphology_3d_sphere_bitpacked(
                 }
 
                 // Apply the spherical kernel
-                uint32_t value = neutral;
+                uint32_t value = neutral & 1;
                 for (int64_t pz = limits[0]; pz <= limits[1]; pz++) {
                     for (int64_t py = limits[2]; py <= limits[3]; py++) {
                         uint32_t
@@ -134,15 +134,15 @@ void morphology_3d_sphere_bitpacked(
                             assert (false && "Should not reach this point - some case is missing.");
                         }
 
-                        value = op(value, voxels_row & kernel_row);
+                        value = op(value, (voxels_row & kernel_row) != 0);
                     }
                 }
                 // dilate:
-                value = (value != 0) << (31 - x % 32);
+                //value = (value != 0) << (31 - x % 32);
                 // erode:
 
                 // Store the results
-                result[flat_index/32] |= value;
+                result[flat_index] |= value << (31 - (x % 32));
             }
         }
     }
