@@ -107,22 +107,24 @@ void morphology_3d_sphere_bitpacked(
                             int64_t
                                 mask_shift = std::abs(beginning),
                                 neutral_shift = 32 - mask_shift;
+                            voxels_row = (voxels_row >> mask_shift) | (neutral << neutral_shift);
                         } else if (end >= N[2]) { // Case 5
                             int64_t
                                 mask_shift = beginning % 32,
                                 neutral_shift = 32 - mask_shift;
                             voxels_row = (voxels_row << mask_shift) | (neutral >> neutral_shift);
+                        } else if ((beginning / 32) != (x / 32)) { // Case 2
                             int64_t
                                 mask1_shift = beginning % 32,
                                 mask0_shift = 32 - mask1_shift;
                             uint32_t voxels1 = voxels[this_flat_index - 1];
                             voxels_row = (voxels1 << mask1_shift) | (voxels_row >> mask0_shift);
-                        } else if (beginning / 32 == end / 32) { // Case 3
+                        } else if ((beginning / 32) == (end / 32)) { // Case 3
                             int64_t
                                 mask_shift = beginning % 32,
                                 neutral_shift = 32 - mask_shift;
-                            voxels_row = voxels_row << mask_shift | neutral >> neutral_shift;
-                        } else if(end / 32 != x / 32) { // Case 4
+                            voxels_row = (voxels_row << mask_shift) | (neutral >> neutral_shift);
+                        } else if((end / 32) != (x / 32)) { // Case 4
                             int64_t
                                 mask0_shift = beginning % 32,
                                 mask1_shift = 32 - mask0_shift;
