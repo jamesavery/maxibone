@@ -97,7 +97,7 @@ void morphology_3d_sphere_bitpacked(
                     for (int64_t py = limits[2]; py <= limits[3]; py++) {
                         uint32_t
                             voxels_row = voxels[flat_index / 32],
-                            kernel_row = kernel[pz*k + py];
+                            kernel_row = kernel[(pz+radius)*k + (py+radius)];
 
                         int64_t
                             beginning = x - radius,
