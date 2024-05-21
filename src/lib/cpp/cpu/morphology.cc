@@ -12,7 +12,17 @@ void morphology_3d_sphere(
         const int64_t N[3],
         const int64_t strides[3],
         mask_type *result) {
-    cpu::seq::morphology_3d_sphere<Op, neutral>(voxels, radius, N, strides, result);
+    cpu_seq::morphology_3d_sphere<Op, neutral>(voxels, radius, N, strides, result);
+}
+
+template <typename Op, uint32_t neutral>
+void morphology_3d_sphere_bitpacked(
+        const uint32_t *voxels,
+        const int64_t radius,
+        const int64_t N[3],
+        const int64_t strides[3],
+        uint32_t *result) {
+    cpu_seq::morphology_3d_sphere_bitpacked<Op, neutral>(voxels, radius, N, strides, result);
 }
 
 } // namespace cpu_par
