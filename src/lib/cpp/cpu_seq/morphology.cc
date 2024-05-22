@@ -46,15 +46,14 @@ void morphology_3d_sphere(
     }
 }
 
-template <typename Op, uint32_t neutral>
-void morphology_3d_sphere_bitpacked_naive(
+template <uint32_t op(uint32_t,uint32_t), uint32_t reduc(uint32_t,uint32_t), uint32_t neutral>
+void morphology_3d_sphere_bitpacked(
         const uint32_t *voxels,
         const int64_t radius,
         const int64_t N[3],
         const int64_t strides[3],
         uint32_t *result) {
     // TODO assumes that Nx is a multiple of 32, which is true for scale <= 4
-    Op op;
     int64_t
         k = radius*2 + 1,
         sqradius = radius * radius;
@@ -132,12 +131,9 @@ void morphology_3d_sphere_bitpacked_naive(
                             assert (false && "Should not reach this point - some case is missing.");
                         }
 
-                        value = op(value, (voxels_row & kernel_row) != 0);
+                        value = op(value, reduc(voxels_row, kernel_row));
                     }
                 }
-                // dilate:
-                //value = (value != 0) << (31 - x % 32);
-                // erode:
 
                 // Store the results
                 result[flat_index] |= value << (31 - (x % 32));
@@ -147,7 +143,7 @@ void morphology_3d_sphere_bitpacked_naive(
 }
 
 template <typename Op, uint32_t neutral>
-void morphology_3d_sphere_bitpacked(
+void morphology_3d_sphere_bitpacked_opt(
         const uint32_t *voxels,
         const int64_t radius,
         const int64_t N[3],
@@ -159,7 +155,7 @@ void morphology_3d_sphere_bitpacked(
         k = radius*2 + 1,
         sqradius = radius * radius;
 
-    // TODO handle k < 32
+    // TODO handle k > 32
     // TODO templated construction? Has to 'hardcode' a radius, but that is beneficial anyways.
     // Create the kernel
     uint32_t *kernel = (uint32_t*) malloc(k*k*sizeof(uint32_t));
