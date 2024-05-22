@@ -38,7 +38,7 @@ void morphology_3d_sphere(
                                 within &= (y+py < ny);
                                 within &= (x+px >= 0);
                                 within &= (x+px < nx);
-                                int64_t offset = (int64_t)pz*sz + (int64_t)py*sy + sx;
+                                int64_t offset = (int64_t)pz*sz + (int64_t)py*sy + (int64_t)px*sx;
 
                                 value = within ? op(value, voxels[flat_index+offset]) : value;
                             }
@@ -93,7 +93,7 @@ void morphology_3d_sphere_r16(
                                 within &= (y+py < ny);
                                 within &= (x+px >= 0);
                                 within &= (x+px < nx);
-                                int64_t offset = (int64_t)pz*sz + (int64_t)py*sy + sx;
+                                int64_t offset = (int64_t)pz*sz + (int64_t)py*sy + (int64_t)px*sx;
 
                                 value = within ? op(value, voxels[flat_index+offset]) : value;
                             }
