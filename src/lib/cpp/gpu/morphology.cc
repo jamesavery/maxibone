@@ -19,11 +19,11 @@ void morphology_3d_sphere(
     #pragma acc data copyin(voxels[:nz*ny*nx]) copyout(result[:nz*ny*nx])
     {
         #pragma acc parallel loop collapse(3)
-        for (int64_t z = 0; z < nz; z++) {
-            for (int64_t y = 0; y < ny; y++) {
-                for (int64_t x = 0; x < nx; x++) {
+        for (int32_t z = 0; z < nz; z++) {
+            for (int32_t y = 0; y < ny; y++) {
+                for (int32_t x = 0; x < nx; x++) {
                     // Compute boundaries
-                    int64_t flat_index = z*sz + y*sy + x*sx;
+                    int64_t flat_index = (int64_t)z*sz + (int64_t)y*sy + (int64_t)x*sx;
 
                     // Apply the spherical kernel
                     bool value = neutral;
