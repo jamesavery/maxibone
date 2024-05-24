@@ -47,10 +47,12 @@ def open_3d(image, r):
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
     if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
-    zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
-                 np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
-                 np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
-    zyxs = np.stack([zs,ys,xs],axis=-1)
+    #zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
+    #             np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
+    #             np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
+    #zyxs = np.stack([zs,ys,xs],axis=-1)
+    #del zs, ys, xs
+    zyxs = np.moveaxis(np.indices(shape, np.uint16),0,-1)
     if verbose >= 1: print(f"Done")
     return zyxs
 
@@ -94,12 +96,17 @@ if __name__ == "__main__":
 
     zyxs = coordinate_image(implant.shape)
     uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
+    del zyxs, E, cm
     UVWs = (uvws - w0v) * voxel_size        # Micrometer scale relative to backplane-center
+    del uvws, w0v
     UVWps = (UVWs - cp) @ UVWp                # relative to center-of-implant-before-sawing-in-half
-    Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical image coordinates
-    thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
-    rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
     Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # UVW physical image coordinates
+    del UVWs, cp, UVWp
+    Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical image coordinates
+    del UVWps
+    thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
+    del Ups, Vps, Wps
+    rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
 
     if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
@@ -109,6 +116,7 @@ if __name__ == "__main__":
 
     back_mask  = (Ws<0)
     front_mask = largest_cc_of((Ws>50)&(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
+    del rs, rmaxs, thetas, Us, Vs, Ws
     plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front_mask.png')
     plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front_mask.png')
     plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front_mask.png')
