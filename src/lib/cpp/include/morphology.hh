@@ -13,7 +13,7 @@ void morphology_3d_sphere(
         const int64_t strides[3],
         mask_type *result);
 
-template <uint32_t op(uint32_t,uint32_t), uint32_t reduc(uint32_t,uint32_t), uint32_t neutral>
+template <uint32_t op(uint32_t,uint32_t), uint32_t reduce(uint32_t,uint32_t), uint32_t neutral>
 void morphology_3d_sphere_bitpacked(
         const uint32_t *voxels,
         const int64_t radius,

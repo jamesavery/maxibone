@@ -111,7 +111,7 @@ void morphology_3d_sphere_r16(
 #endif
 }
 
-template <typename Op, uint32_t neutral>
+template <uint32_t op(uint32_t,uint32_t), uint32_t reduce(uint32_t,uint32_t), uint32_t neutral>
 void morphology_3d_sphere_bitpacked(
         const uint32_t *voxels,
         const int64_t radius,
@@ -119,7 +119,6 @@ void morphology_3d_sphere_bitpacked(
         const int64_t strides[3],
         uint32_t *result) {
     // TODO assumes that Nx is a multiple of 32, which is true for scale <= 4
-    Op op;
     const int64_t
         k = radius*2 + 1,
         sqradius = radius * radius;
@@ -180,8 +179,7 @@ void morphology_3d_sphere_bitpacked(
                                         (middle >> (radius - px))      |
                                         (middle << (-radius + px))     |
                                         (right  >> (32 + radius - px));
-                                    this_x &= kernel_row;
-                                    this_x = this_x != 0; // This is for dilate - make generic / work for erode
+                                    this_x = reduce(this_x, kernel_row);
                                     this_row |= this_x << (31 - px);
                                 }
                                 value = op(value, this_row);
