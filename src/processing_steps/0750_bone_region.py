@@ -4,7 +4,8 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d
+from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode_3d, dilate_3d_sphere_bitpacked as dilate_3d
+from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
@@ -16,8 +17,8 @@ from scipy.ndimage import gaussian_filter1d
 # close = dilate then erode
 # open = erode then dilate
 def morph_3d(image, r, fa, fb):
-    I1 = image.copy().astype(np.uint8)
-    I2 = np.empty(image.shape, dtype=np.uint8)
+    I1 = image.copy().astype(np.uint32)
+    I2 = np.empty(image.shape, dtype=np.uint32)
     rmin = 16
     rmins = r // rmin
     rrest = r % rmin
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     hist, bins = np.histogram(front_part, 256)
     hist[0] = 0
     hist = gaussian_filter1d(hist, 3)
-    peaks, info = signal.find_peaks(hist,height=0.1*hist.max())
+    peaks, info = signal.find_peaks(hist,height=0.1*hist.max()) # Although, wouldn't the later argsort filter the smaller peaks away anyways?
 
 
     if verbose >= 1: plt.clf(); plt.plot(bins[1:],hist); plt.savefig(f'{image_output_dir}/bone_histogram.png')
@@ -177,21 +178,34 @@ if __name__ == "__main__":
     closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
+    bone_region_mask_packed = np.empty((nz,ny,nx//32),dtype=np.uint32)
+    print (bone_region_mask_packed.shape, bone_mask1.shape)
+    bitpacking_encode(bone_mask1.astype(np.uint8), bone_region_mask_packed)
 
     for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
-        bone_region_mask = close_3d(bone_mask1, closing_voxels//2)
+        bone_region_mask_packed = close_3d(bone_region_mask_packed, closing_voxels//2)
 
     for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
-        bone_region_mask = open_3d(bone_region_mask, opening_voxels//2)
+        bone_region_mask_packed = open_3d(bone_region_mask_packed, opening_voxels//2)
+
 
     for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
-        dilated_implant = np.empty(solid_implant.shape, dtype=np.uint8)
-        dilate_3d(solid_implant, implant_dilate_voxels, dilated_implant)
-        bone_region_mask &= ~(dilated_implant.astype(bool))
+        packed_implant = np.empty((nz, ny, nx//32), dtype=np.uint32)
+        bitpacking_encode(solid_implant.astype(np.uint8), packed_implant)
+        dilated_implant = np.empty_like(packed_implant, dtype=np.uint32)
+        dilate_3d(packed_implant, implant_dilate_voxels, dilated_implant)
+        bone_region_mask_packed &= ~dilated_implant
+
+    bone_region_mask = np.empty((nz,ny,nx),dtype=np.uint8)
+    bitpacking_decode(bone_region_mask_packed, bone_region_mask)
+    bone_region_mask = bone_region_mask.astype(bool)
 
     bone_region_mask = largest_cc_of(bone_region_mask)
+
+    dilated_implant_unpacked = np.empty((nz,ny,nx),dtype=np.uint8)
+    bitpacking_decode(dilated_implant, dilated_implant_unpacked)
     voxels_implanted = voxels.copy()
-    voxels_implanted[~dilated_implant.astype(bool)] = 0
+    voxels_implanted[~dilated_implant_unpacked.astype(bool)] = 0
 
     plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
     plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
