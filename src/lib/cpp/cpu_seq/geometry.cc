@@ -66,7 +66,37 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
     BLOCK_END_WITH_OUTPUT() }
 }
 
-void compute_front_back_masks(const mask_type *mask, const shape_t &shape, const float voxel_size, const float *E, const float *cm, const float *w0v, const float *cp, const float *UVWp, mask_type *front_mask, mask_type *back_mask, mask_type *implant_shell_mask, mask_type *solid_implant) {
+void compute_front_back_masks(const mask_type *mask, const shape_t &shape, const float voxel_size, const float *E, const float *cm, const float *cp, const float *UVWp, mask_type *front_mask, mask_type *back_mask, mask_type *implant_shell_mask, mask_type *solid_implant) {
+    auto [nz, ny, nx] = shape;
+
+    // Python code:
+    // implant_zyxs = np.array(np.nonzero(implant)).T - cm   //  Implant points in z,y,x-coordinates (relative to upper-left-left corner, in {scale}x voxel units)
+    // implant_uvws = implant_zyxs @ E                       //  Implant points in u,v,w-coordinates (relative to origin cm, in {scale}x voxel units)
+    // w0  = implant_uvws[:,2].min();  //  In {scale}x voxel units
+    // w0v = np.array([0,0,w0])        //  w-shift to get to center of implant back-plane
+    float w0v[3] = {0, 0, 0};
+    #pragma omp parallel for collapse(3) reduction(min:w0v[:3])
+    for (int64_t z = 0; z < nz; z++) {
+        for (int64_t y = 0; y < ny; y++) {
+            for (int64_t x = 0; x < nx; x++) {
+                int64_t flat_index = z*ny*nx + y*nx + x;
+                if (mask[flat_index]) {
+                    float zyxs[3] = {
+                        float(z) - cm[0],
+                        float(y) - cm[1],
+                        float(x) - cm[2]
+                    };
+                    float uvws[3] = {
+                        zyxs[0] * E[0] + zyxs[1] * E[3] + zyxs[2] * E[6],
+                        zyxs[0] * E[1] + zyxs[1] * E[4] + zyxs[2] * E[7],
+                        zyxs[0] * E[2] + zyxs[1] * E[5] + zyxs[2] * E[8]
+                    };
+                    w0v[2] = min(w0v[2], uvws[2]);
+                }
+            }
+        }
+    }
+
     // Python code:
     // shapes:  E: (3, 3), cm: (3,), w0v: (3,), cp: (3,), UVWp: (3, 3)
     //zyxs = coordinate_image(implant.shape)
@@ -81,8 +111,6 @@ void compute_front_back_masks(const mask_type *mask, const shape_t &shape, const
     //solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
     //back_mask  = (Ws<0)
     //front_mask = largest_cc_of((Ws>50)&(~solid_implant))
-
-    auto [nz, ny, nx] = shape;
     float
         *rs = (float *) malloc(ny * nx * sizeof(float)),
         *Ws = (float *) malloc(ny * nx * sizeof(float));

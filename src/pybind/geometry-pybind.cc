@@ -114,12 +114,11 @@ void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
             {front_mask_info.ptr, front_mask_info.shape});
 }
 
-void compute_front_back_masks(const np_array<mask_type> &mask, const float voxel_size, const np_array<float> &E, const np_array<float> &cm, const np_array<float> &w0v, const np_array<float> &cp, const np_array<float> &UVWp, np_array<mask_type> &front_mask, np_array<mask_type> &back_mask, np_array<mask_type> &implant_shell_mask, np_array<mask_type> &solid_implant) {
+void compute_front_back_masks(const np_array<mask_type> &mask, const float voxel_size, const np_array<float> &E, const np_array<float> &cm, const np_array<float> &cp, const np_array<float> &UVWp, np_array<mask_type> &front_mask, np_array<mask_type> &back_mask, np_array<mask_type> &implant_shell_mask, np_array<mask_type> &solid_implant) {
     auto
         mask_info = mask.request(),
         E_info = E.request(),
         cm_info = cm.request(),
-        w0v_info = w0v.request(),
         cp_info = cp.request(),
         UVWp_info = UVWp.request(),
         front_mask_info = front_mask.request(),
@@ -133,7 +132,6 @@ void compute_front_back_masks(const np_array<mask_type> &mask, const float voxel
     const float
         *E_ptr = static_cast<const float*>(E_info.ptr),
         *cm_ptr = static_cast<const float*>(cm_info.ptr),
-        *w0v_ptr = static_cast<const float*>(w0v_info.ptr),
         *cp_ptr = static_cast<const float*>(cp_info.ptr),
         *UVWp_ptr = static_cast<const float*>(UVWp_info.ptr);
     mask_type
@@ -142,7 +140,7 @@ void compute_front_back_masks(const np_array<mask_type> &mask, const float voxel
         *implant_shell_mask_ptr = static_cast<mask_type*>(implant_shell_mask_info.ptr),
         *solid_implant_ptr = static_cast<mask_type*>(solid_implant_info.ptr);
 
-    return NS::compute_front_back_masks(mask_ptr, shape, voxel_size, E_ptr, cm_ptr, w0v_ptr, cp_ptr, UVWp_ptr, front_mask_ptr, back_mask_ptr, implant_shell_mask_ptr, solid_implant_ptr);
+    return NS::compute_front_back_masks(mask_ptr, shape, voxel_size, E_ptr, cm_ptr, cp_ptr, UVWp_ptr, front_mask_ptr, back_mask_ptr, implant_shell_mask_ptr, solid_implant_ptr);
 }
 
 void cylinder_projection(const np_array<float>  &np_edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
@@ -182,5 +180,5 @@ PYBIND11_MODULE(geometry, m) {
     m.def("sample_plane",         &python_api::sample_plane<uint16_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());
     m.def("sample_plane",         &python_api::sample_plane<uint8_t>, py::arg("np_voxels"), py::arg("voxel_size"), py::arg("cm"), py::arg("u_axis"), py::arg("v_axis"), py::arg("bbox"), py::arg("np_plano_samples").noconvert());
     m.def("compute_front_mask",   &python_api::compute_front_mask, py::arg("np_solid_implant"), py::arg("voxel_size"), py::arg("Muvw"), py::arg("bbox"), py::arg("np_front_mask").noconvert());
-    m.def("compute_front_back_masks", &python_api::compute_front_back_masks, py::arg("mask"), py::arg("voxel_size"), py::arg("E"), py::arg("cm"), py::arg("w0v"), py::arg("cp"), py::arg("UVWp"), py::arg("front_mask").noconvert(), py::arg("back_mask").noconvert(), py::arg("implant_shell_mask").noconvert(), py::arg("solid_implant").noconvert());
+    m.def("compute_front_back_masks", &python_api::compute_front_back_masks, py::arg("mask"), py::arg("voxel_size"), py::arg("E"), py::arg("cm"), py::arg("cp"), py::arg("UVWp"), py::arg("front_mask").noconvert(), py::arg("back_mask").noconvert(), py::arg("implant_shell_mask").noconvert(), py::arg("solid_implant").noconvert());
 }
