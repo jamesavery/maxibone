@@ -4,6 +4,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
+from lib.cpp.cpu_seq.geometry import compute_front_back_masks
 from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode_3d, dilate_3d_sphere_bitpacked as dilate_3d
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 import matplotlib.pyplot as plt
@@ -80,7 +81,12 @@ if __name__ == "__main__":
 
     nz, ny, nx = implant.shape
 
-    #rmaxs, rs, Ws her!
+    if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
+    voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-xy.png')
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-xz.png')
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-yz.png')
+
     if verbose >= 1: print (f'Loading FoR values from {hdf5_root}/hdf5-byte/msb/{sample}.h5')
     with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",'r') as f:
         UVWp = f['implant-FoR/UVWp'][:]
@@ -88,38 +94,12 @@ if __name__ == "__main__":
         cm = (f['implant-FoR/center_of_mass'][:]) / voxel_size
         E = f['implant-FoR/E'][:]
 
-    implant_zyxs = np.array(np.nonzero(implant)).T - cm   # Implant points in z,y,x-coordinates (relative to upper-left-left corner, in {scale}x voxel units)
-    implant_uvws = implant_zyxs @ E                       # Implant points in u,v,w-coordinates (relative to origin cm, in {scale}x voxel units)
-
-    w0  = implant_uvws[:,2].min();  # In {scale}x voxel units
-    w0v = np.array([0,0,w0])        # w-shift to get to center of implant back-plane
-
-    zyxs = coordinate_image(implant.shape)
-    uvws = (zyxs - cm) @ E                  # raw voxel-scale relative to center of mass
-    del zyxs, E, cm
-    UVWs = (uvws - w0v) * voxel_size        # Micrometer scale relative to backplane-center
-    del uvws, w0v
-    UVWps = (UVWs - cp) @ UVWp                # relative to center-of-implant-before-sawing-in-half
-    Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]        # UVW physical image coordinates
-    del UVWs, cp, UVWp
-    Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]      # U',V',W' physical image coordinates
-    del UVWps
-    thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)    # This is the good reference frame for cylindrical coords
-    del Ups, Vps, Wps
-    rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
-
-    if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
-    voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
-
-    implant_shell_mask = implant&(rs >= 0.7*rmaxs)
-    solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
-
-    back_mask  = (Ws<0)
-    front_mask = largest_cc_of((Ws>50)&(~solid_implant))#*(thetas>=theta_from)*(thetas<=theta_to)
-    del rs, rmaxs, thetas, Us, Vs, Ws
-    plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front_mask.png')
-    plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front_mask.png')
-    plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front_mask.png')
+    front_mask = np.empty_like(implant, dtype=np.uint8)
+    back_mask = np.empty_like(implant, dtype=np.uint8)
+    implant_shell_mask = np.empty_like(implant, dtype=np.uint8)
+    solid_implant = np.empty_like(implant, dtype=np.uint8)
+    compute_front_back_masks(implant, voxel_size, E, cm, cp, UVWp, front_mask, back_mask, implant_shell_mask, solid_implant)
+    front_mask = largest_cc_of(front_mask)
 
     # back_part = voxels*back_mask
 
