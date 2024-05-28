@@ -106,6 +106,8 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         std::array<float,6> bbox,
         output_ndarray<mask_type> front_mask);
 
+void compute_front_back_masks(const mask_type *mask, const shape_t &shape, const float voxel_size, const float *E, const float *cm, const float *w0v, const float *cp, const float *UVWp, mask_type *front_mask, mask_type *back_mask, mask_type *implant_shell_mask, mask_type *solid_implant);
+
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
              const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
              float voxel_size,           // Voxel size for Cs

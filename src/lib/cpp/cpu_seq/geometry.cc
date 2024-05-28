@@ -66,6 +66,79 @@ void compute_front_mask(const input_ndarray<mask_type> solid_implant,
     BLOCK_END_WITH_OUTPUT() }
 }
 
+void compute_front_back_masks(const mask_type *mask, const shape_t &shape, const float voxel_size, const float *E, const float *cm, const float *w0v, const float *cp, const float *UVWp, mask_type *front_mask, mask_type *back_mask, mask_type *implant_shell_mask, mask_type *solid_implant) {
+    // Python code:
+    // shapes:  E: (3, 3), cm: (3,), w0v: (3,), cp: (3,), UVWp: (3, 3)
+    //zyxs = coordinate_image(implant.shape)
+    //uvws = (zyxs - cm) @ E
+    //UVWs = (uvws - w0v) * voxel_size
+    //UVWps = (UVWs - cp) @ UVWp
+    //Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]
+    //Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]
+    //thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)
+    //rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
+    //implant_shell_mask = implant&(rs >= 0.7*rmaxs)
+    //solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
+    //back_mask  = (Ws<0)
+    //front_mask = largest_cc_of((Ws>50)&(~solid_implant))
+
+    auto [nz, ny, nx] = shape;
+    float
+        *rs = (float *) malloc(ny * nx * sizeof(float)),
+        *Ws = (float *) malloc(ny * nx * sizeof(float));
+    #pragma omp parallel for private (rs, Ws)
+    for (int64_t z = 0; z < nz; z++) {
+        float rmax = 0.0f;
+        for (int64_t y = 0; y < ny; y++) {
+            for (int64_t x = 0; x < nx; x++) {
+                int64_t flat_index = z*ny*nx + y*nx + x;
+                float uvw[3] = {
+                    (float) (((float)z)-cm[0]) * E[0] + (((float)y)-cm[1]) * E[3] + (((float)x)-cm[2]) * E[6],
+                    (float) (((float)z)-cm[0]) * E[1] + (((float)y)-cm[1]) * E[4] + (((float)x)-cm[2]) * E[7],
+                    (float) (((float)z)-cm[0]) * E[2] + (((float)y)-cm[1]) * E[5] + (((float)x)-cm[2]) * E[8]
+                };
+                float UVW[3] = {
+                    (uvw[0] - w0v[0]) * voxel_size,
+                    (uvw[1] - w0v[1]) * voxel_size,
+                    (uvw[2] - w0v[2]) * voxel_size
+                };
+                float UVWps[3] = {
+                    (UVW[0] - cp[0]) * UVWp[0] + (UVW[1] - cp[1]) * UVWp[3] + (UVW[2] - cp[2]) * UVWp[6],
+                    (UVW[0] - cp[0]) * UVWp[1] + (UVW[1] - cp[1]) * UVWp[4] + (UVW[2] - cp[2]) * UVWp[7],
+                    (UVW[0] - cp[0]) * UVWp[2] + (UVW[1] - cp[1]) * UVWp[5] + (UVW[2] - cp[2]) * UVWp[8]
+                };
+                float
+                    //U = UVW[0],
+                    //V = UVW[1],
+                    W = UVW[2],
+                    //Up = UVWps[0],
+                    Vp = UVWps[1],
+                    Wp = UVWps[2],
+                    //theta = atan2(Vp, Wp),
+                    r = sqrt(Vp*Vp + Wp*Wp);
+
+                rmax = max(rmax, r * mask[flat_index]);
+                rs[y*nx + x] = r;
+                Ws[y*nx + x] = W;
+            }
+        }
+        for (int64_t y = 0; y < ny; y++) {
+            for (int64_t x = 0; x < nx; x++) {
+                int64_t flat_index = z*ny*nx + y*nx + x;
+                float r = rs[y*nx + x];
+                float W = Ws[y*nx + x];
+                implant_shell_mask[flat_index] = mask[flat_index] & (r >= 0.7 * rmax);
+                solid_implant[flat_index] = mask[flat_index] | (r < 0.7 * rmax && W >= 0);
+                back_mask[flat_index] = W < 0;
+                front_mask[flat_index] = (W > 50) & !solid_implant[flat_index];
+            }
+        }
+    }
+
+    free(rs);
+    free(Ws);
+}
+
 void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
              const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
              float voxel_size,           // Voxel size for Cs
