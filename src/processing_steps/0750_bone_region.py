@@ -4,7 +4,7 @@ import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.cpu_seq.geometry import compute_front_back_masks
+from lib.cpp.cpu.geometry import compute_front_back_masks
 from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode_3d, dilate_3d_sphere_bitpacked as dilate_3d
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 import matplotlib.pyplot as plt
@@ -94,11 +94,16 @@ if __name__ == "__main__":
         cm = (f['implant-FoR/center_of_mass'][:]) / voxel_size
         E = f['implant-FoR/E'][:]
 
+    if verbose >= 1: print(f"Computing front/back/implant_shell/solid_implant masks")
     front_mask = np.empty_like(implant, dtype=np.uint8)
     back_mask = np.empty_like(implant, dtype=np.uint8)
     implant_shell_mask = np.empty_like(implant, dtype=np.uint8)
     solid_implant = np.empty_like(implant, dtype=np.uint8)
+    if verbose >= 1: start = datetime.datetime.now()
     compute_front_back_masks(implant, voxel_size, E, cm, cp, UVWp, front_mask, back_mask, implant_shell_mask, solid_implant)
+    if verbose >= 1: end = datetime.datetime.now()
+    if verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
+
     front_mask = largest_cc_of(front_mask)
 
     # back_part = voxels*back_mask
@@ -176,7 +181,6 @@ if __name__ == "__main__":
 
     for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
         bone_region_mask_packed = open_3d(bone_region_mask_packed, opening_voxels//2)
-
 
     for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
         packed_implant = np.empty((nz, ny, nx//32), dtype=np.uint32)
