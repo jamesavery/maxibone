@@ -154,11 +154,11 @@ if __name__ == "__main__":
     hist = gaussian_filter1d(hist, 3)
     peaks, info = signal.find_peaks(hist,height=0.1*hist.max()) # Although, wouldn't the later argsort filter the smaller peaks away anyways?
 
-
-    if verbose >= 1: plt.clf(); plt.plot(bins[1:],hist); plt.savefig(f'{image_output_dir}/bone_histogram.png')
+    if verbose >= 1:  plt.figure(figsize=(20,10)); plt.plot(bins[1:], hist_raw); plt.plot(bins[1:], hist); plt.savefig(f'{image_output_dir}/bone_histogram.png'); plt.clf()
     print (f'peaks: {peaks}')
 
-    p1, p2 = peaks[np.argsort(info['peak_heights'])[:2]]
+    two_largest_peaks = peaks[np.argsort(info['peak_heights'])[::-1][:2]]
+    p1, p2 = sorted(two_largest_peaks)
     #midpoint = int(round((bins[p1]+bins[p2+1])/2)) # p1 is left-edge of p1-bin, p2+1 is right edge of p2-bin
     midpoint = bins[np.argmin(hist[p1:p2]) + p1]
     if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
