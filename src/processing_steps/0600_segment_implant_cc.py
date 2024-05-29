@@ -36,6 +36,8 @@ global_vmin = np.min(h5meta['subvolume_range'][:,0])
 global_vmax = np.max(h5meta['subvolume_range'][:,1])
 values      = np.linspace(global_vmin,global_vmax,2**16)
 implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
+if 'novisim' in sample:
+    implant_threshold_u16 = 40000 # TODO global configuration based on sample type?
 
 # Automatic chunk size calculation.
 # Should be that fmod(log2(n_chunks),1.0) == 0 and chunk_size * n_cores < available memory

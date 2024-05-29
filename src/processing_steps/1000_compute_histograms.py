@@ -303,8 +303,11 @@ if __name__ == '__main__':
         print(f"Loaded {gb:.02f} GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
         verify_and_benchmark(voxels, field, voxel_bins // scale)
     else:
-        implant_threshold_u16 = 32000 # TODO: use config.constants
-        (vmin,vmax),(fmin,fmax) = ((0,implant_threshold_u16),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
+        if 'novisim' in sample:
+            implant_threshold_u16 = 40000
+        else:
+            implant_threshold_u16 = 32000 # TODO: use config.constants
+        (vmin,vmax),(fmin,fmax) = ((1,implant_threshold_u16),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
         field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
         xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,

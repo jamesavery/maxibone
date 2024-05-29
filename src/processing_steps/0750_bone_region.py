@@ -153,10 +153,18 @@ if __name__ == "__main__":
     plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front.png')
     plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front.png')
     plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front.png')
+    front_part_implanted = front_part.copy()
+    front_part_implanted[implant == 1] = 0
+    fpmin = front_part_implanted
+    fpmin[fpmin==0] = 65535
+    vmin = fpmin.min()
+    fpmin[fpmin==65535] = vmin
+    vmax = fpmin.max()
 
     if verbose >= 1: print(f"Computing bone region")
-    hist, bins = np.histogram(front_part, 256)
+    hist, bins = np.histogram(front_part, 2048, range=(vmin,vmax))
     hist[0] = 0
+    hist_raw = hist.copy()
     hist = gaussian_filter1d(hist, 3)
     peaks, info = signal.find_peaks(hist,height=0.1*hist.max()) # Although, wouldn't the later argsort filter the smaller peaks away anyways?
 
@@ -174,7 +182,10 @@ if __name__ == "__main__":
     plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
     plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
 
-    closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 5           # micrometers
+    if 'novisim' in sample:
+        closing_diameter, opening_diameter, implant_dilate_diameter = 100, 80, 5           # micrometers
+    else:
+        closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 5           # micrometers
     closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
