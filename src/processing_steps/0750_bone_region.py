@@ -5,7 +5,7 @@ sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
 from lib.cpp.cpu.geometry import compute_front_back_masks
-from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode_3d, dilate_3d_sphere_bitpacked as dilate_3d
+from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d, erode_3d_sphere_bitpacked as erode_3d_bitpacked, dilate_3d_sphere_bitpacked as dilate_3d_bitpacked
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
@@ -18,8 +18,8 @@ from scipy.ndimage import gaussian_filter1d
 # close = dilate then erode
 # open = erode then dilate
 def morph_3d(image, r, fa, fb):
-    I1 = image.copy().astype(np.uint32)
-    I2 = np.empty(image.shape, dtype=np.uint32)
+    I1 = image.copy().astype(image.dtype)
+    I2 = np.empty(image.shape, dtype=image.dtype)
     rmin = 16
     rmins = r // rmin
     rrest = r % rmin
@@ -40,10 +40,16 @@ def morph_3d(image, r, fa, fb):
     return I1
 
 def close_3d(image, r):
-    return morph_3d(image, r, dilate_3d, erode_3d)
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, dilate_3d_bitpacked, erode_3d_bitpacked)
+    else:
+        return morph_3d(image, r, dilate_3d, erode_3d)
 
 def open_3d(image, r):
-    return morph_3d(image, r, erode_3d, dilate_3d)
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, erode_3d_bitpacked, dilate_3d_bitpacked)
+    else:
+        return morph_3d(image, r, erode_3d, dilate_3d)
 
 def coordinate_image(shape):
     Nz,Ny,Nx   = shape
@@ -172,37 +178,55 @@ if __name__ == "__main__":
     closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     opening_voxels = 2*int(round(opening_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
     implant_dilate_voxels = 2*int(round(implant_dilate_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
-    bone_region_mask_packed = np.empty((nz,ny,nx//32),dtype=np.uint32)
-    print (bone_region_mask_packed.shape, bone_mask1.shape)
-    bitpacking_encode(bone_mask1.astype(np.uint8), bone_region_mask_packed)
+    bitpacked = nx % 32 == 0
+    if bitpacked:
+        bone_region_tmp = np.empty((nz,ny,nx//32),dtype=np.uint32)
+        bitpacking_encode(bone_mask1.astype(np.uint8), bone_region_tmp)
+    else:
+        bone_region_tmp = bone_mask1.astype(np.uint8)
 
     for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
-        bone_region_mask_packed = close_3d(bone_region_mask_packed, closing_voxels//2)
+        bone_region_tmp = close_3d(bone_region_tmp, closing_voxels//2)
+
 
     for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
-        bone_region_mask_packed = open_3d(bone_region_mask_packed, opening_voxels//2)
+        bone_region_tmp = open_3d(bone_region_tmp, opening_voxels//2)
 
     for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
-        packed_implant = np.empty((nz, ny, nx//32), dtype=np.uint32)
-        bitpacking_encode(solid_implant.astype(np.uint8), packed_implant)
-        dilated_implant = np.empty_like(packed_implant, dtype=np.uint32)
-        dilate_3d(packed_implant, implant_dilate_voxels, dilated_implant)
-        bone_region_mask_packed &= ~dilated_implant
+        if bitpacked:
+            packed_implant = np.empty((nz, ny, nx//32), dtype=np.uint32)
+            bitpacking_encode(solid_implant.astype(np.uint8), packed_implant)
+        else:
+            packed_implant = solid_implant
+        dilated_implant = np.empty_like(packed_implant, dtype=packed_implant.dtype)
+        if bitpacked:
+            dilate_3d_bitpacked(packed_implant, implant_dilate_voxels, dilated_implant)
+        else:
+            dilate_3d(packed_implant, implant_dilate_voxels, dilated_implant)
+        bone_region_tmp &= ~dilated_implant
 
-    bone_region_mask = np.empty((nz,ny,nx),dtype=np.uint8)
-    bitpacking_decode(bone_region_mask_packed, bone_region_mask)
-    bone_region_mask = bone_region_mask.astype(bool)
+    if bitpacked:
+        bone_region_mask = np.empty((nz,ny,nx),dtype=np.uint8)
+        bitpacking_decode(bone_region_tmp, bone_region_mask)
+        bone_region_mask = bone_region_mask.astype(bool)
+    else:
+        bone_region_mask = bone_region_tmp.astype(bool)
 
     bone_region_mask = largest_cc_of(bone_region_mask)
 
-    dilated_implant_unpacked = np.empty((nz,ny,nx),dtype=np.uint8)
-    bitpacking_decode(dilated_implant, dilated_implant_unpacked)
-    voxels_implanted = voxels.copy()
-    voxels_implanted[~dilated_implant_unpacked.astype(bool)] = 0
+    if verbose >= 2:
+        if bitpacked:
+            dilated_implant_unpacked = np.empty((nz,ny,nx),dtype=np.uint8)
+            print (dilated_implant.shape, dilated_implant_unpacked.shape)
+            bitpacking_decode(dilated_implant, dilated_implant_unpacked)
+        else:
+            dilated_implant_unpacked = dilated_implant
+        voxels_implanted = voxels.copy()
+        voxels_implanted[dilated_implant_unpacked == 0] = 0
 
-    plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
-    plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
-    plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
+        plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
+        plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
+        plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
 
     plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
     plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
