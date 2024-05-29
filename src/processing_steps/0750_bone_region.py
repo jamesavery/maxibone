@@ -24,17 +24,17 @@ def morph_3d(image, r, fa, fb):
     rmins = r // rmin
     rrest = r % rmin
     for _ in range(rmins):
-        dilate_3d(I1, rmin, I2)
+        fa(I1, rmin, I2)
         I1, I2 = I2, I1
     if rrest > 0:
-        dilate_3d(I1, rrest, I2)
+        fa(I1, rrest, I2)
         I1, I2 = I2, I1
 
     for i in range(rmins):
-        erode_3d(I1, rmin, I2)
+        fb(I1, rmin, I2)
         I1, I2 = I2, I1
     if rrest > 0:
-        erode_3d(I1, rrest, I2)
+        fb(I1, rrest, I2)
         I1, I2 = I2, I1
 
     return I1
