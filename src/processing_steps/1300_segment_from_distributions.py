@@ -74,7 +74,7 @@ if __name__ == '__main__':
         zend = min(zstart + block_size, Nz)
         fzstart, fzend = zstart // 2, zend // 2
 
-        voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names)
+        voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names, 1)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         # TODO: Flyt til generering af figurer - hører ikke til her

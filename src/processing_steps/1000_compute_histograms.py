@@ -239,7 +239,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
 
 
-        voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names)
+        voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names, 1)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
             axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
         # TODO commented out during debugging
