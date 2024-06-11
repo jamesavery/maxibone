@@ -7,6 +7,7 @@ from config.paths import hdf5_root, binary_root
 from lib.cpp.cpu.geometry import compute_front_back_masks
 from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d, erode_3d_sphere_bitpacked as erode_3d_bitpacked, dilate_3d_sphere_bitpacked as dilate_3d_bitpacked
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
+from lib.cpp.cpu.connected_components import largest_connected_component
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
@@ -14,6 +15,9 @@ import vedo, vedo.pointcloud as pc
 from lib.py.helpers import update_hdf5, update_hdf5_mask, commandline_args
 from numpy import array, newaxis as NA
 from scipy.ndimage import gaussian_filter1d
+import datetime
+import multiprocessing as mp
+from functools import partial
 
 # close = dilate then erode
 # open = erode then dilate
@@ -63,12 +67,50 @@ def coordinate_image(shape):
     if verbose >= 1: print(f"Done")
     return zyxs
 
-def largest_cc_of(mask):
-    label, n_features = ndi.label(mask)
-    bincnts           = np.bincount(label[label>0],minlength=n_features+1)
+def label_chunk(i, chunk, chunk_prefix):
+    label, n_features = ndi.label(chunk, output=np.int64)
+    label.tofile(f'{chunk_prefix}{i}.int64')
+    del label
+    return n_features
 
-    largest_cc_ix   = np.argmax(bincnts)
-    return (label==largest_cc_ix)
+def largest_cc_of(mask, mask_name):
+    nz, ny, nx = mask.shape
+    flat_size = nz*ny*nx
+    layer_size = ny*nx
+    n_cores = mp.cpu_count() // 2 # Only count physical cores
+    available_memory = 1024**3 * 4 * n_cores # 1 GB per core-ish
+    memory_per_core  = available_memory // n_cores
+    elements_per_core = memory_per_core // 8 # 8 bytes per element
+    layers_per_core = elements_per_core // layer_size
+    n_chunks = int(2**np.ceil(np.log2(nz // layers_per_core)))
+    layers_per_chunk = nz // n_chunks
+    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x/"
+    os.makedirs(intermediate_folder, exist_ok=True)
+
+    if layers_per_chunk == 0 or layers_per_chunk >= nz:
+        label, n_features = ndi.label(mask, output=np.int64)
+        bincnts           = np.bincount(label[label>0],minlength=n_features+1)
+        largest_cc_ix     = np.argmax(bincnts)
+        return (label == largest_cc_ix)
+    else:
+        start = datetime.datetime.now()
+        with mp.Pool(n_cores) as pool:
+            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_")
+            chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
+            chunks.append(mask[(n_chunks-1)*layers_per_chunk:])
+            n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
+        end = datetime.datetime.now()
+        # load uint16, threshold (uint16 > uint8), label (int64), write int64
+        total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
+        gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
+        print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
+
+        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
+
+        largest_component = np.zeros((nz,ny,nx),dtype=bool)
+        largest_connected_component(largest_component, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+
+        return largest_component
 
 if __name__ == "__main__":
     sample, scale, verbose = commandline_args({"sample" : "<required>",
@@ -110,7 +152,7 @@ if __name__ == "__main__":
     if verbose >= 1: end = datetime.datetime.now()
     if verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
 
-    front_mask = largest_cc_of(front_mask)
+    front_mask = largest_cc_of(front_mask, 'front')
 
     # back_part = voxels*back_mask
 
@@ -223,7 +265,7 @@ if __name__ == "__main__":
     else:
         bone_region_mask = bone_region_tmp.astype(bool)
 
-    bone_region_mask = largest_cc_of(bone_region_mask)
+    bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
 
     if verbose >= 2:
         if bitpacked:
