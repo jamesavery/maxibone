@@ -495,7 +495,7 @@ void sample_plane(const input_ndarray<T> &voxels,
 
     real_t *dat = plane_samples.data;
 
-    #pragma acc data copyin(voxels, voxels.data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx) create(dat[:nu*nv]) copyout(dat[:nu*nv])
+    #pragma acc data copyin(voxels, voxels.data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx, cm[:3], u_axis[:3], v_axis[:3]) create(dat[:nu*nv]) copyout(dat[:nu*nv])
     {
     PRAGMA(PARALLEL_TERM collapse(2))
     for (ssize_t ui = 0; ui < nu; ui++) {
