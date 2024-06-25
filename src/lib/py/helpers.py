@@ -38,6 +38,10 @@ def commandline_args(defaults):
 
     return args
 
+def generate_cylinder_mask(nx):
+    xs = np.linspace(-1, 1, nx)
+    rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
+    return rs <= 1
 
 def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
                 compression=None,chunk_shape=None):
