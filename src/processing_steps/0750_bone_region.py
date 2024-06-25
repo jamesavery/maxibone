@@ -82,7 +82,7 @@ def largest_cc_of(mask, mask_name):
     memory_per_core  = available_memory // n_cores
     elements_per_core = memory_per_core // 8 # 8 bytes per element
     layers_per_core = elements_per_core // layer_size
-    n_chunks = int(2**np.ceil(np.log2(nz // layers_per_core)))
+    n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core))))
     layers_per_chunk = nz // n_chunks
     intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x/"
     os.makedirs(intermediate_folder, exist_ok=True)
