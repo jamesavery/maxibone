@@ -44,7 +44,7 @@ def gauss_kernel(sigma):
 
 # sigma is given in physical units, i.e. in micrometers, in order to give scale-invariant results.
 if __name__ == '__main__':
-    sample, sigma, reps, scale, verify, verbose = \
+    sample, scale, sigma, reps, verify, verbose = \
         commandline_args({
             "sample" : "<required>",
             "scale" : 2,
