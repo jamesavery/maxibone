@@ -10,6 +10,14 @@ namespace python_api {
         auto mask_info = mask.request();
         auto output_info = output.request();
 
+        // Assert that the shapes are divisable by each other
+        assert (voxels_info.shape[0] % field_info.shape[0] == 0);
+        assert (voxels_info.shape[1] % field_info.shape[1] == 0);
+        assert (voxels_info.shape[2] % field_info.shape[2] == 0);
+        assert (voxels_info.shape[0] % mask_info.shape[0] == 0);
+        assert (voxels_info.shape[1] % mask_info.shape[1] == 0);
+        assert (voxels_info.shape[2] % mask_info.shape[2] == 0);
+
         output_ndarray<float> packed_output = { output_info.ptr, output_info.shape };
 
         NS::bic({voxels_info.ptr, voxels_info.shape}, {field_info.ptr, field_info.shape}, {mask_info.ptr, mask_info.shape}, threshold, packed_output);
