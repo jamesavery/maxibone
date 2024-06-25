@@ -191,17 +191,15 @@ if __name__ == '__main__':
     mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"
     if verbose >= 1: print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")
     pathlib.Path(mixed_output_dir).mkdir(parents=True, exist_ok=True)
-    result = (result-(fedt/(fedt.max()))*result.max())*cylinder_mask
-    if result.min() < 0:
-        result += np.abs(result.min())
-    else:
-        result -= result.min()
-    result /= result.max()
     result = result * cylinder_mask
-    if verbose >= 1: print(f"Result (min,max) = ({result.min(),result.max()})")
-    np.save(f'{mixed_output_dir}/{sample}.npy', toint(result,np.uint16)*cylinder_mask)
-    print (result[0,0,0], cylinder_mask[0,0,0])
+    fedt = fedt * cylinder_mask
+    combined = (result / result.max()) - (fedt / fedt.max())
+    combined += np.abs(combined.min())
+    combined /= combined.max()
+    combined *= cylinder_mask
+    if verbose >= 1: print(f"Result (min,max) = ({combined.min(),combined.max()})")
+    np.save(f'{mixed_output_dir}/{sample}.npy', toint(combined,np.uint16))
     if verbose >= 2:
-        Image.fromarray(toint(result[nz//2,:,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xy.png')
-        Image.fromarray(toint(result[:,ny//2,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xz.png')
-        Image.fromarray(toint(result[:,:,nx//2])).save(f'{mixed_output_dir}/{sample}-gauss+edt-yz.png')
+        Image.fromarray(toint(combined[nz//2,:,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xy.png')
+        Image.fromarray(toint(combined[:,ny//2,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xz.png')
+        Image.fromarray(toint(combined[:,:,nx//2])).save(f'{mixed_output_dir}/{sample}-gauss+edt-yz.png')
