@@ -85,6 +85,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
     auto [Nz, Ny, Nx] = ranges;
     const auto nz = voxels_info.shape[0], ny = voxels_info.shape[1], nx = voxels_info.shape[2];
     const auto fz = field_info.shape[0],  fy = field_info.shape[1],  fx = field_info.shape[2];
+    const bool field_scaled = (fz != Nz || fy != Ny || fx != Nx);
     const float
         dz = (float) fz / (float) nz,
         dy = (float) fy / (float) ny,
@@ -134,7 +135,7 @@ void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                             (float) (z-sz) * dz
                         };
                         auto [X,Y,Z] = XYZ;
-                        if (X>=0.5 && Y>=0.5 && Z>=0.5 &&
+                        if (!field_scaled && X>=0.5 && Y>=0.5 && Z>=0.5 &&
                                 (X+0.5)<(float)fx && (Y+0.5)<(float)fy && (Z+0.5)<(float)fz) {
                             field_value = (field_type) floor(resample2x2x2(
                                 field, { fz, fy, fx }, XYZ
