@@ -14,22 +14,26 @@ from tqdm import tqdm
 
 # sample : [new_start, new_end, old_start, old_end]
 ranges = {
-    '770_pag' : [ 0, 1, 0, 150*8 ],
-    '770c_pag' : [ 1000, 2000, 2250, 3000 ],
-    '771c_pag' : [ 1200, 2000, 0, 1000 ],
-    '772_pag' : [ 100*8, 300*8, 300*8, 400*8 ],
-    '775c_pag' : [ 800, 2400, 2600, 3200 ],
-    '810c_pag' : [ 700*2, 850*2, 0, 600*2 ],
-    '811_pag' : [ 300*2, 800*2, 1000*2, 1500*2 ],
+    '770_pag' : np.array([ 0, 1, 0, 150*8 ]),
+    '770c_pag' : np.array([ 1000, 2000, 2250, 3000 ]),
+    '771c_pag' : np.array([ 1200, 2000, 0, 1000 ]),
+    '772_pag' : np.array([ 100*8, 300*8, 300*8, 400*8 ]),
+    '775c_pag' : np.array([ 800, 2400, 2600, 3200 ]),
+    '810c_pag' : np.array([ 700*2, 850*2, 0, 600*2 ]),
+    '811_pag' : np.array([ 300*2, 800*2, 1000*2, 1500*2 ]),
 }
 
 if __name__ == '__main__':
-    sample = commandline_args({"sample" : "<required>"})[0]
+    sample, scale = commandline_args({
+        "sample" : "<required>",
+        "scale" : 1}
+    )
 
     bics = np.load(f'{hdf5_root}/processed/bic/{sample}_bics.npy')
 
-    new_bics = bics[ranges[sample][0]:ranges[sample][1]]
-    old_bics = bics[ranges[sample][2]:ranges[sample][3]]
+    range = ranges[sample] // scale
+    new_bics = bics[range[0]:range[1]]
+    old_bics = bics[range[2]:range[3]]
 
     new_mean, new_std = np.mean(new_bics), np.std(new_bics)
     old_mean, old_std = np.mean(old_bics), np.std(old_bics)
