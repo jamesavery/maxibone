@@ -99,6 +99,9 @@ def largest_cc_of(mask, mask_name):
             chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
             chunks.append(mask[(n_chunks-1)*layers_per_chunk:])
             n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
+            for chunk in chunks:
+                del chunk
+            del chunks
         end = datetime.datetime.now()
         # load uint16, threshold (uint16 > uint8), label (int64), write int64
         total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
@@ -177,6 +180,7 @@ if __name__ == "__main__":
     plt.imshow(implant_shell_mask[implant_shell_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-shell.png')
     plt.imshow(implant_shell_mask[:,implant_shell_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-shell.png')
     plt.imshow(implant_shell_mask[:,:,implant_shell_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-shell.png')
+    del implant_shell_mask
 
     if verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
@@ -186,6 +190,7 @@ if __name__ == "__main__":
     plt.imshow(back_mask[back_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-back.png')
     plt.imshow(back_mask[:,back_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-back.png')
     plt.imshow(back_mask[:,:,back_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-back.png')
+    del back_mask
 
     if verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
@@ -195,6 +200,7 @@ if __name__ == "__main__":
     plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front.png')
     plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front.png')
     plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front.png')
+    del front_mask
     front_part_implanted = front_part.copy()
     front_part_implanted[implant == 1] = 0
     fpmin = front_part_implanted
@@ -202,6 +208,7 @@ if __name__ == "__main__":
     vmin = fpmin.min()
     fpmin[fpmin==65535] = vmin
     vmax = fpmin.max()
+    del fpmin, front_part_implanted
 
     if verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 2048, range=(vmin,vmax))
@@ -220,6 +227,7 @@ if __name__ == "__main__":
     if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
     bone_mask1 = front_part > midpoint
+    del front_part
     plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png')
     plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
     plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
@@ -237,6 +245,7 @@ if __name__ == "__main__":
         bitpacking_encode(bone_mask1.astype(np.uint8), bone_region_tmp)
     else:
         bone_region_tmp = bone_mask1.astype(np.uint8)
+    del bone_mask1
 
     for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
         bone_region_tmp = close_3d(bone_region_tmp, closing_voxels//2)
@@ -251,6 +260,8 @@ if __name__ == "__main__":
             bitpacking_encode(solid_implant.astype(np.uint8), packed_implant)
         else:
             packed_implant = solid_implant
+        del solid_implant
+
         dilated_implant = np.empty_like(packed_implant, dtype=packed_implant.dtype)
         if bitpacked:
             dilate_3d_bitpacked(packed_implant, implant_dilate_voxels, dilated_implant)
@@ -264,6 +275,7 @@ if __name__ == "__main__":
         bone_region_mask = bone_region_mask.astype(bool)
     else:
         bone_region_mask = bone_region_tmp.astype(bool)
+    del bone_region_tmp
 
     bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
 
@@ -284,11 +296,11 @@ if __name__ == "__main__":
     plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
     plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
     plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
-    voxels_boned = voxels.copy()
-    voxels_boned[~bone_region_mask] = 0
-    plt.imshow(voxels_boned[voxels_boned.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
-    plt.imshow(voxels_boned[:,voxels_boned.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
-    plt.imshow(voxels_boned[:,:,voxels_boned.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
+
+    voxels[~bone_region_mask] = 0
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
 
     if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
