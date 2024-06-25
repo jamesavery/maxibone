@@ -39,19 +39,20 @@ def nblocks(size, block_size):
     return (size // block_size) + (1 if size % block_size > 0 else 0)
 
 if __name__ == '__main__':
-    sample, block_start, block_size, region_mask, group, mask_scale, scheme, verbose = commandline_args({'sample' : '<required>',
+    sample, scale, block_start, block_size, region_mask, group, mask_scale, scheme, field_scale, verbose = commandline_args({'sample' : '<required>', 'scale' : 1,
                                                                                                        "block_start" : 0,
                                                                                                        "block_size" : 0,
                                                                                                        'region_mask' :  'bone_region',
                                                                                                        'group' :  'otsu_separation',
                                                                                                        'mask_scale' :  8,
-                                                                                                       'scheme' : "gauss", #MIDLERTIDIG
+                                                                                                       'scheme' : "gauss+edt", #MIDLERTIDIG
+                                                                                                       'field_scale' : 2,
                                                                                                        'verbose' : 1})
 
+    # TODO scale may not trickle down correctly
     # Iterate over all subvolumes
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=block_size, n_blocks=0, z_offset=block_start)
     Nz, Ny, Nx = bi['dimensions'][:3]
-    fz, fy, fx = np.array((Nz, Ny, Nx)) // 2
     axes_names =  []     # ["x", "y", "z", "r"] # For later
     field_names = [scheme] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
 
@@ -72,9 +73,8 @@ if __name__ == '__main__':
         # block_size = 200        # DEBBUGGING
 
         zend = min(zstart + block_size, Nz)
-        fzstart, fzend = zstart // 2, zend // 2
 
-        voxels, fields = load_block(sample, zstart, block_size, region_mask, mask_scale, field_names, 1)
+        voxels, fields = load_block(sample, 1, zstart, block_size, region_mask, mask_scale, field_names, field_scale)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         # TODO: Flyt til generering af figurer - hører ikke til her
@@ -104,9 +104,9 @@ if __name__ == '__main__':
             plt.imshow(voxels[:,Ny//2,:]); plt.savefig(f'{plot_dir}/{b}_voxels_zx.png'); plt.clf()
             plt.imshow(voxels[:,:,Nx//2]); plt.savefig(f'{plot_dir}/{b}_voxels_zy.png'); plt.clf()
 
-            plt.imshow(fields[0][zmid//2,:,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_yx.png'); plt.clf()
-            plt.imshow(fields[0][:,Ny//4,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zx.png'); plt.clf()
-            plt.imshow(fields[0][:,:,Nx//4]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zy.png'); plt.clf()
+            plt.imshow(fields[0][zmid//field_scale,:,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_yx.png'); plt.clf()
+            plt.imshow(fields[0][:,Ny//(2//field_scale),:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zx.png'); plt.clf()
+            plt.imshow(fields[0][:,:,Nx//(2//field_scale)]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zy.png'); plt.clf()
 
 
         for m in [0,1]:
@@ -158,6 +158,7 @@ if __name__ == '__main__':
             plt.imshow(combined_yx)
             plt.subplot(2,1,2)
             plt.imshow(voxels[zmid,:,:])
+            plt.tight_layout()
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_yx.png')
             fig.clear()
             plt.clf()
@@ -169,6 +170,7 @@ if __name__ == '__main__':
             plt.imshow(combined_zx)
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,Ny//2,:])
+            plt.tight_layout()
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zx.png')
             fig.clear()
             plt.clf()
@@ -180,6 +182,7 @@ if __name__ == '__main__':
             plt.imshow(combined_zy)
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,:,Nx//2])
+            plt.tight_layout()
             plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zy.png')
             fig.clear()
             plt.clf()
