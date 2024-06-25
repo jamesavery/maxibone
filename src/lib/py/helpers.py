@@ -177,3 +177,17 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 def row_normalize(A,r):
     na = np.newaxis
     return A/(r[:,na]+(r==0)[:,na])
+
+def to_int(x,dtype):
+    vmin, vmax = x.min(), x.max()
+    # Ensure everything is float32, to ensure float32 computations
+    int_max = np.float32(np.iinfo(dtype).max - 1)
+    factor = np.float32(vmax - vmin + (vmin==vmax))
+    vmin, vmax = np.float32(vmin), np.float32(vmax)
+    result = x.astype(np.float32)
+    result -= vmin
+    result /= factor
+    result *= int_max
+    result = np.floor(result).astype(dtype)
+    result += 1
+    return result
