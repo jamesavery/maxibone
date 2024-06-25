@@ -14,6 +14,7 @@ from lib.py.helpers import commandline_args
 from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
+import psutil
 
 internal_type = np.float32
 result_type = np.uint16
@@ -78,7 +79,14 @@ if __name__ == '__main__':
 
     kernel = gauss_kernel(sigma_voxels)
 
-    if scale == 1:
+    mem_available = psutil.virtual_memory().available
+    n_elements = nz * ny * nx
+    mem_input = n_elements * np.uint8.nbytes
+    mem_internal = 2 * n_elements * internal_type.nbytes
+    mem_output = n_elements * result_type.nbytes
+    mem_total = mem_input + mem_internal + mem_output
+
+    if mem_total > mem_available: # We need to split the computation into chunks across disk
         # Dump the mask
         masks_dir = f"{binary_root}/masks/{scale}x"
         pathlib.Path(masks_dir).mkdir(parents=True, exist_ok=True)
