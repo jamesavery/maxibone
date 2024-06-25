@@ -134,9 +134,9 @@ if __name__ == "__main__":
 
     if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
-    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-xy.png')
-    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-xz.png')
-    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-yz.png')
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-xy.png', bbox_inches='tight')
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-xz.png', bbox_inches='tight')
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-yz.png', bbox_inches='tight')
 
     if verbose >= 1: print (f'Loading FoR values from {hdf5_root}/hdf5-byte/msb/{sample}.h5')
     with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",'r') as f:
@@ -168,18 +168,18 @@ if __name__ == "__main__":
                      group_name="implant_solid",
                      datasets={"mask":solid_implant},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-    plt.imshow(solid_implant[solid_implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-solid.png')
-    plt.imshow(solid_implant[:,solid_implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-solid.png')
-    plt.imshow(solid_implant[:,:,solid_implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-solid.png')
+    plt.imshow(solid_implant[solid_implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-solid.png', bbox_inches='tight')
+    plt.imshow(solid_implant[:,solid_implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-solid.png', bbox_inches='tight')
+    plt.imshow(solid_implant[:,:,solid_implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-solid.png', bbox_inches='tight')
 
     if verbose >= 1: print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",
                      group_name="implant_shell",
                      datasets={"mask":implant_shell_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-    plt.imshow(implant_shell_mask[implant_shell_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-shell.png')
-    plt.imshow(implant_shell_mask[:,implant_shell_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-shell.png')
-    plt.imshow(implant_shell_mask[:,:,implant_shell_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-shell.png')
+    plt.imshow(implant_shell_mask[implant_shell_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-shell.png', bbox_inches='tight')
+    plt.imshow(implant_shell_mask[:,implant_shell_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-shell.png', bbox_inches='tight')
+    plt.imshow(implant_shell_mask[:,:,implant_shell_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-shell.png', bbox_inches='tight')
     del implant_shell_mask
 
     if verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
@@ -187,9 +187,9 @@ if __name__ == "__main__":
                      group_name="cut_cylinder_air",
                      datasets={"mask":back_mask},
                      attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-    plt.imshow(back_mask[back_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-back.png')
-    plt.imshow(back_mask[:,back_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-back.png')
-    plt.imshow(back_mask[:,:,back_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-back.png')
+    plt.imshow(back_mask[back_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-back.png', bbox_inches='tight')
+    plt.imshow(back_mask[:,back_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-back.png', bbox_inches='tight')
+    plt.imshow(back_mask[:,:,back_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-back.png', bbox_inches='tight')
     del back_mask
 
     if verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
@@ -197,9 +197,9 @@ if __name__ == "__main__":
                      group_name="cut_cylinder_bone",
                      datasets={"mask":front_mask},
                      attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
-    plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front.png')
-    plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front.png')
-    plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front.png')
+    plt.imshow(front_mask[front_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-front.png', bbox_inches='tight')
+    plt.imshow(front_mask[:,front_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-front.png', bbox_inches='tight')
+    plt.imshow(front_mask[:,:,front_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-front.png', bbox_inches='tight')
     del front_mask
     front_part_implanted = front_part.copy()
     front_part_implanted[implant == 1] = 0
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     hist = gaussian_filter1d(hist, 3)
     peaks, info = signal.find_peaks(hist,height=0.1*hist.max()) # Although, wouldn't the later argsort filter the smaller peaks away anyways?
 
-    if verbose >= 1:  plt.figure(figsize=(20,10)); plt.plot(bins[1:], hist_raw); plt.plot(bins[1:], hist); plt.savefig(f'{image_output_dir}/bone_histogram.png'); plt.clf()
+    if verbose >= 1:  plt.figure(figsize=(20,10)); plt.plot(bins[1:], hist_raw); plt.plot(bins[1:], hist); plt.savefig(f'{image_output_dir}/bone_histogram.png', bbox_inches='tight'); plt.clf()
     print (f'peaks: {peaks}')
 
     two_largest_peaks = peaks[np.argsort(info['peak_heights'])[::-1][:2]]
@@ -228,9 +228,9 @@ if __name__ == "__main__":
 
     bone_mask1 = front_part > midpoint
     del front_part
-    plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png')
-    plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png')
-    plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
+    plt.imshow(bone_mask1[bone_mask1.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone1.png', bbox_inches='tight')
+    plt.imshow(bone_mask1[:,bone_mask1.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone1.png', bbox_inches='tight')
+    plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png', bbox_inches='tight')
 
     if 'novisim' in sample:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 15           # micrometers
@@ -289,18 +289,18 @@ if __name__ == "__main__":
         voxels_implanted = voxels.copy()
         voxels_implanted[dilated_implant_unpacked == 0] = 0
 
-        plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png')
-        plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png')
-        plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png')
+        plt.imshow(voxels_implanted[voxels_implanted.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-dilated-implant.png', bbox_inches='tight')
+        plt.imshow(voxels_implanted[:,voxels_implanted.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-dilated-implant.png', bbox_inches='tight')
+        plt.imshow(voxels_implanted[:,:,voxels_implanted.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-dilated-implant.png', bbox_inches='tight')
 
-    plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png')
-    plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png')
-    plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png')
+    plt.imshow(bone_region_mask[bone_region_mask.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy-bone.png', bbox_inches='tight')
+    plt.imshow(bone_region_mask[:,bone_region_mask.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz-bone.png', bbox_inches='tight')
+    plt.imshow(bone_region_mask[:,:,bone_region_mask.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone.png', bbox_inches='tight')
 
     voxels[~bone_region_mask] = 0
-    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png')
-    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png')
-    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png')
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xy.png', bbox_inches='tight')
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-boned-xz.png', bbox_inches='tight')
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-boned-yz.png', bbox_inches='tight')
 
     if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
     update_hdf5_mask(f"{output_dir}/{sample}.h5",

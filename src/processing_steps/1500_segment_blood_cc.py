@@ -21,6 +21,7 @@ sample, m, scheme, chunk_size, verbose = commandline_args({"sample" : "<required
                                                            "verbose" : 2})
 
 #scales = [32, 16, 8, 4, 2, 1]
+#scales = [1,2,4,8]
 scales = [1]
 
 bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
@@ -69,9 +70,9 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
             voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
             load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
             if verbose >= 3:
-                plt.imshow(voxel_chunk[chunk_length//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_yx.png"); plt.clf()
-                plt.imshow(voxel_chunk[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zx.png"); plt.clf()
-                plt.imshow(voxel_chunk[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zy.png"); plt.clf()
+                plt.imshow(voxel_chunk[chunk_length//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_yx.png", bbox_inches='tight'); plt.clf()
+                plt.imshow(voxel_chunk[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zx.png", bbox_inches='tight'); plt.clf()
+                plt.imshow(voxel_chunk[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_{i}_zy.png", bbox_inches='tight'); plt.clf()
             label, n_features = ndi.label(voxel_chunk, output=np.int64)
             del voxel_chunk
             label.tofile(f'{chunk_prefix}{i}.int64')
@@ -97,9 +98,9 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
     if verbose >= 1:
         snz, sny, snx = max(10, nz // 100), max(10, ny // 100), max(10, nx // 100)
         print(f"Writing mask to {output_dir}/{sample}.h5")
-        plt.figure(figsize=(snx,sny)); plt.imshow(mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_yx_{scheme}.png"); plt.clf()
-        plt.figure(figsize=(snx,snz)); plt.imshow(mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zx_{scheme}.png"); plt.clf()
-        plt.figure(figsize=(sny,snz)); plt.imshow(mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zy_{scheme}.png"); plt.clf()
+        plt.figure(figsize=(snx,sny)); plt.imshow(mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_yx_{scheme}.png", bbox_inches='tight'); plt.clf()
+        plt.figure(figsize=(snx,snz)); plt.imshow(mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zx_{scheme}.png", bbox_inches='tight'); plt.clf()
+        plt.figure(figsize=(sny,snz)); plt.imshow(mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_{scale}_zy_{scheme}.png", bbox_inches='tight'); plt.clf()
 
     update_hdf5(f"{output_dir}/{sample}.h5",
                 group_name=f"blood",

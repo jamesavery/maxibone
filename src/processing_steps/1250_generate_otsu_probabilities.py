@@ -26,6 +26,7 @@ def apply_otsu(bins, name=None):
 
     ## Leading and trailing 0s and/or invalid floats should not be included in cubic fit
     is_valid = lambda x: not (np.isnan(x) or np.isinf(x) or x == 0)
+    # TODO udvid til at kunne håndtere at der er færre end 2 distributioner
     start = next((i for i, thresh in enumerate(threshes) if is_valid(thresh)), 0)
     end = next((i for i, thresh in reversed(list(enumerate(threshes))) if is_valid(thresh)), 0)
 
@@ -47,10 +48,10 @@ def apply_otsu(bins, name=None):
     if debug:
         # Plot the two extracted probabilities
         plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_P0.png')
+        plt.savefig(f'{debug_output}/{name}_P_otsu_P0.png', bbox_inches='tight')
         plt.clf()
         plt.imshow(P1/(P1.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_P1.png')
+        plt.savefig(f'{debug_output}/{name}_P_otsu_P1.png', bbox_inches='tight')
         plt.clf()
 
         # Plot the thresholds on top of the original image

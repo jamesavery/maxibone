@@ -154,7 +154,7 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
 
     print (voxel_size, cm, v_vec, w_vec, sample_bbox)
     plt.imshow(sample)
-    plt.savefig(f'{image_output_dir}/sample_plane_check.png')
+    plt.savefig(f'{image_output_dir}/sample_plane_check.png', bbox_inches='tight')
     plt.clf()
 
     fig = plt.figure()
@@ -183,7 +183,7 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
     ax.add_line(Line2D([m1[0]*1.05,0],[m1[1]*1.05,0],c='green'))
     ax.add_line(Line2D([m2[0]*1.05,0],[m2[1]*1.05,0],c='green'))
 
-    fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300)
+    fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300, bbox_inches='tight')
 
     if debug:
         plt.show()
@@ -192,12 +192,12 @@ def figure_FoR_profiles(debug):
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
     ax1.plot((Up_bins[1:]+Up_bins[:-1])/2, Up_integrals);
-    fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png")
+    fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png", bbox_inches='tight')
 
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
     ax2.plot((theta_bins[1:]+theta_bins[:-1])/2, theta_integrals)
-    fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png")
+    fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png", bbox_inches='tight')
 
     if debug:
         plt.show()
@@ -269,17 +269,17 @@ if __name__ == "__main__":
     voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
 
     if verbose >= 1: print(f'Plotting sanity images')
-    plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png'); plt.clf()
-    plt.imshow(implant[:,implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png'); plt.clf()
-    plt.imshow(implant[:,:,implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png'); plt.clf()
-    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png'); plt.clf()
-    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png'); plt.clf()
-    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png'); plt.clf()
+    plt.imshow(implant[implant.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xy.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(implant[:,implant.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/implant-sanity-xz.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(implant[:,:,implant.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(voxels[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xy.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-sanity-xz.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(voxels[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-sanity-yz.png', bbox_inches='tight'); plt.clf()
     voxels_without_implant = voxels.copy()
     voxels_without_implant[implant.astype(bool)] = 0
-    plt.imshow(voxels_without_implant[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xy.png'); plt.clf()
-    plt.imshow(voxels_without_implant[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xz.png'); plt.clf()
-    plt.imshow(voxels_without_implant[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-without-implant-yz.png'); plt.clf()
+    plt.imshow(voxels_without_implant[voxels.shape[0]//2,:,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xy.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(voxels_without_implant[:,voxels.shape[1]//2,:]); plt.savefig(f'{image_output_dir}/voxels-without-implant-xz.png', bbox_inches='tight'); plt.clf()
+    plt.imshow(voxels_without_implant[:,:,voxels.shape[2]//2]); plt.savefig(f'{image_output_dir}/voxels-without-implant-yz.png', bbox_inches='tight'); plt.clf()
     del voxels_without_implant
 
     nz,ny,nx = implant.shape

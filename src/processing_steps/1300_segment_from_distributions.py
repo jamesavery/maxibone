@@ -100,13 +100,13 @@ if __name__ == '__main__':
             combined_zy = np.zeros((this_z,Ny,3), dtype=np.uint8)
             combined_zx = np.zeros((this_z,Nx,3), dtype=np.uint8)
 
-            plt.imshow(voxels[zmid,:,:]); plt.savefig(f'{plot_dir}/{b}_voxels_yx.png'); plt.clf()
-            plt.imshow(voxels[:,Ny//2,:]); plt.savefig(f'{plot_dir}/{b}_voxels_zx.png'); plt.clf()
-            plt.imshow(voxels[:,:,Nx//2]); plt.savefig(f'{plot_dir}/{b}_voxels_zy.png'); plt.clf()
+            plt.imshow(voxels[zmid,:,:]); plt.savefig(f'{plot_dir}/{b}_voxels_yx.png', bbox_inches='tight'); plt.clf()
+            plt.imshow(voxels[:,Ny//2,:]); plt.savefig(f'{plot_dir}/{b}_voxels_zx.png', bbox_inches='tight'); plt.clf()
+            plt.imshow(voxels[:,:,Nx//2]); plt.savefig(f'{plot_dir}/{b}_voxels_zy.png', bbox_inches='tight'); plt.clf()
 
-            plt.imshow(fields[0][zmid//field_scale,:,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_yx.png'); plt.clf()
-            plt.imshow(fields[0][:,Ny//(2//field_scale),:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zx.png'); plt.clf()
-            plt.imshow(fields[0][:,:,Nx//(2//field_scale)]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zy.png'); plt.clf()
+            plt.imshow(fields[0][zmid//field_scale,:,:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_yx.png', bbox_inches='tight'); plt.clf()
+            plt.imshow(fields[0][:,Ny//(2//field_scale),:]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zx.png', bbox_inches='tight'); plt.clf()
+            plt.imshow(fields[0][:,:,Nx//(2//field_scale)]); plt.savefig(f'{plot_dir}/{b}_field_{scheme}_zy.png', bbox_inches='tight'); plt.clf()
 
 
         for m in [0,1]:
@@ -131,9 +131,9 @@ if __name__ == '__main__':
                 combined_zx[zx > 0] = [255,0,0] if m == 0 else [255,255,0]
                 combined_zy[zy > 0] = [255,0,0] if m == 0 else [255,255,0]
                 print ('Plotting segmentation planes')
-                plt.imshow(yx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_yx.png'); plt.clf()
-                plt.imshow(zx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zx.png'); plt.clf()
-                plt.imshow(zy); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zy.png'); plt.clf()
+                plt.imshow(yx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_yx.png', bbox_inches='tight'); plt.clf()
+                plt.imshow(zx); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zx.png', bbox_inches='tight'); plt.clf()
+                plt.imshow(zy); plt.savefig(f'{plot_dir}/{b}_{scheme}_P{m}_zy.png', bbox_inches='tight'); plt.clf()
 
             # label.material_prob(
             #     voxels, fields,
@@ -159,7 +159,7 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[zmid,:,:])
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_yx.png')
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_yx.png', bbox_inches='tight')
             fig.clear()
             plt.clf()
             plt.cla()
@@ -171,7 +171,7 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,Ny//2,:])
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zx.png')
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zx.png', bbox_inches='tight')
             fig.clear()
             plt.clf()
             plt.cla()
@@ -183,7 +183,7 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,:,Nx//2])
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zy.png')
+            plt.savefig(f'{plot_dir}/{b}_{scheme}_combined_zy.png', bbox_inches='tight')
             fig.clear()
             plt.clf()
             plt.cla()

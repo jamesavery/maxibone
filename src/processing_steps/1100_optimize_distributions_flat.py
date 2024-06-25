@@ -203,7 +203,7 @@ for i,x in enumerate(xs):
             ax.autoscale_view()
             fig.canvas.draw()
             fig.canvas.flush_events()
-            fig.savefig(f"opt_debug-{i:03}.png")
+            fig.savefig(f"opt_debug-{i:03}.png", bbox_inches='tight')
 
 hist_modeled = np.zeros_like(hist)
 hist_m = np.zeros((m_max+1,)+hist.shape,dtype=float)
@@ -228,7 +228,7 @@ if (verbose >= 6):
     axarr[1,1].imshow(row_normalize(hist_m[1],hist.max(axis=1)))
     axarr[1,1].set_title("Material 2")
     fig.tight_layout()
-    fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png")
+    fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png", bbox_inches='tight')
     plt.show()
 
 # TODO: How to generalize to arbitrarily many materials?

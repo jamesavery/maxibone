@@ -94,16 +94,16 @@ if __name__ == '__main__':
 
             if verbose >= 1 and i_blood == 1000:
                 nz, ny, nx = this_blood.shape
-                plt.figure(figsize=(10,10)); plt.imshow(this_blood[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_yx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_blood[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_zx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_blood[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_zy.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_field[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_yx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_field[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_zx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_field[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_zy.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_front[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_yx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_front[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_zx.png"); plt.close()
-                plt.figure(figsize=(10,10)); plt.imshow(this_front[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_zy.png"); plt.close()
+                plt.figure(figsize=(10,10)); plt.imshow(this_blood[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_yx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_blood[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_zx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_blood[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_blood_zy.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_field[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_yx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_field[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_zx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_field[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_field_zy.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_front[nz//2,:,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_yx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_front[:,ny//2,:]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_zx.png", bbox_inches='tight'); plt.clf()
+                plt.figure(figsize=(10,10)); plt.imshow(this_front[:,:,nx//2]); plt.colorbar(); plt.savefig(f"{image_output_dir}/{sample}_{b}_front_zy.png", bbox_inches='tight'); plt.clf()
 
     bics = 1 - bics # Convert to bone volume fraction
-    plt.plot(bics); plt.savefig(f"{image_output_dir}/{sample}_bics.png"); plt.close()
+    plt.plot(bics); plt.savefig(f"{image_output_dir}/{sample}_bics.png", bbox_inches='tight'); plt.clf()
     np.save(f"{image_output_dir}/{sample}_bics.npy", bics)

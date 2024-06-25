@@ -86,18 +86,18 @@ except Exception as e:
 
 if verbose >= 1:
     plt.plot(good_xs[0])
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_good_xs0.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_good_xs0.png", bbox_inches='tight')
     plt.clf()
     plt.plot(good_xs[1])
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_good_xs1.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_good_xs1.png", bbox_inches='tight')
     plt.clf()
 
 if verbose >= 1:
     plt.imshow(hist)
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist.png", bbox_inches='tight')
     plt.clf()
     plt.imshow(labels)
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_labels.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_labels.png", bbox_inches='tight')
     plt.clf()
 
 nx, nv = hist.shape
@@ -146,7 +146,7 @@ for m in ms:
 
     if verbose >= 1:
         plt.imshow(hist_m[m])
-        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}.png")
+        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}.png", bbox_inches='tight')
         plt.clf()
         slice = 450
         plt.plot(hist_m[m][slice], label=f'm{m}')
@@ -155,7 +155,7 @@ for m in ms:
         plt.vlines(np.argwhere(labels[slice]!=0),0,hist.max(), color='black', alpha=0.5, label='labels')
         plt.legend()
         #plt.yscale('log')
-        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}_slice.png")
+        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}_slice.png", bbox_inches='tight')
         plt.clf()
 
     long_tail = (hist_m[m] < 0.001*hist_m[m].max(axis=1)[:,na])
@@ -164,7 +164,7 @@ for m in ms:
 
     if verbose >= 1:
         plt.imshow(long_tail)
-        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}_long_tail.png")
+        plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_m{m}_long_tail.png", bbox_inches='tight')
         plt.clf()
 
     if m==1:
@@ -182,7 +182,7 @@ hist_modeled = np.sum(hist_m,axis=0)
 
 if verbose >= 1:
     plt.imshow(hist_modeled)
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_modeled.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_hist_modeled.png", bbox_inches='tight')
     plt.clf()
 
 for m in ms:
@@ -203,7 +203,7 @@ if (verbose & 7):
     line4, = ax.plot(vs, np.zeros_like(hist[0]), 'r:')
     line2, = ax.plot(vs, hist[0],  'black',linewidth=4)
 
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_seven.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_seven.png", bbox_inches='tight')
     #plt.clf()
     #plt.show()
 
@@ -227,7 +227,7 @@ if(verbose == 4):
         ax.autoscale_view()
         fig.canvas.draw()
         fig.canvas.flush_events()
-    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_fourth.png")
+    plt.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_fourth.png", bbox_inches='tight')
     plt.clf()
 
 if (verbose >= 8):
@@ -250,7 +250,7 @@ if (verbose >= 8):
     fig.tight_layout()
 
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    fig.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}.png")
+    fig.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}.png", bbox_inches='tight')
     plt.clf()
     #plt.show()
 
@@ -281,7 +281,7 @@ if (verbose >= 10):
     axarr[1,1].imshow(modim)
     fig.tight_layout()
 
-    fig.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_10.png")
+    fig.savefig(f"{output_dir}/compute_probabilities_{field_name}_{region_mask}_10.png", bbox_inches='tight')
     plt.show()
 
     fig = plt.figure(figsize=(15,5))
@@ -309,5 +309,5 @@ if (verbose >= 10):
 
     ax.set_title(f"(e) 1D histogram slice at field index {i}: a = {np.round(A,1)}, b = {np.round(B,3)}, c = {np.round(C,1)}, d = {np.round(D,1)}")
     fig.tight_layout()
-    fig.savefig(f"{output_dir}/hist_slice_{field_name}_{region_mask}.png")
+    fig.savefig(f"{output_dir}/hist_slice_{field_name}_{region_mask}.png", bbox_inches='tight')
     plt.show()

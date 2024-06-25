@@ -179,7 +179,7 @@ if __name__ == '__main__':
                 plt.figure(figsize=(20,20))
                 plt.imshow(diff_img)
                 plt.colorbar()
-                plt.savefig(f'{output_dir}/{sample}-diff-{name}.png')
+                plt.savefig(f'{output_dir}/{sample}-diff-{name}.png', bbox_inches='tight')
 
     if verbose >= 1: print(f"Computing Euclidean distance transform.")
     hyperthreading = True

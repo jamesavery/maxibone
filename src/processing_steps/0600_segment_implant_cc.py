@@ -115,9 +115,9 @@ else:
     implant_mask = np.zeros((nz,ny,nx),dtype=bool)
     largest_connected_component(implant_mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
-plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_yx_largest.png")
-plt.imshow(implant_mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_zx_largest.png")
-plt.imshow(implant_mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_zy_largest.png")
+plt.imshow(implant_mask[nz//2,:,:]); plt.savefig(f"{plot_dir}/{sample}_yx_largest.png", bbox_inches='tight'); plt.clf()
+plt.imshow(implant_mask[:,ny//2,:]); plt.savefig(f"{plot_dir}/{sample}_zx_largest.png", bbox_inches='tight'); plt.clf()
+plt.imshow(implant_mask[:,:,nx//2]); plt.savefig(f"{plot_dir}/{sample}_zy_largest.png", bbox_inches='tight'); plt.clf()
 
 output_dir = f"{hdf5_root}/masks/{scale}x/"
 pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
