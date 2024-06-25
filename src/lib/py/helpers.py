@@ -128,7 +128,7 @@ def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
         }
 
 
-def load_block(sample, offset, block_size, mask_name, mask_scale, field_names, field_scale):
+def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_names, field_scale):
     '''
     Loads a block of data from disk into memory.
     '''
@@ -144,7 +144,7 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names, f
     block_size       = min(block_size, Nz-offset)
 
     voxels = np.zeros((block_size,Ny,Nx),    dtype=np.uint16)
-    fields = np.zeros((Nfields,block_size,fNy,fNx), dtype=np.uint16)
+    fields = np.zeros((Nfields,block_size//field_scale,fNy,fNx), dtype=np.uint16)
 
     if mask_name is not None:
         for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5", leave=True):
@@ -152,8 +152,8 @@ def load_block(sample, offset, block_size, mask_name, mask_scale, field_names, f
                 mask = h5mask[mask_name]["mask"][offset//mask_scale:offset//mask_scale + block_size//mask_scale]
 
     #TODO: Make voxel & field scale command line parameters
-    for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/1x/{sample}.uint16", leave=True):
-        load_slice(voxels, f'{binary_root}/voxels/1x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
+    for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
+        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx)) # TODO: Don't use 3 different methods for load/store
 
     for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True):
         fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/{field_scale}x/{sample}.npy", mmap_mode='r')
