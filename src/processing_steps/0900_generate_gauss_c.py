@@ -8,7 +8,7 @@ from PIL import Image
 from tqdm import tqdm
 from math import pi, sqrt, exp
 from scipy import ndimage as ndi
-
+import multiprocessing as mp
 from config.paths import hdf5_root, binary_root
 from lib.py.helpers import commandline_args
 from lib.cpp.gpu.diffusion import diffusion
@@ -174,7 +174,9 @@ if __name__ == '__main__':
                 plt.savefig(f'{output_dir}/{sample}-diff-{name}.png')
 
     if verbose >= 1: print(f"Computing Euclidean distance transform.")
-    fedt = edt.edt(~implant_mask,parallel=16)
+    hyperthreading = True
+    n_cores = mp.cpu_count() // (2 if hyperthreading else 1) # Only count physical cores
+    fedt = edt.edt(~implant_mask, parallel=n_cores)
     del implant_mask
 
     edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
