@@ -81,9 +81,9 @@ if __name__ == '__main__':
 
     mem_available = psutil.virtual_memory().available
     n_elements = nz * ny * nx
-    mem_input = n_elements * np.uint8.nbytes
-    mem_internal = 2 * n_elements * internal_type.nbytes
-    mem_output = n_elements * result_type.nbytes
+    mem_input = n_elements * np.dtype(implant_mask.dtype).itemsize
+    mem_internal = 2 * n_elements * np.dtype(internal_type).itemsize
+    mem_output = n_elements * np.dtype(result_type).itemsize
     mem_total = mem_input + mem_internal + mem_output
 
     if mem_total > mem_available: # We need to split the computation into chunks across disk
