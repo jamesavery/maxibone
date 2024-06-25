@@ -18,7 +18,7 @@ namespace python_api {
 #ifdef _OPENACC
         const int64_t total_size = N.x * N.y * N.z;
         if (total_size * sizeof(float) * 2 > 8 * 1e9) { // TODO make automatic
-            const shape_t global_shape = {128, N.y, N.x};
+            const shape_t global_shape = {32, N.y, N.x};
             NS::diffusion_out_of_core(voxels, N, global_shape, kernel, kernel_size, repititions, output);
         } else {
 #endif
