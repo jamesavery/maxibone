@@ -180,34 +180,3 @@ if __name__ == '__main__':
                 plt.imshow(diff_img)
                 plt.colorbar()
                 plt.savefig(f'{output_dir}/{sample}-diff-{name}.png', bbox_inches='tight')
-
-    if verbose >= 1: print(f"Computing Euclidean distance transform.")
-    hyperthreading = True
-    n_cores = mp.cpu_count() // (2 if hyperthreading else 1) # Only count physical cores
-    fedt = edt.edt(~implant_mask, parallel=n_cores)
-    del implant_mask
-
-    edt_output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
-    pathlib.Path(edt_output_dir).mkdir(parents=True, exist_ok=True)
-    if verbose >= 1: print(f"Writing EDT-field to {edt_output_dir}/{sample}.npy")
-    np.save(f'{edt_output_dir}/{sample}.npy', toint(fedt*cylinder_mask,np.uint16)*cylinder_mask)
-    if verbose >= 2:
-        Image.fromarray(toint(fedt[nz//2,:,:])).save(f'{edt_output_dir}/{sample}-edt-xy.png')
-        Image.fromarray(toint(fedt[:,ny//2,:])).save(f'{edt_output_dir}/{sample}-edt-xz.png')
-        Image.fromarray(toint(fedt[:,:,nx//2])).save(f'{edt_output_dir}/{sample}-edt-yz.png')
-
-    mixed_output_dir = f"{binary_root}/fields/implant-gauss+edt/{scale}x"
-    if verbose >= 1: print(f"Writing combined field to {mixed_output_dir}/{sample}.npy")
-    pathlib.Path(mixed_output_dir).mkdir(parents=True, exist_ok=True)
-    result = result * cylinder_mask
-    fedt = fedt * cylinder_mask
-    combined = (result / result.max()) - (fedt / fedt.max())
-    combined += np.abs(combined.min())
-    combined /= combined.max()
-    combined *= cylinder_mask
-    if verbose >= 1: print(f"Result (min,max) = ({combined.min(),combined.max()})")
-    np.save(f'{mixed_output_dir}/{sample}.npy', toint(combined,np.uint16))
-    if verbose >= 2:
-        Image.fromarray(toint(combined[nz//2,:,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xy.png')
-        Image.fromarray(toint(combined[:,ny//2,:])).save(f'{mixed_output_dir}/{sample}-gauss+edt-xz.png')
-        Image.fromarray(toint(combined[:,:,nx//2])).save(f'{mixed_output_dir}/{sample}-gauss+edt-yz.png')
