@@ -203,9 +203,10 @@ def row_normalize(A):
 
 # Edition where the histogram is loaded and processed in chunks
 # If block_size is less than 0, then the whole thing is loaded and processed.
-def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
-                    mask=None, mask_scale=8, voxel_bins=4096,
+def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
+                    mask=None, mask_scale=8, voxel_bins=4096, field_bins=4096,
                     implant_threshold=32000, field_names=["gauss","edt","gauss+edt"],
+                    field_scale=2,
                     value_ranges=((1e4,3e4),(1,2**16-1)),
                     verbose=1
 ):
@@ -227,7 +228,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     y_bins = np.zeros((Ny, voxel_bins), dtype=np.uint64)
     z_bins = np.zeros((Nz, voxel_bins), dtype=np.uint64)
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
-    f_bins = np.zeros((Nfields,voxel_bins//2, voxel_bins), dtype=np.uint64)
+    f_bins = np.zeros((Nfields,field_bins, voxel_bins), dtype=np.uint64)
 
     for b in tqdm(range(n_blocks), desc='Computing histograms'):
         # NB: Kopier til andre steder, som skal virke på samme voxels
@@ -239,7 +240,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
 
 
 
-        voxels, fields = load_block(sample, zstart, block_size, mask, mask_scale, field_names, 1)
+        voxels, fields = load_block(sample, scale, zstart, block_size, mask, mask_scale, field_names, field_scale)
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
             axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
         # TODO commented out during debugging
@@ -250,7 +251,7 @@ def run_out_of_core(sample, block_size=128, z_offset=0, n_blocks=0,
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
 
 
-    sigma = 5
+    sigma = 3
     x_bins = ndi.gaussian_filter(x_bins,sigma,mode='constant',cval=0)
     y_bins = ndi.gaussian_filter(y_bins,sigma,mode='constant',cval=0)
     z_bins = ndi.gaussian_filter(z_bins,sigma,mode='constant',cval=0)
@@ -267,10 +268,11 @@ if __name__ == '__main__':
     # - n_blocks   == 0 means "all blocks"
     # TODO move some of the constants / parameters out into the configuration
     # TODO stripes appear in the histograms when running on 8x with bins=4096 ??
-    sample, scale, block_size, z_offset, n_blocks, suffix, \
+    sample, scale, field_scale, block_size, z_offset, n_blocks, suffix, \
     mask, mask_scale, voxel_bins, field_bins, benchmark, verbose \
         = commandline_args({"sample" : "<required>",
                             "scale" : 1,
+                            "field_scale" : 2,
                             "block_size" : 256,
                             "z_offset" :  0,
                             "n_blocks" : 0,
@@ -310,9 +312,9 @@ if __name__ == '__main__':
         (vmin,vmax),(fmin,fmax) = ((1,implant_threshold_u16),(1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
         field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
-        xb, yb, zb, rb, fb = run_out_of_core(sample, block_size, z_offset, n_blocks,
-                                            None if mask=="None" else mask, mask_scale, voxel_bins,
-                                            implant_threshold_u16, field_names, ((vmin,vmax),(fmin,fmax)),
+        xb, yb, zb, rb, fb = run_out_of_core(sample, scale, block_size, z_offset, n_blocks,
+                                            None if mask=="None" else mask, mask_scale, voxel_bins, field_bins,
+                                            implant_threshold_u16, field_names, field_scale, ((vmin,vmax),(fmin,fmax)),
                                             verbose)
 
         Image.fromarray(tobyt(row_normalize(xb))).save(f"{outpath}/xb{suffix}.png")
