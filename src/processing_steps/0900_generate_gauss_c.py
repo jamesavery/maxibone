@@ -44,21 +44,16 @@ def gauss_kernel(sigma):
 
 # sigma is given in physical units, i.e. in micrometers, in order to give scale-invariant results.
 if __name__ == '__main__':
-    sample, sigma, reps, scale, voxel_size_1x, verify, verbose = \
+    sample, sigma, reps, scale, verify, verbose = \
         commandline_args({
             "sample" : "<required>",
+            "scale" : 2,
             "sigma" : 40.0,
             "repititions" : 10,
-            "scale" : 2,
-            "voxel_size_1x" : 1.85,
             "verify_against_ndimage" : False,
             "verbose" : 2
         })
     if verbose >= 1: print(f"Diffusion approximation by repeated Gaussian blurs.\n")
-    voxel_size   = voxel_size_1x * scale
-    sigma_voxels = sigma / voxel_size
-    if verbose >= 1: print(f"At scale {scale}x, voxel size is {voxel_size} micrometers.")
-    if verbose >= 1: print(f"Using sigma={sigma} micrometers, sigma_voxels={sigma_voxels}.")
 
     output_dir = f"{binary_root}/fields/implant-gauss/{scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -66,8 +61,13 @@ if __name__ == '__main__':
     if verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r") as f:
         implant_solid = f['implant_solid/mask']
+        voxel_size   = f["implant"].attrs["voxel_size"]
         nz,ny,nx = implant_solid.shape
         implant_mask = implant_solid[:]
+
+    sigma_voxels = sigma / voxel_size
+    if verbose >= 1: print(f"At scale {scale}x, voxel size is {voxel_size} micrometers.")
+    if verbose >= 1: print(f"Using sigma={sigma} micrometers, sigma_voxels={sigma_voxels}.")
 
     if verbose >= 1: print(f"Implant mask has shape {(nz,ny,nx)}")
 
