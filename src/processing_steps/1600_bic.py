@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     bics = np.zeros(blood.shape[0], dtype=np.float32)
 
-    bic(blood, field, threshold, bics)
+    bic(blood, field, mask, threshold * scale, bics)
 
     plt.plot(bics); plt.savefig(f"{image_output_dir}/{sample}_bics.png", bbox_inches='tight'); plt.clf()
     np.save(f"{image_output_dir}/{sample}_bics.npy", bics)

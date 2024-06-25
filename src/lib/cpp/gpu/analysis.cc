@@ -2,8 +2,8 @@
 
 namespace gpu {
 
-    void bic(const input_ndarray<bool> &mask, const input_ndarray<uint16_t> &field, const uint16_t threshold, output_ndarray<float> &output) {
-        return cpu_seq::bic(mask, field, threshold, output);
+    void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output) {
+        return cpu_seq::bic(voxels, field, mask, threshold, output);
     }
 
 }
