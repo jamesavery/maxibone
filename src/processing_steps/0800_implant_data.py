@@ -93,9 +93,9 @@ update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="implant_solid",
                  datasets={"mask":solid_implant_mask.astype(bool,copy=False)},
                  attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-plt.imshow(solid_implant_mask[solid_implant_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_yx.png", bbox_inches='tight'))
-plt.imshow(solid_implant_mask[:, solid_implant_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zx.png", bbox_inches='tight'))
-plt.imshow(solid_implant_mask[:, :, solid_implant_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zy.png", bbox_inches='tight'))
+plt.imshow(solid_implant_mask[solid_implant_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_yx.png", bbox_inches='tight')
+plt.imshow(solid_implant_mask[:, solid_implant_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zx.png", bbox_inches='tight')
+plt.imshow(solid_implant_mask[:, :, solid_implant_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/solid_implant_mask_zy.png", bbox_inches='tight')
 
 # Compute front mask
 print ("Computing front mask")
@@ -109,7 +109,7 @@ update_hdf5_mask(f"{hdf5_root}/masks/{scale}x/{sample}.h5",
                  group_name="cut_cylinder_bone",
                  datasets={"mask":front_mask.astype(bool,copy=False)},
                  attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
-plt.imshow(front_mask[front_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/front_mask_yx.png", bbox_inches='tight'))
-plt.imshow(front_mask[:, front_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/front_mask_zx.png", bbox_inches='tight'))
-plt.imshow(front_mask[:, :, front_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/front_mask_zy.png", bbox_inches='tight'))
+plt.imshow(front_mask[front_mask.shape[0]//2, :, :]); plt.savefig(f"{output_image_dir}/front_mask_yx.png", bbox_inches='tight')
+plt.imshow(front_mask[:, front_mask.shape[1]//2, :]); plt.savefig(f"{output_image_dir}/front_mask_zx.png", bbox_inches='tight')
+plt.imshow(front_mask[:, :, front_mask.shape[2]//2]); plt.savefig(f"{output_image_dir}/front_mask_zy.png", bbox_inches='tight')
 
