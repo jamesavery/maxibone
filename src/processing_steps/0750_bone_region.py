@@ -120,7 +120,7 @@ if __name__ == "__main__":
                                                "scale" : 8,
                                                "verbose" : 1})
 
-    image_output_dir = f"{hdf5_root}/processed/bone_region/{sample}/"
+    image_output_dir = f"{hdf5_root}/processed/bone_region/{sample}/{scale}x/"
     if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
 
