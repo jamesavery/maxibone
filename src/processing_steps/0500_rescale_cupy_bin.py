@@ -2,8 +2,7 @@ import h5py, sys, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 import numpy as np
 import importlib
-#cupy_available = importlib.util.find_spec("cupy") is not None
-cupy_available = importlib.find_loader("cupy") is not None
+cupy_available = importlib.util.find_spec("cupy") is not None
 if cupy_available:
     import cupy as cp
 else:

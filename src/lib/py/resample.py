@@ -1,6 +1,5 @@
 import importlib
-cupy_available = importlib.find_loader("cupy") is not None
-#cupy_available = importlib.util.find_spec("cupy") is not None
+cupy_available = importlib.util.find_spec("cupy") is not None
 if cupy_available:
     import cupy as np
 else:
