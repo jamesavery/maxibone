@@ -233,7 +233,7 @@ if __name__ == "__main__":
     plt.imshow(bone_mask1[:,:,bone_mask1.shape[2]//2]); plt.savefig(f'{image_output_dir}/implant-sanity-yz-bone1.png')
 
     if 'novisim' in sample:
-        closing_diameter, opening_diameter, implant_dilate_diameter = 100, 80, 5           # micrometers
+        closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 15           # micrometers
     else:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 5           # micrometers
     closing_voxels = 2*int(round(closing_diameter/(2*voxel_size))) + 1 # Scale & ensure odd length
