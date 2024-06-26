@@ -6,8 +6,10 @@ from config.constants import *
 from config.paths import hdf5_root, hdf5_root_fast, binary_root
 import edt
 import h5py
-from lib.cpp.cpu_seq.io import load_slice, write_slice
 from lib.cpp.cpu.analysis import bic
+from lib.cpp.gpu.bitpacking import encode as bp_encode, decode as bp_decode
+from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode, dilate_3d_sphere_bitpacked as dilate
+from lib.cpp.cpu_seq.io import load_slice, write_slice
 from lib.py.helpers import block_info, load_block, commandline_args
 import matplotlib.pyplot as plt
 import multiprocessing as mp
@@ -46,41 +48,30 @@ if __name__ == '__main__':
     soft_threshed = (soft > threshold_prob)
     del soft
 
-    if verbose >= 1:
-        print (f'Writing soft tissue debug plane images to {image_output_dir}')
-        names = ['yx', 'zx', 'zy']
-        planes = [soft_threshed[nz//2,:,:], soft_threshed[:,ny//2,:], soft_threshed[:,:,nx//2]]
-        for name, plane in zip(names, planes):
-            plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{sample}_soft_{name}.png')
-            plt.clf()
-
-    hyperthreading = True
-    n_cores = mp.cpu_count() // (2 if hyperthreading else 1) # Only count physical cores
-    edted = edt.edt(soft_threshed, parallel=n_cores)
+    soft_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
+    bp_encode(soft_threshed.astype(np.uint8), soft_bp)
     del soft_threshed
 
-    if verbose >= 1:
-        print (f'Writing EDT debug plane images to {image_output_dir}')
-        names = ['yx', 'zx', 'zy']
-        planes = [edted[nz//2,:,:], edted[:,ny//2,:], edted[:,:,nx//2]]
-        for name, plane in zip(names, planes):
-            plt.imshow(plane)
-            plt.colorbar()
-            plt.savefig(f'{image_output_dir}/{sample}_edt_{name}.png')
-            plt.clf()
-
-    disted = edted < threshold_distance
-    del edted
+    soft_tmp = np.empty_like(soft_bp)
+    # Open, close, then dilate
+    dilate(soft_bp, 1, soft_tmp)
+    erode(soft_tmp, 3, soft_bp)
+    dilate(soft_bp, 5, soft_tmp)
+    soft_bp[:] = soft_tmp[:]
+    del soft_tmp
 
     if verbose >= 1:
-        print (f'Writing thresholded EDT debug plane images to {image_output_dir}')
+        print (f'Writing soft tissue debug plane images to {image_output_dir}')
+        soft = np.empty((nz,ny,nx),dtype=np.uint8)
+        bp_decode(soft_bp, soft)
         names = ['yx', 'zx', 'zy']
-        planes = [disted[nz//2,:,:], disted[:,ny//2,:], disted[:,:,nx//2]]
+        planes = [soft[nz//2,:,:], soft[:,ny//2,:], soft[:,:,nx//2]]
         for name, plane in zip(names, planes):
+            plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{sample}_dist_{name}.png')
+            plt.savefig(f'{image_output_dir}/{sample}_soft_{name}.png', bbox_inches='tight')
             plt.clf()
+        del soft
 
     bone = np.memmap(bone_path, dtype=np.uint16, mode='r').reshape(shape)
 
@@ -92,11 +83,29 @@ if __name__ == '__main__':
         names = ['yx', 'zx', 'zy']
         planes = [bone_threshed[nz//2,:,:], bone_threshed[:,ny//2,:], bone_threshed[:,:,nx//2]]
         for name, plane in zip(names, planes):
+            plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{sample}_bone_{name}.png')
+            plt.savefig(f'{image_output_dir}/{sample}_bone_{name}.png', bbox_inches='tight')
+            plt.clf()
+
+    bone_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
+    bp_encode(bone_threshed.astype(np.uint8), bone_bp)
+
+    disted_bp = soft_bp & bone_bp
+    disted = np.empty((nz,ny,nx),dtype=np.uint8)
+    bp_decode(disted_bp, disted)
+
+    if verbose >= 1:
+        print (f'Writing distance debug plane images to {image_output_dir}')
+        names = ['yx', 'zx', 'zy']
+        planes = [disted[nz//2,:,:], disted[:,ny//2,:], disted[:,:,nx//2]]
+        for name, plane in zip(names, planes):
+            plt.figure(figsize=(10,10))
+            plt.imshow(plane)
+            plt.savefig(f'{image_output_dir}/{sample}_dist_{name}.png', bbox_inches='tight')
             plt.clf()
 
     bone_count = np.sum(bone_threshed)
-    dist_count = np.sum(bone_threshed & disted)
+    dist_count = np.sum(disted)
 
     print (f"Bone count: {bone_count}, Distance count: {dist_count}, Ratio: {dist_count/bone_count}")
