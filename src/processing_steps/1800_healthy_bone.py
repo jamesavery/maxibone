@@ -47,6 +47,18 @@ def close(image, r):
 def open(image, r):
     return morph(image, r, erode, dilate)
 
+def encode_ooc(src, dst):
+    bs = 32
+    for i in range(src.shape[0] // bs):
+        start, end = i*bs, (i+1)*bs
+        bp_encode(src[start:end], dst[start:end])
+
+def decode_ooc(src, dst):
+    bs = 32
+    for i in range(src.shape[0] // bs):
+        start, end = i*bs, (i+1)*bs
+        bp_decode(src[start:end], dst[start:end])
+
 if __name__ == '__main__':
     sample, scale, m, scheme, threshold_prob, threshold_distance, verbose = commandline_args({
         "sample" : "<required>",
@@ -84,7 +96,7 @@ if __name__ == '__main__':
     del soft
 
     soft_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
-    bp_encode(soft_threshed.astype(np.uint8), soft_bp)
+    encode_ooc(soft_threshed.astype(np.uint8), soft_bp)
     del soft_threshed
 
     # Close, open, then dilate. The sizes are in micrometers
@@ -112,7 +124,7 @@ if __name__ == '__main__':
     if verbose >= 1:
         print (f'Writing soft tissue debug plane images to {image_output_dir}')
         soft = np.empty((nz,ny,nx),dtype=np.uint8)
-        bp_decode(soft_bp, soft)
+        decode_ooc(soft_bp, soft)
         names = ['yx', 'zx', 'zy']
         planes = [soft[nz//2,:,:], soft[:,ny//2,:], soft[:,:,nx//2]]
         for name, plane in zip(names, planes):
@@ -138,11 +150,11 @@ if __name__ == '__main__':
             plt.clf()
 
     bone_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
-    bp_encode(bone_threshed.astype(np.uint8), bone_bp)
+    encode_ooc(bone_threshed.astype(np.uint8), bone_bp)
 
     disted_bp = soft_bp & bone_bp
     disted = np.empty((nz,ny,nx),dtype=np.uint8)
-    bp_decode(disted_bp, disted)
+    decode_ooc(disted_bp, disted)
 
     if verbose >= 1:
         print (f'Writing distance debug plane images to {image_output_dir}')
