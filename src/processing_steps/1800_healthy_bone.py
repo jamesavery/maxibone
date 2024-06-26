@@ -20,6 +20,8 @@ from tqdm import tqdm
 # close = dilate then erode
 # open = erode then dilate
 def morph(image, r, fa, fb):
+    if r == 0:
+        return image
     I1 = image.copy().astype(image.dtype)
     I2 = np.empty(image.shape, dtype=image.dtype)
     rmin = 15
