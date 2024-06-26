@@ -152,7 +152,21 @@ if __name__ == '__main__':
     bone_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
     encode_ooc(bone_threshed.astype(np.uint8), bone_bp)
 
-    disted_bp = soft_bp & bone_bp
+    bone_bp_opened = open(bone_bp, opening_voxels)
+    bone_opened = np.empty((nz,ny,nx),dtype=np.uint8)
+    decode_ooc(bone_bp_opened, bone_opened)
+
+    if verbose >= 1:
+        print (f'Writing opened bone debug plane images to {image_output_dir}')
+        names = ['yx', 'zx', 'zy']
+        planes = [bone_opened[nz//2,:,:], bone_opened[:,ny//2,:], bone_opened[:,:,nx//2]]
+        for name, plane in zip(names, planes):
+            plt.figure(figsize=(10,10))
+            plt.imshow(plane)
+            plt.savefig(f'{image_output_dir}/{sample}_bone_opened_{name}.png', bbox_inches='tight')
+            plt.clf()
+
+    disted_bp = soft_bp & bone_bp_opened
     disted = np.empty((nz,ny,nx),dtype=np.uint8)
     decode_ooc(disted_bp, disted)
 
@@ -166,7 +180,7 @@ if __name__ == '__main__':
             plt.savefig(f'{image_output_dir}/{sample}_dist_{name}.png', bbox_inches='tight')
             plt.clf()
 
-    bone_count = np.sum(bone_threshed)
+    bone_count = np.sum(bone_opened)
     dist_count = np.sum(disted)
 
     print (f"Bone count: {bone_count}, Distance count: {dist_count}, Ratio: {dist_count/bone_count}")
