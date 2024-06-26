@@ -17,6 +17,36 @@ import numpy as np
 import os
 from tqdm import tqdm
 
+# close = dilate then erode
+# open = erode then dilate
+def morph(image, r, fa, fb):
+    I1 = image.copy().astype(image.dtype)
+    I2 = np.empty(image.shape, dtype=image.dtype)
+    rmin = 15
+    rmins = r // rmin
+    rrest = r % rmin
+    for _ in range(rmins):
+        fa(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        fa(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    for i in range(rmins):
+        fb(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        fb(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    return I1
+
+def close(image, r):
+    return morph(image, r, dilate, erode)
+
+def open(image, r):
+    return morph(image, r, erode, dilate)
+
 if __name__ == '__main__':
     sample, scale, m, scheme, threshold_prob, threshold_distance, verbose = commandline_args({
         "sample" : "<required>",
@@ -24,7 +54,7 @@ if __name__ == '__main__':
         "material": 0,
         "scheme": "gauss+edt",
         "threshold_prob" : 0, # For whether voxel is blood or not
-        "threshold_distance" : 5,
+        "threshold_distance" : 20, # In micrometers (µm)
         'verbose': 1
     })
 
@@ -37,9 +67,14 @@ if __name__ == '__main__':
     if verbose >= 1: os.makedirs(image_output_dir, exist_ok=True)
 
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
+    voxel_size = bi["voxel_size"] * scale
     shape = np.array(bi["dimensions"][:3])
     shape //= scale
     nz, ny, nx = shape
+
+    if verbose >= 1:
+        print (f'Processing {sample} with threshold {threshold_prob} and distance {threshold_distance} at scale {scale}x')
+        print (f'Voxel size: {voxel_size} µm')
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -52,13 +87,27 @@ if __name__ == '__main__':
     bp_encode(soft_threshed.astype(np.uint8), soft_bp)
     del soft_threshed
 
-    soft_tmp = np.empty_like(soft_bp)
-    # Open, close, then dilate
-    dilate(soft_bp, 1, soft_tmp)
-    erode(soft_tmp, 3, soft_bp)
-    dilate(soft_bp, 5, soft_tmp)
-    soft_bp[:] = soft_tmp[:]
-    del soft_tmp
+    # Close, open, then dilate. The sizes are in micrometers
+    closing = 10
+    opening = 10
+
+    closing_voxels = int(closing / voxel_size)
+    opening_voxels = int(opening / voxel_size)
+    distance_voxels = int(threshold_distance / voxel_size)
+
+    if verbose >= 1:
+        print (f'Closing: {closing_voxels}, Opening: {opening_voxels}, Distance: {distance_voxels}')
+
+    # Close
+    closed = close(soft_bp, closing_voxels)
+
+    # Open
+    opened = open(closed, opening_voxels)
+    del closed
+
+    # Dilate
+    dilate(opened, distance_voxels, soft_bp)
+    del opened
 
     if verbose >= 1:
         print (f'Writing soft tissue debug plane images to {image_output_dir}')
