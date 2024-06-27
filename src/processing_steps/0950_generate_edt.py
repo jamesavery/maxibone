@@ -18,7 +18,7 @@ if __name__ == '__main__':
         commandline_args({
             "sample" : "<required>",
             "scale" : 1,
-            "verbose" : 1
+            "verbose" : 2
         })
 
     output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
