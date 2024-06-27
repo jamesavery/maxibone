@@ -75,8 +75,8 @@ if __name__ == '__main__':
     probs_dir = f'{binary_root}/segmented/{scheme}'
     soft_path = f'{probs_dir}/P{m}/{scale}x/{sample}.uint16'
     bone_path = f'{probs_dir}/P{np.abs(m-1)}/{scale}x/{sample}.uint16'
-    output_dir = f"{binary_root}/fields/soft-tissue-edt/{scale}x"
-    image_output_dir = f"{hdf5_root}/processed/soft-tissue-edt/{scale}x/{sample}"
+    output_dir = f"{binary_root}/fields/healthy_bone/{scale}x"
+    image_output_dir = f"{hdf5_root}/processed/healthy_bone/{scale}x/{sample}"
 
     if verbose >= 1: os.makedirs(image_output_dir, exist_ok=True)
 
@@ -186,3 +186,6 @@ if __name__ == '__main__':
     dist_count = np.sum(disted)
 
     print (f"Bone count: {bone_count}, Distance count: {dist_count}, Ratio: {dist_count/bone_count}")
+
+    if verbose >= 1: print (f'Saving the distance field to {output_dir}/{sample}.npy')
+    np.save(f'{output_dir}/{sample}.npy', disted)
