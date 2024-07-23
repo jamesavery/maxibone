@@ -4,6 +4,7 @@ sys.path.append(sys.path[0]+"/../")
 from config.paths import binary_root, hdf5_root
 import h5py
 from lib.cpp.cpu.io import load_slice
+from lib.cpp.cpu.general import normalized_convert
 import os
 import numpy as np
 import pathlib
@@ -178,7 +179,7 @@ def row_normalize(A,r):
     na = np.newaxis
     return A/(r[:,na]+(r==0)[:,na])
 
-def to_int(x,dtype):
+def to_int_py(x,dtype):
     vmin, vmax = x.min(), x.max()
     # Ensure everything is float32, to ensure float32 computations
     int_max = np.float32(np.iinfo(dtype).max - 1)
@@ -190,4 +191,12 @@ def to_int(x,dtype):
     result *= int_max
     result = np.floor(result).astype(dtype)
     result += 1
+    return result
+
+def to_int(x,dtype):
+    if len(x.shape) != 3:
+        return to_int_py(x,dtype)
+
+    result = np.empty(x.shape, dtype=dtype)
+    normalized_convert(x,result)
     return result
