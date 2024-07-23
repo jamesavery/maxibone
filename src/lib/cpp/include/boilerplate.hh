@@ -59,7 +59,7 @@
 #define FOR_BLOCK_END_WITH_OUTPUT() } }
 
 #define FOR_BLOCK_BEGIN_WITH_OUTPUT_TU(ARR_IN, ARR_OUT) \
-    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<ARR_IN##_type> / 2) { \
+    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<T> / 2) { \
         T *ARR_IN##_buffer = (T *) ARR_IN.data + ARR_IN##_buffer_start; \
         U *ARR_OUT##_buffer = (U *) ARR_OUT.data + ARR_IN##_buffer_start; \
         ssize_t ARR_IN##_buffer_length = min(acc_block_size<T>, ARR_IN##_length - ARR_IN##_buffer_start); \
