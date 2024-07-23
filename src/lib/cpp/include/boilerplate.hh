@@ -80,10 +80,10 @@
     PRAGMA(PARALLEL_TERM EXTRA_PRAGMA_CLAUSE) \
     for (int64_t flat_index = 0; flat_index < ARR##_length; flat_index++) { \
         int64_t \
-            global_prefix##_index = ARR##_start + flat_index, \
-            z = global_prefix##_index / (ARR##_Ny * ARR##_Nx), \
-            y = (global_prefix##_index / ARR##_Nx) % ARR##_Ny, \
-            x = global_prefix##_index % ARR##_Nx;
+            __attribute__((unused)) global_prefix##_index = ARR##_start + flat_index, \
+            __attribute__((unused)) z = global_prefix##_index / (ARR##_Ny * ARR##_Nx), \
+            __attribute__((unused)) y = (global_prefix##_index / ARR##_Nx) % ARR##_Ny, \
+            __attribute__((unused)) x = global_prefix##_index % ARR##_Nx;
 
 #define FOR_FLAT_END() }
 
