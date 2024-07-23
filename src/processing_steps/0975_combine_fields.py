@@ -39,9 +39,9 @@ if __name__ == '__main__':
     gauss_max = gauss_field.max()
 
     if verbose >= 1: print(f"Combining fields")
-    combined = gauss_field / gauss_max
+    combined = gauss_field.astype(np.float32) / gauss_max
     del gauss_field
-    combined -= edt_field / edt_max
+    combined -= edt_field.astype(np.float32) / edt_max
     del edt_field
     combined += np.abs(combined.min())
     combined /= combined.max()
