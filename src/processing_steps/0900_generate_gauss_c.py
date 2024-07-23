@@ -42,9 +42,9 @@ if __name__ == '__main__':
     sample, scale, sigma, reps, verify, verbose = \
         commandline_args({
             "sample" : "<required>",
-            "scale" : 2,
-            "sigma" : 40.0,
-            "repititions" : 10,
+            "scale" : 1,
+            "sigma" : 10.0,
+            "repititions" : 42,
             "verify_against_ndimage" : False,
             "verbose" : 2
         })
