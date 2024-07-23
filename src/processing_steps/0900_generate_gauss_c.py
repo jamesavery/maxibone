@@ -10,7 +10,7 @@ from math import pi, sqrt, exp
 from scipy import ndimage as ndi
 import multiprocessing as mp
 from config.paths import hdf5_root, binary_root
-from lib.py.helpers import commandline_args
+from lib.py.helpers import commandline_args, to_int
 from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
@@ -18,11 +18,6 @@ import psutil
 
 internal_type = np.float32
 result_type = np.uint16
-
-def toint(arr, dtype=np.uint8):
-    vmin, vmax = arr.min(), arr.max()
-    int_max = np.iinfo(dtype).max
-    return np.round((((arr - vmin) / (vmax - vmin + (vmin==vmax))) * (int_max-1))).astype(dtype) + 1
 
 def gauss_kernel(sigma):
     radius = round(4.0 * sigma) # stolen from the default scipy parameters
@@ -73,9 +68,9 @@ if __name__ == '__main__':
 
     if verbose >= 2:
         print(f"Writing PNGs of implant mask slices to {output_dir}")
-        Image.fromarray(toint(implant_mask[:,:,nx//2].astype(internal_type))).save(f"{output_dir}/{sample}-mask-yz.png")
-        Image.fromarray(toint(implant_mask[:,ny//2,:].astype(internal_type))).save(f"{output_dir}/{sample}-mask-xz.png")
-        Image.fromarray(toint(implant_mask[nz//2,:,:].astype(internal_type))).save(f"{output_dir}/{sample}-mask-xy.png")
+        Image.fromarray(to_int(implant_mask[:,:,nx//2].astype(internal_type),np.uint8)).save(f"{output_dir}/{sample}-mask-yz.png")
+        Image.fromarray(to_int(implant_mask[:,ny//2,:].astype(internal_type),np.uint8)).save(f"{output_dir}/{sample}-mask-xz.png")
+        Image.fromarray(to_int(implant_mask[nz//2,:,:].astype(internal_type),np.uint8)).save(f"{output_dir}/{sample}-mask-xy.png")
 
     kernel = gauss_kernel(sigma_voxels)
 
@@ -133,16 +128,16 @@ if __name__ == '__main__':
 
     if verbose >= 2:
         print(f"Debug: Writing PNGs of result slices to {output_dir}")
-        Image.fromarray(toint(result[nz//2,:,:])).save(f'{output_dir}/{sample}-gauss-xy.png')
-        Image.fromarray(toint(result[:,ny//2,:])).save(f'{output_dir}/{sample}-gauss-xz.png')
-        Image.fromarray(toint(result[:,:,nx//2])).save(f'{output_dir}/{sample}-gauss-yz.png')
-        Image.fromarray(toint((np.abs(result[nz//2,:,:])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-xy-nonzero.png')
-        Image.fromarray(toint((np.abs(result[:,ny//2,:])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
-        Image.fromarray(toint((np.abs(result[:,:,nx//2])!=0).astype(np.uint8))).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
+        Image.fromarray(to_int(result[nz//2,:,:],np.uint8)).save(f'{output_dir}/{sample}-gauss-xy.png')
+        Image.fromarray(to_int(result[:,ny//2,:],np.uint8)).save(f'{output_dir}/{sample}-gauss-xz.png')
+        Image.fromarray(to_int(result[:,:,nx//2],np.uint8)).save(f'{output_dir}/{sample}-gauss-yz.png')
+        Image.fromarray(to_int((np.abs(result[nz//2,:,:])!=0).astype(np.uint8),np.uint8)).save(f'{output_dir}/{sample}-gauss-xy-nonzero.png')
+        Image.fromarray(to_int((np.abs(result[:,ny//2,:])!=0).astype(np.uint8),np.uint8)).save(f'{output_dir}/{sample}-gauss-xz-nonzero.png')
+        Image.fromarray(to_int((np.abs(result[:,:,nx//2])!=0).astype(np.uint8),np.uint8)).save(f'{output_dir}/{sample}-gauss-yz-nonzero.png')
 
     # TODO this crashes for scale 1. Fix it.
     if verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{sample}.npy")
-    np.save(f'{output_dir}/{sample}.npy', toint(result*cylinder_mask,np.uint16)*cylinder_mask)
+    np.save(f'{output_dir}/{sample}.npy', result*cylinder_mask)
 
     if verify and scale > 1: # generate ndimage comparison, but only for scale > 1
         start = timeit.default_timer()
@@ -156,9 +151,9 @@ if __name__ == '__main__':
         print (f'C++ edition is {ndimage_time/diffusion_time:.02f} times faster')
         np.save(f'{output_dir}/{sample}_ndimage.npy',control)
         if verbose >= 2:
-            Image.fromarray(toint(control[nz//2,:,:])).save(f'{output_dir}/{sample}-control-xy.png')
-            Image.fromarray(toint(control[:,ny//2,:])).save(f'{output_dir}/{sample}-control-xz.png')
-            Image.fromarray(toint(control[:,:,nx//2])).save(f'{output_dir}/{sample}-control-yz.png')
+            Image.fromarray(to_int(control[nz//2,:,:],np.uint8)).save(f'{output_dir}/{sample}-control-xy.png')
+            Image.fromarray(to_int(control[:,ny//2,:],np.uint8)).save(f'{output_dir}/{sample}-control-xz.png')
+            Image.fromarray(to_int(control[:,:,nx//2],np.uint8)).save(f'{output_dir}/{sample}-control-yz.png')
         if result_type == np.uint8 or result_type == np.uint16:
             diff = result.astype(np.int32) - control.astype(np.int32)
         else:
