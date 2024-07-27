@@ -79,6 +79,44 @@ namespace gpu {
             }
         }
     }
+    void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+        // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
+        constexpr int veclen = 128;
+        float local[3*veclen], local_kernel[veclen]; // Local memory.
+        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
+        {
+            #pragma acc loop gang
+            for (int32_t i = 0; i < N.z; i++) {
+                #pragma acc loop worker private(local, local_kernel)
+                for (int32_t j = 0; j < N.y; j++) {
+                    const uint64_t output_start = (uint64_t)i*(uint64_t)N.y*(uint64_t)N.x + (uint64_t)j*(uint64_t)N.x;
+                    #pragma acc cache(local, local_kernel)
+                    {
+                        for (int32_t k = 0; k < N.x; k += veclen) {
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                const int64_t output_index = output_start + (int64_t)k + (int64_t)tid;
+                                local[tid + 0*veclen] = k+tid >= veclen ?      input[output_index - veclen] : 0;
+                                local[tid + 1*veclen] =                    input[output_index];
+                                local[tid + 2*veclen] = k+tid + veclen < N.x ? input[output_index + veclen] : 0;
+                                local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
+                            }
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                const int64_t output_index = output_start + (int64_t)k + (int64_t)tid;
+                                float sum = 0.0f;
+                                for (int32_t r = -radius; r <= radius; r++) {
+                                    sum += local[tid + veclen + r] * local_kernel[r+radius];
+                                }
+                                if (k+tid < N.x)
+                                    output[output_index] = sum;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
@@ -277,7 +315,8 @@ namespace gpu {
         for (int64_t dim = 0; dim < 3; dim++) {
             diffusion_core(buf0, kernel, buf1, N, dim, radius);
             std::swap(buf0, buf1);
-        }
+        //diffusion_core_x(buf0, kernel, buf1, N, radius);
+        //std::swap(buf0, buf1);
         illuminate(voxels, buf0, N.z*N.y*N.x);
     }
 
