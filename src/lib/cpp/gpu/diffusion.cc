@@ -116,6 +116,60 @@ namespace gpu {
         }
     }
 
+    // TODO Make this call y, since they're VERY similar?
+    void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+        // Assumes that the x dimension is a multiple of veclen.
+        constexpr int32_t
+            worklen = 1,
+            veclen = 64,
+            max_k = 32,
+            sqvec = max_k*veclen;
+        const int32_t
+            kernel_size = 2*radius+1,
+            nz = N.z, ny = N.y, nx = N.x;
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
+        {
+            #pragma acc loop gang collapse(2)
+            for (int32_t y = 0; y < ny; y++) {
+                //#pragma acc loop worker
+                for (int32_t x = 0; x < nx; x += veclen) {
+                    float local[sqvec], local_kernel[max_k]; // Local memory.
+                    #pragma acc cache(local_kernel, local)
+                    {
+                        #pragma acc loop vector
+                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            #pragma acc loop seq
+                            for (int32_t z = 0; z < radius; z++) {
+                                local[z*veclen + tid] = 0; // Zero out the local memory.
+                            }
+                            #pragma acc loop seq
+                            for (int32_t z = radius; z < kernel_size; z++) {
+                                local[z*veclen + tid] = input[(z-radius)*ny*nx + y*nx + x + tid];
+                            }
+                            // Load the kernel into the local memory.
+                            local_kernel[tid] = tid < kernel_size ? kernel[tid] : 0;
+                        }
+                        #pragma acc loop seq
+                        for (int32_t z = 0; z < nz; z++) {
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                float sum = local[tid] * local_kernel[0];
+                                #pragma acc loop seq
+                                for (int32_t r = 1; r < kernel_size; r++) {
+                                    float val = local[r*veclen + tid];
+                                    sum += val * local_kernel[r];
+                                    local[(r-1)*veclen + tid] = val;
+                                }
+                                output[z*ny*nx + y*nx + x + tid] = sum;
+                                local[(kernel_size-1)*veclen + tid] = z+radius+1 < nz ? input[(z+radius+1)*ny*nx + y*nx + x + tid] : 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
@@ -480,11 +534,11 @@ namespace gpu {
         constexpr int32_t veclen = 64;
         const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
         //for (int64_t dim = 0; dim < 3; dim++) {
-        //    diffusion_core_og(buf0, kernel, buf1, N, dim, radius);
+        //    diffusion_core(buf0, kernel, buf1, N, dim, radius);
         //    std::swap(buf0, buf1);
         //}
-        diffusion_core_y(buf0, kernel, buf1, P, radius);
-        std::swap(buf0, buf1);
+        diffusion_core_z(buf0, kernel, buf1, P, radius);
+        diffusion_core_y(buf1, kernel, buf0, P, radius);
         diffusion_core_x(buf0, kernel, buf1, P, radius);
             std::swap(buf0, buf1);
         illuminate(voxels, buf0, N, P);
