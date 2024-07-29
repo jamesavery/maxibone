@@ -236,12 +236,14 @@ namespace gpu {
                 for (int32_t y = 0; y < ny; y++) {
                     #pragma acc cache(local, local_kernel)
                     {
+                        { // First iteration
+                            int32_t x = 0;
                         #pragma acc loop vector
                         for (int32_t tid = 0; tid < veclen; tid++) {
-                            const int64_t output_index = z*ny*nx + y*nx + tid; // x = 0.
+                                const int64_t input_index = z*ny*nx + y*nx + x + tid;
                             local[0*veclen + tid] = 0;
-                            local[1*veclen + tid] = input[output_index];
-                            local[2*veclen + tid] = input[output_index + veclen];
+                                local[1*veclen + tid] = input[input_index];
+                                local[2*veclen + tid] = input[input_index + veclen];
                             local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
                         }
                         #pragma acc loop vector
@@ -251,9 +253,10 @@ namespace gpu {
                             for (int32_t r = -radius; r <= radius; r++) {
                                 sum += local[tid + veclen + r] * local_kernel[r+radius];
                             }
-                            output[z*ny*nx + y*nx + tid] = sum; // x = 0.
+                                output[z*ny*nx + y*nx + x + tid] = sum;
+                            }
                         }
-                        for (int32_t x = 1; x < nx-1; x += veclen) {
+                        for (int32_t x = veclen; x < nx-veclen; x += veclen) {
                             #pragma acc loop vector
                             for (int32_t tid = 0; tid < veclen; tid++) {
                                 local[0*veclen + tid] = local[1*veclen + tid];
@@ -270,6 +273,8 @@ namespace gpu {
                                 output[z*ny*nx + y*nx + x + tid] = sum;
                             }
                         }
+                        { // Last iteration
+                            int32_t x = nx-veclen;
                         #pragma acc loop vector
                         for (int32_t tid = 0; tid < veclen; tid++) {
                             local[0*veclen + tid] = local[1*veclen + tid];
@@ -283,7 +288,8 @@ namespace gpu {
                             for (int32_t r = -radius; r <= radius; r++) {
                                 sum += local[tid + veclen + r] * local_kernel[r+radius];
                             }
-                            output[z*ny*nx + y*nx + nx-1 + tid] = sum;
+                                output[z*ny*nx + y*nx + x + tid] = sum;
+                            }
                         }
                     }
                 }
