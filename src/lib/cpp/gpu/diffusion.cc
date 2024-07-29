@@ -120,7 +120,7 @@ namespace gpu {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
-            veclen = 256,
+            veclen = 64,
             max_k = 32,
             sqvec = max_k*veclen;
         const int32_t
@@ -128,9 +128,9 @@ namespace gpu {
             nz = N.z, ny = N.y, nx = N.x;
         #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
         {
-            #pragma acc loop gang
+            #pragma acc loop gang collapse(2)
             for (int32_t z = 0; z < nz; z++) {
-                #pragma acc loop worker
+                //#pragma acc loop worker
                 for (int32_t x = 0; x < nx; x += veclen) {
                     float local[sqvec], local_kernel[max_k]; // Local memory.
                     #pragma acc cache(local_kernel, local)
