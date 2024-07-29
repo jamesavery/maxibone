@@ -171,34 +171,37 @@ namespace gpu {
 
     void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
-        constexpr int veclen = 128;
+        constexpr int32_t
+            veclen = 32,
+            max_k = 32;
         float local[3*veclen], local_kernel[veclen]; // Local memory.
         #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
         {
             #pragma acc loop gang
-            for (int32_t i = 0; i < N.z; i++) {
+            for (int32_t z = 0; z < N.z; z++) {
                 #pragma acc loop worker private(local, local_kernel)
-                for (int32_t j = 0; j < N.y; j++) {
-                    const uint64_t output_start = (uint64_t)i*(uint64_t)N.y*(uint64_t)N.x + (uint64_t)j*(uint64_t)N.x;
+                for (int32_t y = 0; y < N.y; y++) {
+                    const uint64_t output_start = (uint64_t)z*(uint64_t)N.y*(uint64_t)N.x + (uint64_t)y*(uint64_t)N.x;
                     #pragma acc cache(local, local_kernel)
                     {
-                        for (int32_t k = 0; k < N.x; k += veclen) {
+                        for (int32_t x = 0; x < N.x; x += veclen) {
                             #pragma acc loop vector
                             for (int32_t tid = 0; tid < veclen; tid++) {
-                                const int64_t output_index = output_start + (int64_t)k + (int64_t)tid;
-                                local[tid + 0*veclen] = k+tid >= veclen ?      input[output_index - veclen] : 0;
+                                const int64_t output_index = output_start + (int64_t)x + (int64_t)tid;
+                                local[tid + 0*veclen] = x+tid >= veclen ?      input[output_index - veclen] : 0;
                                 local[tid + 1*veclen] =                    input[output_index];
-                                local[tid + 2*veclen] = k+tid + veclen < N.x ? input[output_index + veclen] : 0;
+                                local[tid + 2*veclen] = x+tid + veclen < N.x ? input[output_index + veclen] : 0;
                                 local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
                             }
                             #pragma acc loop vector
                             for (int32_t tid = 0; tid < veclen; tid++) {
-                                const int64_t output_index = output_start + (int64_t)k + (int64_t)tid;
+                                const int64_t output_index = output_start + (int64_t)x + (int64_t)tid;
                                 float sum = 0.0f;
+                                #pragma acc loop seq
                                 for (int32_t r = -radius; r <= radius; r++) {
                                     sum += local[tid + veclen + r] * local_kernel[r+radius];
                                 }
-                                if (k+tid < N.x)
+                                if (x+tid < N.x)
                                     output[output_index] = sum;
                             }
                         }
