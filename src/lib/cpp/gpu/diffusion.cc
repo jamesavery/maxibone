@@ -327,6 +327,20 @@ namespace gpu {
         }
     }
 
+    void convert_float_to_uint16(const float *__restrict__ src, uint16_t *__restrict__ dst, const shape_t &N, const shape_t &P) {
+        #pragma acc parallel loop collapse(3) present(src, dst)
+        for (int32_t z = 0; z < N.z; z++) {
+            for (int32_t y = 0; y < N.y; y++) {
+                for (int32_t x = 0; x < N.x; x++) {
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x;
+                    dst[dst_index] = (uint16_t) std::floor(src[src_index] * 65535.0f);
+                }
+            }
+        }
+    }
+
     void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -358,6 +372,24 @@ namespace gpu {
         #pragma acc parallel loop
         for (int64_t i = 0; i < total_flat_size; i++) {
             dst[i] = src[i] > 0 ? 1.0f : 0.0f;
+        }
+    }
+
+    void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P) {
+        #pragma acc parallel loop collapse(3) present(src, dst)
+        for (int32_t z = 0; z < P.z; z++) {
+            for (int32_t y = 0; y < P.y; y++) {
+                for (int32_t x = 0; x < P.x; x++) {
+                    const bool
+                        valid_z = z < N.z,
+                        valid_y = y < N.y,
+                        valid_x = x < N.x;
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
+                    dst[dst_index] = valid_z && valid_y && valid_x ? (float) src[src_index] : 0.0f;
+                }
+            }
         }
     }
 
@@ -401,13 +433,32 @@ namespace gpu {
         }
     }
 
+    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P) {
+        #pragma acc parallel loop collapse(3) present(mask, output)
+        for (int32_t z = 0; z < N.z; z++) {
+            for (int32_t y = 0; y < N.y; y++) {
+                for (int32_t x = 0; x < N.x; x++) {
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
+                    output[dst_index] = mask[src_index] ? 1.0f : output[dst_index];
+                }
+            }
+        }
+    }
+
     void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const float *__restrict__ kernel, const int64_t radius) {
-        for (int64_t dim = 0; dim < 3; dim++) {
-            diffusion_core(buf0, kernel, buf1, N, dim, radius);
+        constexpr int32_t veclen = 256;
+        const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
+        //for (int64_t dim = 0; dim < 3; dim++) {
+        //    diffusion_core_og(buf0, kernel, buf1, N, dim, radius);
+        //    std::swap(buf0, buf1);
+        //}
+        diffusion_core_y(buf0, kernel, buf1, P, radius);
+        std::swap(buf0, buf1);
+        diffusion_core_x(buf0, kernel, buf1, P, radius);
             std::swap(buf0, buf1);
-        //diffusion_core_x(buf0, kernel, buf1, N, radius);
-        //std::swap(buf0, buf1);
-        illuminate(voxels, buf0, N.z*N.y*N.x);
+        illuminate(voxels, buf0, N, P);
     }
 
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
@@ -424,21 +475,24 @@ namespace gpu {
     }
 
     void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
+        constexpr int32_t veclen = 256; // TODO
+        const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
         const int64_t
+            padded_size = P.z*P.y*P.x,
             total_size = N.z*N.y*N.x,
             radius = kernel_size / 2;
 
-        float *buf0 = new float[total_size];
-        float *buf1 = new float[total_size];
+        float *buf0 = new float[padded_size];
+        float *buf1 = new float[padded_size];
 
-        #pragma acc data copyin(voxels[0:total_size], kernel[0:kernel_size]) copyout(output[0:total_size]) create(buf0[0:total_size], buf1[0:total_size])
+        #pragma acc data copyin(voxels[0:total_size], kernel[0:kernel_size]) copyout(output[0:total_size]) create(buf0[0:padded_size], buf1[0:padded_size])
         {
-            convert_uint8_to_float(voxels, buf0, total_size);
+            convert_uint8_to_float(voxels, buf0, N, P);
             for (int64_t rep = 0; rep < repititions; rep++) {
                 diffusion_step(voxels, buf0, buf1, N, kernel, radius);
                 std::swap(buf0, buf1);
             }
-            convert_float_to_uint16(buf0, output, total_size);
+            convert_float_to_uint16(buf0, output, N, P);
         }
 
         delete[] buf0;
