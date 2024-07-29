@@ -136,31 +136,31 @@ namespace gpu {
                     #pragma acc cache(local_kernel, local)
                     {
                         #pragma acc loop vector
-                        for (int32_t i = 0; i < veclen; i++) {
+                        for (int32_t tid = 0; tid < veclen; tid++) {
                             #pragma acc loop seq
                             for (int32_t y = 0; y < radius; y++) {
-                                local[y*veclen + i] = 0; // Zero out the local memory.
+                                local[y*veclen + tid] = 0; // Zero out the local memory.
                             }
                             #pragma acc loop seq
                             for (int32_t y = radius; y < kernel_size; y++) {
-                                local[y*veclen + i] = input[z*ny*nx + (y-radius)*nx + x + i];
+                                local[y*veclen + tid] = input[z*ny*nx + (y-radius)*nx + x + tid];
                             }
                             // Load the kernel into the local memory.
-                            local_kernel[i] = i < kernel_size ? kernel[i] : 0;
+                            local_kernel[tid] = tid < kernel_size ? kernel[tid] : 0;
                         }
                         #pragma acc loop seq
                         for (int32_t y = 0; y < ny; y++) {
                             #pragma acc loop vector
-                            for (int32_t i = 0; i < veclen; i++) {
-                                float sum = local[i] * local_kernel[0];
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                float sum = local[tid] * local_kernel[0];
                                 #pragma acc loop seq
                                 for (int32_t r = 1; r < kernel_size; r++) {
-                                    float val = local[r*veclen + i];
+                                    float val = local[r*veclen + tid];
                                     sum += val * local_kernel[r];
-                                    local[(r-1)*veclen + i] = val;
+                                    local[(r-1)*veclen + tid] = val;
                                 }
-                                output[z*ny*nx + y*nx + x + i] = sum;
-                                local[(kernel_size-1)*veclen + i] = y+radius+1 < ny ? input[z*ny*nx + (y+radius+1)*nx + x + i] : 0;
+                                output[z*ny*nx + y*nx + x + tid] = sum;
+                                local[(kernel_size-1)*veclen + tid] = y+radius+1 < ny ? input[z*ny*nx + (y+radius+1)*nx + x + tid] : 0;
                             }
                         }
                     }
