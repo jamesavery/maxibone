@@ -171,39 +171,65 @@ namespace gpu {
 
     void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
-        constexpr int32_t
-            veclen = 32,
-            max_k = 32;
+        constexpr int32_t veclen = 32;
         float local[3*veclen], local_kernel[veclen]; // Local memory.
+        const int32_t nz = N.z, ny = N.y, nx = N.x;
         #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
         {
-            #pragma acc loop gang
-            for (int32_t z = 0; z < N.z; z++) {
-                #pragma acc loop worker private(local, local_kernel)
-                for (int32_t y = 0; y < N.y; y++) {
-                    const uint64_t output_start = (uint64_t)z*(uint64_t)N.y*(uint64_t)N.x + (uint64_t)y*(uint64_t)N.x;
+            #pragma acc loop gang collapse(2)
+            for (int32_t z = 0; z < nz; z++) {
+                //#pragma acc loop worker private(local, local_kernel)
+                for (int32_t y = 0; y < ny; y++) {
                     #pragma acc cache(local, local_kernel)
                     {
-                        for (int32_t x = 0; x < N.x; x += veclen) {
+                        #pragma acc loop vector
+                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            const int64_t output_index = z*ny*nx + y*nx + tid; // x = 0.
+                            local[0*veclen + tid] = 0;
+                            local[1*veclen + tid] = input[output_index];
+                            local[2*veclen + tid] = input[output_index + veclen];
+                            local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
+                        }
+                        #pragma acc loop vector
+                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            float sum = 0.0f;
+                            #pragma acc loop seq
+                            for (int32_t r = -radius; r <= radius; r++) {
+                                sum += local[tid + veclen + r] * local_kernel[r+radius];
+                            }
+                            output[z*ny*nx + y*nx + tid] = sum; // x = 0.
+                        }
+                        for (int32_t x = 1; x < nx-1; x += veclen) {
                             #pragma acc loop vector
                             for (int32_t tid = 0; tid < veclen; tid++) {
-                                const int64_t output_index = output_start + (int64_t)x + (int64_t)tid;
-                                local[tid + 0*veclen] = x+tid >= veclen ?      input[output_index - veclen] : 0;
-                                local[tid + 1*veclen] =                    input[output_index];
-                                local[tid + 2*veclen] = x+tid + veclen < N.x ? input[output_index + veclen] : 0;
-                                local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
+                                local[0*veclen + tid] = local[1*veclen + tid];
+                                local[1*veclen + tid] = local[2*veclen + tid];
+                                local[2*veclen + tid] = input[z*ny*nx + y*nx + x + tid + veclen];
                             }
                             #pragma acc loop vector
                             for (int32_t tid = 0; tid < veclen; tid++) {
-                                const int64_t output_index = output_start + (int64_t)x + (int64_t)tid;
                                 float sum = 0.0f;
                                 #pragma acc loop seq
                                 for (int32_t r = -radius; r <= radius; r++) {
                                     sum += local[tid + veclen + r] * local_kernel[r+radius];
                                 }
-                                if (x+tid < N.x)
-                                    output[output_index] = sum;
+                                output[z*ny*nx + y*nx + x + tid] = sum;
                             }
+                        }
+                        #pragma acc loop vector
+                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            local[0*veclen + tid] = local[1*veclen + tid];
+                            local[1*veclen + tid] = local[2*veclen + tid];
+                            local[2*veclen + tid] = 0;
+                        }
+                        #pragma acc loop vector
+                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            float sum = 0.0f;
+                            #pragma acc loop seq
+                            for (int32_t r = -radius; r <= radius; r++) {
+                                sum += local[tid + veclen + r] * local_kernel[r+radius];
+                            }
+                            output[z*ny*nx + y*nx + nx-1 + tid] = sum;
                         }
                     }
                 }
@@ -451,7 +477,7 @@ namespace gpu {
     }
 
     void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const float *__restrict__ kernel, const int64_t radius) {
-        constexpr int32_t veclen = 256;
+        constexpr int32_t veclen = 64;
         const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
         //for (int64_t dim = 0; dim < 3; dim++) {
         //    diffusion_core_og(buf0, kernel, buf1, N, dim, radius);
@@ -478,7 +504,7 @@ namespace gpu {
     }
 
     void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
-        constexpr int32_t veclen = 256; // TODO
+        constexpr int32_t veclen = 64; // TODO
         const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
         const int64_t
             padded_size = P.z*P.y*P.x,
