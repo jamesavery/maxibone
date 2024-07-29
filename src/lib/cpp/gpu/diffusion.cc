@@ -11,7 +11,7 @@ constexpr bool
 namespace gpu {
 
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
-        // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices to the arrays can be.
+        // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
 
         const int32_t
             strides[3] = {(N.y)*(N.x), N.x, 1},
@@ -115,6 +115,58 @@ namespace gpu {
             }
         }
     }
+
+    void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+        constexpr int
+            veclen = 128,
+            sqvec = veclen*veclen;
+        const int32_t kernel_size = 2*radius+1;
+        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
+        {
+            #pragma acc loop gang
+            for (int32_t z = 0; z < N.z; z++) {
+                //#pragma acc loop worker private(local, local_kernel)
+                for (int32_t x = 0; x < N.x; x += veclen) {
+                    float local[sqvec], local_kernel[veclen]; // Local memory.
+                    #pragma acc cache(local_kernel)
+                    {
+                        #pragma acc loop vector
+                        for (int32_t i = 0; i < veclen; i++) {
+                            #pragma acc loop seq
+                            for (int32_t y = 0; y < radius; y++) {
+                                local[y*veclen + i] = 0; // Zero out the local memory.
+                            }
+                            // Load the kernel into the local memory.
+                            local_kernel[i] = i < kernel_size ? kernel[i] : 0;
+                        }
+                        #pragma acc loop vector
+                        for (int32_t i = 0; i < veclen; i++) {
+                            #pragma acc loop seq
+                            for (int32_t y = radius; y < kernel_size; y++) {
+                                local[y*veclen + i] = x+i < N.x ? input[z*N.y*N.x + (y-radius)*N.x + x + i] : 0;
+                            }
+                        }
+                        for (int32_t y = 0; y < N.y; y++) {
+                            #pragma acc loop vector
+                            for (int32_t i = 0; i < veclen; i++) {
+                                float sum = local[i] * local_kernel[0];
+                                #pragma acc loop seq
+                                for (int32_t r = 1; r < kernel_size; r++) {
+                                    sum += local[r*veclen + i] * local_kernel[r];
+                                    local[(r-1)*veclen + i] = local[r*veclen + i];
+                                }
+                                if (x + i < N.x) {
+                                    output[z*N.y*N.x + y*N.x + x + i] = sum;
+                                }
+                                local[(kernel_size-1)*veclen + i] = (x+i < N.x) && (y+radius+1) < N.y ? input[z*N.y*N.x + (y+radius+1)*N.x + x + i] : 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
         constexpr int veclen = 128;
