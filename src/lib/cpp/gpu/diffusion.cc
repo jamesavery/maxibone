@@ -117,18 +117,23 @@ namespace gpu {
     }
 
     void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
-        constexpr int
-            veclen = 128,
-            sqvec = veclen*veclen;
-        const int32_t kernel_size = 2*radius+1;
-        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
+        // Assumes that the x dimension is a multiple of veclen.
+        constexpr int32_t
+            worklen = 1,
+            veclen = 256,
+            max_k = 32,
+            sqvec = max_k*veclen;
+        const int32_t
+            kernel_size = 2*radius+1,
+            nz = N.z, ny = N.y, nx = N.x;
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
         {
             #pragma acc loop gang
-            for (int32_t z = 0; z < N.z; z++) {
-                //#pragma acc loop worker private(local, local_kernel)
-                for (int32_t x = 0; x < N.x; x += veclen) {
-                    float local[sqvec], local_kernel[veclen]; // Local memory.
-                    #pragma acc cache(local_kernel)
+            for (int32_t z = 0; z < nz; z++) {
+                #pragma acc loop worker
+                for (int32_t x = 0; x < nx; x += veclen) {
+                    float local[sqvec], local_kernel[max_k]; // Local memory.
+                    #pragma acc cache(local_kernel, local)
                     {
                         #pragma acc loop vector
                         for (int32_t i = 0; i < veclen; i++) {
@@ -136,29 +141,26 @@ namespace gpu {
                             for (int32_t y = 0; y < radius; y++) {
                                 local[y*veclen + i] = 0; // Zero out the local memory.
                             }
+                            #pragma acc loop seq
+                            for (int32_t y = radius; y < kernel_size; y++) {
+                                local[y*veclen + i] = input[z*ny*nx + (y-radius)*nx + x + i];
+                            }
                             // Load the kernel into the local memory.
                             local_kernel[i] = i < kernel_size ? kernel[i] : 0;
                         }
-                        #pragma acc loop vector
-                        for (int32_t i = 0; i < veclen; i++) {
-                            #pragma acc loop seq
-                            for (int32_t y = radius; y < kernel_size; y++) {
-                                local[y*veclen + i] = x+i < N.x ? input[z*N.y*N.x + (y-radius)*N.x + x + i] : 0;
-                            }
-                        }
-                        for (int32_t y = 0; y < N.y; y++) {
+                        #pragma acc loop seq
+                        for (int32_t y = 0; y < ny; y++) {
                             #pragma acc loop vector
                             for (int32_t i = 0; i < veclen; i++) {
                                 float sum = local[i] * local_kernel[0];
                                 #pragma acc loop seq
                                 for (int32_t r = 1; r < kernel_size; r++) {
-                                    sum += local[r*veclen + i] * local_kernel[r];
-                                    local[(r-1)*veclen + i] = local[r*veclen + i];
+                                    float val = local[r*veclen + i];
+                                    sum += val * local_kernel[r];
+                                    local[(r-1)*veclen + i] = val;
                                 }
-                                if (x + i < N.x) {
-                                    output[z*N.y*N.x + y*N.x + x + i] = sum;
-                                }
-                                local[(kernel_size-1)*veclen + i] = (x+i < N.x) && (y+radius+1) < N.y ? input[z*N.y*N.x + (y+radius+1)*N.x + x + i] : 0;
+                                output[z*ny*nx + y*nx + x + i] = sum;
+                                local[(kernel_size-1)*veclen + i] = y+radius+1 < ny ? input[z*ny*nx + (y+radius+1)*nx + x + i] : 0;
                             }
                         }
                     }
