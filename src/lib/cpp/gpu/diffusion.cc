@@ -238,21 +238,21 @@ namespace gpu {
                     {
                         { // First iteration
                             int32_t x = 0;
-                        #pragma acc loop vector
-                        for (int32_t tid = 0; tid < veclen; tid++) {
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
                                 const int64_t input_index = z*ny*nx + y*nx + x + tid;
-                            local[0*veclen + tid] = 0;
+                                local[0*veclen + tid] = 0;
                                 local[1*veclen + tid] = input[input_index];
                                 local[2*veclen + tid] = input[input_index + veclen];
-                            local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
-                        }
-                        #pragma acc loop vector
-                        for (int32_t tid = 0; tid < veclen; tid++) {
-                            float sum = 0.0f;
-                            #pragma acc loop seq
-                            for (int32_t r = -radius; r <= radius; r++) {
-                                sum += local[tid + veclen + r] * local_kernel[r+radius];
+                                local_kernel[tid] = tid < (2*radius+1) ? kernel[tid] : 0;
                             }
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                float sum = 0.0f;
+                                #pragma acc loop seq
+                                for (int32_t r = -radius; r <= radius; r++) {
+                                    sum += local[tid + veclen + r] * local_kernel[r+radius];
+                                }
                                 output[z*ny*nx + y*nx + x + tid] = sum;
                             }
                         }
@@ -275,19 +275,19 @@ namespace gpu {
                         }
                         { // Last iteration
                             int32_t x = nx-veclen;
-                        #pragma acc loop vector
-                        for (int32_t tid = 0; tid < veclen; tid++) {
-                            local[0*veclen + tid] = local[1*veclen + tid];
-                            local[1*veclen + tid] = local[2*veclen + tid];
-                            local[2*veclen + tid] = 0;
-                        }
-                        #pragma acc loop vector
-                        for (int32_t tid = 0; tid < veclen; tid++) {
-                            float sum = 0.0f;
-                            #pragma acc loop seq
-                            for (int32_t r = -radius; r <= radius; r++) {
-                                sum += local[tid + veclen + r] * local_kernel[r+radius];
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                local[0*veclen + tid] = local[1*veclen + tid];
+                                local[1*veclen + tid] = local[2*veclen + tid];
+                                local[2*veclen + tid] = 0;
                             }
+                            #pragma acc loop vector
+                            for (int32_t tid = 0; tid < veclen; tid++) {
+                                float sum = 0.0f;
+                                #pragma acc loop seq
+                                for (int32_t r = -radius; r <= radius; r++) {
+                                    sum += local[tid + veclen + r] * local_kernel[r+radius];
+                                }
                                 output[z*ny*nx + y*nx + x + tid] = sum;
                             }
                         }
@@ -546,7 +546,7 @@ namespace gpu {
         diffusion_core_z(buf0, kernel, buf1, P, radius);
         diffusion_core_y(buf1, kernel, buf0, P, radius);
         diffusion_core_x(buf0, kernel, buf1, P, radius);
-            std::swap(buf0, buf1);
+        std::swap(buf0, buf1);
         illuminate(voxels, buf0, N, P);
     }
 
@@ -724,16 +724,20 @@ namespace gpu {
     }
 
     void diffusion_out_of_core(const uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
-        const shape_t global_shape_padded = {global_shape.z+kernel_size-1, global_shape.y, global_shape.x};
+        constexpr int32_t veclen = 64; // TODO
+        const shape_t
+            total_shape_padded = {total_shape.z, total_shape.y, (total_shape.x + veclen - 1) / veclen * veclen},
+            global_shape_padded = {global_shape.z+kernel_size-1, global_shape.y, (global_shape.x + veclen - 1) / veclen * veclen};
         const int64_t
             total_size = total_shape.z*total_shape.y*total_shape.x,
+            total_size_padded = total_shape_padded.z*total_shape_padded.y*total_shape_padded.x,
             global_size = global_shape.z*global_shape.y*global_shape.x,
             global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x,
             radius = kernel_size / 2,
             blocks = (total_shape.z + global_shape.z - 1) / global_shape.z;
 
-        float *buf0 = new float[total_size];
-        float *buf1 = new float[total_size];
+        float *buf0 = new float[total_size_padded];
+        float *buf1 = new float[total_size_padded];
         float *buf0_stage = new float[global_size_padded];
         float *buf1_stage = new float[global_size_padded];
         uint8_t *mask = new uint8_t[global_size_padded];
@@ -741,74 +745,82 @@ namespace gpu {
         for (int64_t start_z = 0; start_z < total_shape.z; start_z += global_shape.z) {
             const int64_t
                 end_z = std::min(total_shape.z, start_z + global_shape.z),
-                this_block_size = (end_z - start_z) * total_shape.y * total_shape.x;
+                this_z = end_z - start_z;
+            const shape_t
+                this_shape = {this_z, global_shape.y, global_shape.x},
+                this_shape_padded = {this_z, global_shape_padded.y, global_shape_padded.x};
+            const int64_t
+                this_block_size = this_shape.z * this_shape.y * this_shape.x,
+                this_block_size_padded = this_shape_padded.z * this_shape_padded.y * this_shape_padded.x;
             const uint8_t *this_voxels = voxels + (start_z * total_shape.y * total_shape.x);
-            float *this_buf0 = buf0 + (start_z * total_shape.y * total_shape.x);
-            #pragma acc data copyin(this_voxels[:this_block_size]) create(this_buf0[:this_block_size]) copyout(this_buf0[:this_block_size])
+            float *this_buf0 = buf0 + (start_z * total_shape_padded.y * total_shape_padded.x);
+            #pragma acc data copyin(this_voxels[:this_block_size]) create(this_buf0[:this_block_size_padded]) copyout(this_buf0[:this_block_size_padded])
             {
-                convert_uint8_to_float(this_voxels, this_buf0, this_block_size);
+                // N P
+                convert_uint8_to_float(this_voxels, this_buf0, this_shape, this_shape_padded);
             }
         }
         const std::string debug_newline = DEBUG ? "\n" : "";
 
-        #pragma acc data copyin(kernel[:kernel_size])
+        #pragma acc data copyin(kernel[:kernel_size]) // TODO pad kernel?
         {
         for (int64_t rep = 0; rep < repititions; rep++) {
             for (int64_t block = 0; block < blocks; block++) {
                 std::cout << "\rDiffusion: " << rep*blocks + block << "/" << repititions*blocks << debug_newline << std::flush;
 
                 const int64_t
-                    disk_start_z = block * global_shape.z,
-                    disk_end_z = std::min(total_shape.z, disk_start_z + global_shape.z),
-                    padding_front = std::min((int64_t) radius, disk_start_z),
-                    padding_back = std::min((int64_t) radius, total_shape.z - disk_end_z),
-                    disk_start_z_padded = disk_start_z - padding_front,
-                    disk_end_z_padded = disk_end_z + padding_back,
-                    this_z = disk_end_z - disk_start_z,
-                    this_z_padded = disk_end_z_padded - disk_start_z_padded,
+                    global_start_z = block * global_shape.z,
+                    global_end_z = std::min(total_shape.z, global_start_z + global_shape.z),
+                    padding_front = std::min((int64_t) radius, global_start_z),
+                    padding_back = std::min((int64_t) radius, total_shape.z - global_end_z),
+                    global_start_z_padded = global_start_z - padding_front,
+                    global_end_z_padded = global_end_z + padding_back,
+                    this_z = global_end_z - global_start_z,
+                    this_z_padded = global_end_z_padded - global_start_z_padded,
                     leading_zeros_z = radius - padding_front,
-                    trailing_zeros_z = disk_end_z_padded == total_shape.z ? global_shape_padded.z - this_z_padded : radius - padding_back,
-                    leading_zeros = leading_zeros_z * total_shape.y * total_shape.x,
-                    trailing_zeros = trailing_zeros_z * total_shape.y * total_shape.x,
-                    this_block_size = this_z * total_shape.y * total_shape.x,
-                    this_block_size_padded = this_z_padded * total_shape.y * total_shape.x;
+                    trailing_zeros_z = global_end_z_padded == total_shape.z ? global_shape_padded.z - this_z_padded : radius - padding_back,
+                    leading_zeros = leading_zeros_z * total_shape_padded.y * total_shape_padded.x,
+                    trailing_zeros = trailing_zeros_z * total_shape_padded.y * total_shape_padded.x,
+                    this_block_size = this_z * total_shape_padded.y * total_shape_padded.x,
+                    this_block_size_padded = this_z_padded * total_shape_padded.y * total_shape_padded.x;
 
                 if (DEBUG) {
                     std::cout << global_shape_padded.z << " " << global_shape.z << " " << total_shape.z << std::endl;
-                    std::cout << disk_start_z_padded << " " << disk_start_z << " " << disk_end_z << " " << disk_end_z_padded << std::endl;
+                    std::cout << global_start_z_padded << " " << global_start_z << " " << global_end_z << " " << global_end_z_padded << std::endl;
                     std::cout << leading_zeros_z << " " << padding_front << " " << this_z << " " << padding_back << " " << trailing_zeros_z << std::endl;
                     std::cout << leading_zeros << " " << this_block_size_padded << " " << trailing_zeros << std::endl;
                     std::cout << this_block_size << std::endl;
                     std::cout << "-----" << std::endl;
                 }
 
-                assert (this_block_size <= global_size && "Block size is too large");
+                assert (this_block_size <= global_size_padded && "Block size is too large");
                 assert (leading_zeros_z + padding_front + this_z + padding_back + trailing_zeros_z == global_shape_padded.z && "Block size is incorrect");
                 assert (leading_zeros + this_block_size_padded + trailing_zeros == global_size_padded && "Block size is incorrect");
 
                 // Set the leading 0s of the stage
                 memset(buf0_stage, 0, leading_zeros * sizeof(float));
-                memcpy(buf0_stage + leading_zeros, buf0 + (disk_start_z_padded * total_shape.y * total_shape.x), this_block_size_padded * sizeof(float));
+                memcpy(buf0_stage + leading_zeros, buf0 + (global_start_z_padded * total_shape_padded.y * total_shape_padded.x), this_block_size_padded * sizeof(float));
                 memset(buf0_stage + leading_zeros + this_block_size_padded, 0, trailing_zeros * sizeof(float));
 
+                // TODO yuck
                 memset(mask, 0, leading_zeros * sizeof(uint8_t));
-                memcpy(mask + leading_zeros, voxels + (disk_start_z_padded * total_shape.y * total_shape.x), this_block_size_padded * sizeof(uint8_t));
-                memset(mask + leading_zeros + this_block_size_padded, 0, trailing_zeros * sizeof(uint8_t));
+                memcpy(mask + leading_zeros, voxels + (global_start_z_padded * total_shape.y * total_shape.x), (this_z_padded * total_shape.y * total_shape.x) * sizeof(uint8_t));
+                memset(mask + leading_zeros + (this_z_padded * total_shape.y * total_shape.x), 0, trailing_zeros * sizeof(uint8_t));
 
-                //const uint8_t *this_voxels = voxels + (disk_start_z_padded * total_shape.y * total_shape.x);
-
-                //#pragma acc data copyin(this_voxels[:global_size_padded], buf0_stage[:global_size_padded]) create(buf1_stage[:global_size_padded]) copyout(buf1_stage[:global_size_padded])
-                #pragma acc data copy(mask[:global_size_padded], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded], buf1_stage[:global_size_padded])
+                #pragma acc data copy(mask[:global_shape_padded.z*global_shape.y*global_shape.x], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded])
                 {
-                    for (int64_t dim = 0; dim < 3; dim++) {
-                        diffusion_core(buf0_stage, kernel, buf1_stage, global_shape_padded, dim, radius);
-                        std::swap(buf0_stage, buf1_stage);
-                    }
-                    illuminate(mask, buf0_stage, global_size_padded);
+                    //diffusion_core(buf0_stage, kernel, buf1_stage, global_shape_padded, 0, radius);
+                    //diffusion_core(buf1_stage, kernel, buf0_stage, global_shape_padded, 1, radius);
+                    //diffusion_core(buf0_stage, kernel, buf1_stage, global_shape_padded, 2, radius);
+                    diffusion_core_z(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
+                    diffusion_core_y(buf1_stage, kernel, buf0_stage, global_shape_padded, radius);
+                    diffusion_core_x(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
+                    std::swap(buf0_stage, buf1_stage);
+                    illuminate(mask, buf0_stage, {global_shape_padded.z, global_shape.y, global_shape.x}, global_shape_padded);
                 }
 
                 // Copy the result back
-                memcpy(buf1 + (disk_start_z * total_shape.y * total_shape.x), buf0_stage + leading_zeros + (padding_front*total_shape.y*total_shape.x), this_block_size * sizeof(float));
+                memcpy(buf1 + (global_start_z * total_shape_padded.y * total_shape_padded.x), buf0_stage + leading_zeros + (padding_front*total_shape_padded.y*total_shape_padded.x), this_block_size * sizeof(float));
             }
             std::swap(buf0, buf1);
         }
@@ -816,14 +828,19 @@ namespace gpu {
         std::cout << "\rDiffusion is complete!" << std::endl;
 
         for (int64_t start_z = 0; start_z < total_shape.z; start_z += global_shape.z) {
+            const int64_t end_z = std::min(total_shape.z, start_z + global_shape.z);
+            const shape_t
+                this_shape = {end_z - start_z, global_shape.y, global_shape.x},
+                this_shape_padded = {end_z - start_z, global_shape_padded.y, global_shape_padded.x};
             const int64_t
-                end_z = std::min(total_shape.z, start_z + global_shape.z),
-                this_block_size = (end_z - start_z) * total_shape.y * total_shape.x;
+                this_block_size = this_shape.z * this_shape.y * this_shape.x,
+                this_block_size_padded = this_shape_padded.z * this_shape_padded.y * this_shape_padded.x;
+            const float *this_buf0 = buf0 + (start_z * total_shape_padded.y * total_shape_padded.x);
             uint16_t *this_output = output + (start_z * total_shape.y * total_shape.x);
-            float *this_buf0 = buf0 + (start_z * total_shape.y * total_shape.x);
-            #pragma acc data copyin(this_buf0[:this_block_size]) create(this_output[:this_block_size]) copyout(this_output[:this_block_size])
+
+            #pragma acc data copyin(this_buf0[:this_block_size_padded]) create(this_output[:this_block_size]) copyout(this_output[:this_block_size])
             {
-                convert_float_to_uint16(this_buf0, this_output, this_block_size);
+                convert_float_to_uint16(this_buf0, this_output, this_shape, this_shape_padded);
             }
         }
 
