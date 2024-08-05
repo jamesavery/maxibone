@@ -479,6 +479,75 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
     };
 }
 
+void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<real_t> &cms, output_ndarray<real_t> &output) {
+    UNPACK_NUMPY(mask);
+    UNPACK_NUMPY(cms);
+    UNPACK_NUMPY(output);
+
+    const uint64_t *mask_data = mask.data;
+    const real_t *cms_data = cms.data;
+    ssize_t n_masks = output.shape[0];
+    real_t *output_data = output.data;
+
+    real_t
+        *Izzs = (real_t *) malloc(n_masks * sizeof(real_t)),
+        *Izys = (real_t *) malloc(n_masks * sizeof(real_t)),
+        *Izxs = (real_t *) malloc(n_masks * sizeof(real_t)),
+        *Iyys = (real_t *) malloc(n_masks * sizeof(real_t)),
+        *Iyxs = (real_t *) malloc(n_masks * sizeof(real_t)),
+        *Ixxs = (real_t *) malloc(n_masks * sizeof(real_t));
+
+    #pragma omp parallel for
+    for (int64_t z = 0; z < mask_Nz; z++) {
+        for (int64_t y = 0; y < mask_Ny; y++) {
+            for (int64_t x = 0; x < mask_Nx; x++) {
+                int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
+                uint64_t m = mask_data[flat_index];
+                if (m) { // We don't need to compute the background.
+                    real_t
+                        Z = (real_t) z - cms_data[m*3 + 0],
+                        Y = (real_t) y - cms_data[m*3 + 1],
+                        X = (real_t) x - cms_data[m*3 + 2];
+
+                    #pragma omp atomic
+                    Izzs[m] += (Y*Y + X*X);
+                    #pragma omp atomic
+                    Iyys[m] += (Z*Z + X*X);
+                    #pragma omp atomic
+                    Ixxs[m] += (Z*Z + Y*Y);
+                    #pragma omp atomic
+                    Izys[m] -= Z*Y;
+                    #pragma omp atomic
+                    Izxs[m] -= Z*X;
+                    #pragma omp atomic
+                    Iyxs[m] -= Y*X;
+                }
+            }
+        }
+    }
+
+    #pragma omp parallel for
+    for (int64_t m = 1; m < n_masks; m++) { // Skip the background.
+        output_data[m*9 + 0] = Izzs[m];
+        output_data[m*9 + 1] = Izys[m];
+        output_data[m*9 + 2] = Izxs[m];
+        output_data[m*9 + 3] = Izys[m];
+        output_data[m*9 + 4] = Iyys[m];
+        output_data[m*9 + 5] = Iyxs[m];
+        output_data[m*9 + 6] = Izxs[m];
+        output_data[m*9 + 7] = Iyxs[m];
+        output_data[m*9 + 8] = Ixxs[m];
+    }
+
+    free(Izzs);
+    free(Izys);
+    free(Izxs);
+    free(Iyys);
+    free(Iyxs);
+    free(Ixxs);
+}
+
+
 void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const array<real_t,3> &x0,
 		    const array<real_t,3> &v_axis,

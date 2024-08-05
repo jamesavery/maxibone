@@ -70,6 +70,10 @@ array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array
     return cpu_seq::inertia_matrix(mask, cm);
 }
 
+void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<real_t> &cms, output_ndarray<real_t> &output) {
+    return cpu_seq::inertia_matrices(mask, cms, output);
+}
+
 void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const array<real_t,3> &x0,
 		    const array<real_t,3> &v_axis,

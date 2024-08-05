@@ -149,6 +149,8 @@ Computes the inertia matrix of the given tomography based of the given center of
 */
 array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm);
 
+void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<real_t> &cms, output_ndarray<real_t> &output);
+
 void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const array<real_t,3> &x0,
 		    const array<real_t,3> &v_axis,

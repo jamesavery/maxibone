@@ -24,6 +24,19 @@ array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3> 
     return NS::inertia_matrix({voxels_info.ptr, voxels_info.shape}, cm);
 }
 
+void inertia_matrices(const np_array<uint64_t> &np_voxels, const np_array<real_t> &np_cms, np_array<real_t> &np_inertia_matrices) {
+    auto voxels_info = np_voxels.request();
+    auto cms_info = np_cms.request();
+    auto inertia_matrices_info = np_inertia_matrices.request();
+
+    output_ndarray<real_t> inertia_matrices = {inertia_matrices_info.ptr, inertia_matrices_info.shape};
+
+    NS::inertia_matrices({voxels_info.ptr, voxels_info.shape},
+            {cms_info.ptr, cms_info.shape},
+            inertia_matrices);
+}
+
+
 template <typename T>
 void sample_plane(const np_array<T> &np_voxels,
           const real_t voxel_size, // In micrometers
@@ -181,7 +194,9 @@ PYBIND11_MODULE(geometry, m) {
     m.doc() = "Voxel Geometry Module"; // optional module docstring
 
     m.def("center_of_mass",       &python_api::center_of_mass, py::arg("np_voxels"));
+    m.def("center_of_masses",     &python_api::center_of_masses, py::arg("np_voxels"), py::arg("np_cms").noconvert());
     m.def("inertia_matrix",       &python_api::inertia_matrix, py::arg("np_voxels"), py::arg("cm"));
+    m.def("inertia_matrices",     &python_api::inertia_matrices, py::arg("np_voxels"), py::arg("np_cms"), py::arg("np_inertia_matrices").noconvert());
     m.def("integrate_axes",       &python_api::integrate_axes, py::arg("np_voxels"), py::arg("x0"), py::arg("v_axis"), py::arg("w_axis"), py::arg("v_min"), py::arg("w_min"), py::arg("output").noconvert());
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox, py::arg("principal_axes"), py::arg("parameter_ranges"), py::arg("cm"), py::arg("np_voxels").noconvert());
     m.def("fill_implant_mask",    &python_api::fill_implant_mask, py::arg("np_implant_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("r_fraction"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert(), py::arg("np_solid_implant_mask").noconvert(), py::arg("np_profile").noconvert());
