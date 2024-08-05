@@ -2,13 +2,13 @@
 
 namespace python_api {
 
-    void diffusion_in_memory(const np_array<uint8_t> &np_voxels, const np_array<float> &np_kernel, np_array<uint16_t> &np_output, const int64_t repititions = 1) {
+    void diffusion_in_memory(np_array<uint8_t> &np_voxels, const np_array<float> &np_kernel, np_array<uint16_t> &np_output, const int64_t repititions = 1) {
         auto
             voxels_info = np_voxels.request(),
             kernel_info = np_kernel.request(),
             output_info = np_output.request();
 
-        const uint8_t *voxels = static_cast<const uint8_t*>(voxels_info.ptr);
+        uint8_t *voxels = static_cast<uint8_t*>(voxels_info.ptr);
         const float *kernel = static_cast<const float*>(kernel_info.ptr);
         uint16_t *output = static_cast<uint16_t*>(output_info.ptr);
 
@@ -16,7 +16,7 @@ namespace python_api {
         const int64_t kernel_size = kernel_info.shape[0];
 
 #ifdef _OPENACC
-        const int64_t total_size = N.x * N.y * N.z;
+        const int64_t total_size = N.z * N.y * N.x;
         if (total_size * sizeof(float) * 2 > 8 * 1e9) { // TODO make automatic
             const shape_t global_shape = {32, N.y, N.x};
             NS::diffusion_out_of_core(voxels, N, global_shape, kernel, kernel_size, repititions, output);

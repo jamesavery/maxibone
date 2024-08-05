@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include <filesystem>
+#include "openacc.h"
 
 constexpr bool
     DEBUG = false,
@@ -464,19 +465,23 @@ namespace gpu {
         }
     }
 
-    void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P) {
-        #pragma acc parallel loop collapse(3) present(src, dst)
-        for (int32_t z = 0; z < P.z; z++) {
-            for (int32_t y = 0; y < P.y; y++) {
-                for (int32_t x = 0; x < P.x; x++) {
-                    const bool
-                        valid_z = z < N.z,
-                        valid_y = y < N.y,
-                        valid_x = x < N.x;
-                    const int64_t
-                        src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
-                        dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
-                    dst[dst_index] = valid_z && valid_y && valid_x ? (float) src[src_index] : 0.0f;
+    inline void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P, const int32_t stream) {
+        #pragma acc parallel vector_length(128) num_workers(1) present(src, dst) async(stream)
+        {
+            #pragma acc loop gang collapse(2)
+            for (int32_t z = 0; z < P.z; z++) {
+                for (int32_t y = 0; y < P.y; y++) {
+                    #pragma acc loop vector
+                    for (int32_t x = 0; x < P.x; x++) {
+                        const bool
+                            valid_z = z < N.z,
+                            valid_y = y < N.y,
+                            valid_x = x < N.x;
+                        const int64_t
+                            src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
+                            dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
+                        dst[dst_index] = valid_z && valid_y && valid_x ? (float) src[src_index] : 0.0f;
+                    }
                 }
             }
         }
@@ -576,7 +581,8 @@ namespace gpu {
 
         #pragma acc data copyin(voxels[0:total_size], kernel[0:kernel_size]) copyout(output[0:total_size]) create(buf0[0:padded_size], buf1[0:padded_size])
         {
-            convert_uint8_to_float(voxels, buf0, N, P);
+            convert_uint8_to_float(voxels, buf0, N, P, 42);
+            #pragma acc wait
             for (int64_t rep = 0; rep < repititions; rep++) {
                 diffusion_step(voxels, buf0, buf1, N, kernel, radius);
                 std::swap(buf0, buf1);
@@ -723,7 +729,7 @@ namespace gpu {
         fclose(tmp1);
     }
 
-    void diffusion_out_of_core(const uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
+    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
         constexpr int32_t veclen = 64; // TODO
         const shape_t
             total_shape_padded = {total_shape.z, total_shape.y, (total_shape.x + veclen - 1) / veclen * veclen},
@@ -742,6 +748,14 @@ namespace gpu {
         float *buf1_stage = new float[global_size_padded];
         uint8_t *mask = new uint8_t[global_size_padded];
 
+        const int32_t n_streams = 3; // read, compute, write
+        uint8_t *voxels_ds[n_streams];
+        float *buf0_ds[n_streams];
+        for (int32_t i = 0; i < n_streams; i++) {
+            voxels_ds[i] = (uint8_t *) acc_malloc(global_size * sizeof(uint8_t));
+            buf0_ds[i] = (float *) acc_malloc(global_size_padded * sizeof(float));
+        }
+
         for (int64_t start_z = 0; start_z < total_shape.z; start_z += global_shape.z) {
             const int64_t
                 end_z = std::min(total_shape.z, start_z + global_shape.z),
@@ -752,15 +766,46 @@ namespace gpu {
             const int64_t
                 this_block_size = this_shape.z * this_shape.y * this_shape.x,
                 this_block_size_padded = this_shape_padded.z * this_shape_padded.y * this_shape_padded.x;
-            const uint8_t *this_voxels = voxels + (start_z * total_shape.y * total_shape.x);
+            uint8_t *this_voxels = voxels + (start_z * total_shape.y * total_shape.x);
             float *this_buf0 = buf0 + (start_z * total_shape_padded.y * total_shape_padded.x);
-            #pragma acc data copyin(this_voxels[:this_block_size]) create(this_buf0[:this_block_size_padded]) copyout(this_buf0[:this_block_size_padded])
+            const int32_t stream = ((start_z / global_shape.z) % n_streams);
+            uint8_t *voxels_d = voxels_ds[stream];
+            float *buf0_d = buf0_ds[stream];
+            #pragma acc declare deviceptr(voxels_d, buf0_d)
             {
-                // N P
-                convert_uint8_to_float(this_voxels, this_buf0, this_shape, this_shape_padded);
+                acc_memcpy_to_device_async(voxels_d, this_voxels, this_block_size * sizeof(uint8_t), stream);
+                // TODO for some reason, it fails when called as a function. Pasted function content works.
+                //convert_uint8_to_float(voxels_d, buf0_d, this_shape, this_shape_padded, stream);
+
+                #pragma acc parallel vector_length(128) num_workers(1) present(voxels_d, buf0_d) async(stream)
+                {
+                    #pragma acc loop gang collapse(2)
+                    for (int32_t z = 0; z < this_shape_padded.z; z++) {
+                        for (int32_t y = 0; y < this_shape_padded.y; y++) {
+                            #pragma acc loop vector
+                            for (int32_t x = 0; x < this_shape_padded.x; x++) {
+                                const bool
+                                    valid_z = z < this_shape.z,
+                                    valid_y = y < this_shape.y,
+                                    valid_x = x < this_shape.x;
+                                const int64_t
+                                    src_index = (int64_t)z*(int64_t)this_shape.y*(int64_t)this_shape.x + (int64_t)y*(int64_t)this_shape.x + (int64_t)x,
+                                    dst_index = (int64_t)z*(int64_t)this_shape_padded.y*(int64_t)this_shape_padded.x + (int64_t)y*(int64_t)this_shape_padded.x + (int64_t)x;
+                                buf0_d[dst_index] = valid_z && valid_y && valid_x ? (float) voxels_d[src_index] : 0.0f;
+                            }
+                        }
+                    }
+                }
+
+                acc_memcpy_from_device_async(this_buf0, buf0_d, this_block_size_padded * sizeof(float), stream);
             }
         }
+        #pragma acc wait
         const std::string debug_newline = DEBUG ? "\n" : "";
+        for (int32_t i = 0; i < n_streams; i++) {
+            acc_free(voxels_ds[i]);
+            acc_free(buf0_ds[i]);
+        }
 
         #pragma acc data copyin(kernel[:kernel_size]) // TODO pad kernel?
         {
@@ -815,12 +860,11 @@ namespace gpu {
                     diffusion_core_z(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
                     diffusion_core_y(buf1_stage, kernel, buf0_stage, global_shape_padded, radius);
                     diffusion_core_x(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
-                    std::swap(buf0_stage, buf1_stage);
-                    illuminate(mask, buf0_stage, {global_shape_padded.z, global_shape.y, global_shape.x}, global_shape_padded);
+                    illuminate(mask, buf1_stage, {global_shape_padded.z, global_shape.y, global_shape.x}, global_shape_padded);
                 }
 
                 // Copy the result back
-                memcpy(buf1 + (global_start_z * total_shape_padded.y * total_shape_padded.x), buf0_stage + leading_zeros + (padding_front*total_shape_padded.y*total_shape_padded.x), this_block_size * sizeof(float));
+                memcpy(buf1 + (global_start_z * total_shape_padded.y * total_shape_padded.x), buf1_stage + leading_zeros + (padding_front*total_shape_padded.y*total_shape_padded.x), this_block_size * sizeof(float));
             }
             std::swap(buf0, buf1);
         }
