@@ -69,18 +69,28 @@ principal_lambdas = np.linalg.eigvals(ims)
 abc = 1 / np.sqrt(principal_lambdas)
 a, b, c = abc.T
 weirdly_long = (a / c) > 3
+nans = np.isnan(a) | np.isnan(b) | np.isnan(c)
+weirdly_long |= nans
 if verbose > 0:
     print (f"Found {np.sum(weirdly_long)} weirdly long osteocytes")
-
 
 # Test that the osteocytes are not too different from the best ellipsoid
 ellipsoid_errors = np.zeros(num_holes+1, dtype=np.uint64)
 ellipsoid_volumes = (4/3) * np.pi * a * b * c
 outside_ellipsoid(hole_id, cms, abc, ellipsoid_errors)
-ellipsoid_error_threshold = 0.5
+ellipsoid_error_threshold = .3 * 1e9
 weirdly_shaped = (ellipsoid_errors / ellipsoid_volumes) > ellipsoid_error_threshold
 if verbose > 0:
     print (f"Found {np.sum(weirdly_shaped)} weirdly shaped osteocytes")
+    print (f'Plotting histogram of ellipsoid errors to {plot_dir}/')
+    errors = ellipsoid_errors[1:] / ellipsoid_volumes[1:]
+    errors = errors[~np.isnan(errors) & ~np.isinf(errors) & ~weirdly_long[1:] & osteocyte_sized[1:]]
+    print (f"Mean ellipsoid error: {np.mean(errors)}")
+    print (f'Std ellipsoid error: {np.std(errors)}')
+    print (f'min/max ellipsoid error: {np.min(errors)}/{np.max(errors)}')
+    plt.hist(errors, bins=100, log=True)
+    plt.savefig(f'{plot_dir}/{sample}_ellipsoid_errors.png')
+    plt.clf()
 
 # Final osteocyte segmentation
 osteocyte_segments = np.argwhere(osteocyte_sized & (~weirdly_long) & (~weirdly_shaped)).flatten().astype(np.uint64)
