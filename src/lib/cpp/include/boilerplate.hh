@@ -7,12 +7,12 @@
 #define PRAGMA(X) _Pragma(TOKEN_COMBINER(X))
 
 #ifdef _OPENACC
-#define PARALLEL_TERM acc parallel loop
+#define PARALLEL_TERM() PRAGMA(acc parallel loop)
 #else
 #ifdef _OPENMP
-#define PARALLEL_TERM omp parallel for
+#define PARALLEL_TERM() PRAGMA(omp parallel for)
 #else
-#define PARALLEL_TERM
+#define PARALLEL_TERM()
 #endif
 #endif
 
