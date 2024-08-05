@@ -42,4 +42,35 @@ namespace NS {
         normalized_convert(in, out, vmin, vmax);
     }
 
+    // Assumes `allowed` is sorted
+    template <typename T>
+    inline void where_in(output_ndarray<T> &src, const input_ndarray<T> &allowed) {
+        UNPACK_NUMPY(src);
+        UNPACK_NUMPY(allowed);
+
+        PARALLEL_TERM()
+        for (int64_t i = 0; i < src_length; i++) {
+            int64_t start = 0, end = allowed_Nz;
+            bool found = false;
+            T &elem = src.data[i];
+            while (end > start) {
+                int64_t mid = (start + end) / 2;
+                if (elem == allowed.data[mid]) {
+                    elem = 1;
+                    found = true;
+                    break;
+                }
+
+                if (elem < allowed.data[mid]) {
+                    end = mid;
+                } else {
+                    start = mid + 1;
+                }
+            }
+            if (!found) {
+                elem = 0;
+            }
+        }
+    }
+
 }

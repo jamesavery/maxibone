@@ -25,6 +25,17 @@ namespace python_api {
         NS::normalized_convert(src, dst);
     }
 
+    template <typename T>
+    void where_in(np_array<T> &np_src, const np_array<T> &np_allowed) {
+        auto src_info = np_src.request();
+        auto allowed_info = np_allowed.request();
+
+        output_ndarray<T> src = { src_info.ptr, src_info.shape };
+        const input_ndarray<T> allowed = { allowed_info.ptr, allowed_info.shape };
+
+        NS::where_in(src, allowed);
+    }
+
 }
 
 PYBIND11_MODULE(general, m) {
@@ -33,4 +44,5 @@ PYBIND11_MODULE(general, m) {
     m.def("bincount", &python_api::bincount, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
     m.def("normalized_convert", &python_api::normalized_convert<float, uint8_t>, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
     m.def("normalized_convert", &python_api::normalized_convert<float, uint16_t>, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
+    m.def("where_in", &python_api::where_in<uint64_t>, py::arg("np_src").noconvert(), py::arg("np_allowed").noconvert());
 }
