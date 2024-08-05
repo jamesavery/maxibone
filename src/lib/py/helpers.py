@@ -96,12 +96,13 @@ def h5meta_info_volume_matched(sample):
 
         return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
 
-def block_info(h5meta_filename,block_size=0, n_blocks=0,z_offset=0):
+def block_info(h5meta_filename,scale,block_size=0, n_blocks=0,z_offset=0):
     print(f"Opening {h5meta_filename}")
     with h5py.File(h5meta_filename, 'r') as h5meta:
         vm_shifts  = h5meta["volume_matching_shifts"][:]
         Nz, Ny, Nx = h5meta['voxels'].shape
         Nz -= np.sum(vm_shifts)
+        Nz, Ny, Nx = Nz//scale, Ny//scale, Nx//scale
         Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
 
         subvolume_dimensions =  h5meta['subvolume_dimensions'][:]
@@ -141,9 +142,12 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
     Nfields = len(field_names)
 
     h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    Nz, Ny, Nx = h5meta['voxels'].shape
-    fNz, fNy, fNx = Nz // field_scale, Ny // field_scale, Nx // field_scale
-    Nz -= np.sum(h5meta["volume_matching_shifts"][:])
+    Nz1x, Ny1x, Nx1x = h5meta['voxels'].shape
+    Nz1x -= np.sum(h5meta["volume_matching_shifts"][:])
+    fNz, fNy, fNx = Nz1x // field_scale, Ny1x // field_scale, Nx1x // field_scale
+    Nz, Ny, Nx = Nz1x // scale, Ny1x // scale, Nx1x // scale
+    mNz, mNy, mNx = Nz1x // mask_scale, Ny1x // mask_scale, Nx1x // mask_scale
+    mask_scale_relative = mask_scale // scale
     h5meta.close()
 #    print(block_size,Nz,offset)
     block_size       = min(block_size, Nz-offset)
@@ -152,9 +156,9 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
     fields = np.zeros((Nfields,block_size//field_scale,fNy,fNx), dtype=np.uint16)
 
     if mask_name is not None:
-        for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5", leave=True):
+        for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5"):
             with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
-                mask = h5mask[mask_name]["mask"][offset//mask_scale:offset//mask_scale + block_size//mask_scale]
+                mask = h5mask[mask_name]["mask"][offset//mask_scale_relative:offset//mask_scale_relative + block_size//mask_scale_relative]
 
     #TODO: Make voxel & field scale command line parameters
     for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
@@ -165,11 +169,11 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
         fields[i,:] = fi[offset//field_scale:offset//field_scale + block_size//field_scale]
 
     if mask_name is not None:
-        nz, ny, nx = (block_size//mask_scale), Ny//mask_scale, Nx//mask_scale
-        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale, ny,mask_scale, nx,mask_scale))
-        mask_1x = mask_1x.reshape(nz*mask_scale,ny*mask_scale,nx*mask_scale)
-        voxels[:nz*mask_scale] *= mask_1x               # block_size may not be divisible by mask_scale
-        voxels[nz*mask_scale:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
+        nz, ny, nx = (block_size//mask_scale_relative), Ny//mask_scale_relative, Nx//mask_scale_relative
+        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz,mask_scale_relative, ny,mask_scale_relative, nx,mask_scale_relative))
+        mask_1x = mask_1x.reshape(nz*mask_scale_relative,ny*mask_scale_relative,nx*mask_scale_relative)
+        voxels[:nz*mask_scale_relative] *= mask_1x               # block_size may not be divisible by mask_scale_relative
+        voxels[nz*mask_scale_relative:] *= mask_1x[-1][NA,...]  # Remainder gets last line of mask
 
 #    plt.imshow(voxels[:,voxels.shape[1]//2,:]); plt.show()
 #    plt.imshow(fields[0,:,fields[0].shape[1]//2,:]); plt.show()

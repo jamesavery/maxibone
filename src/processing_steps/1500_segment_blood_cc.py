@@ -24,10 +24,8 @@ sample, m, scheme, chunk_size, verbose = commandline_args({"sample" : "<required
 #scales = [1,2,4,8]
 scales = [1]
 
-bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
+bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 1)
 Nz, Ny, Nx, _ = bi["dimensions"]
-
-#Du skal til at køre den nye cc, saa vi kan faa et 1x blood mask!
 
 for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
     data = f'{binary_root}/segmented/{scheme}/P{m}/{scale}x/{sample}.uint16'
