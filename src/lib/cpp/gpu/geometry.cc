@@ -13,6 +13,10 @@ array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return cpu_seq::center_of_mass(mask);
 }
 
+void center_of_masses(const input_ndarray<uint64_t> &mask, output_ndarray<real_t> &output) {
+    return cpu_seq::center_of_masses(mask, output);
+}
+
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,

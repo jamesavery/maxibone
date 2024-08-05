@@ -13,8 +13,6 @@ namespace cpu_seq {
 array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
     UNPACK_NUMPY(mask);
 
-    print_timestamp("center_of_mass start");
-
     uint64_t total_mass = 0, cmz = 0, cmy = 0, cmx = 0;
 
     BLOCK_BEGIN(mask, reduction(+:total_mass,cmz,cmy,cmx)); {
@@ -33,9 +31,54 @@ array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
         rcmy = real_t(cmy) / real_t(total_mass),
         rcmx = real_t(cmx) / real_t(total_mass);
 
-    print_timestamp("center_of_mass end");
-
     return array<real_t, 3>{ rcmz, rcmy, rcmx };
+}
+
+void center_of_masses(const input_ndarray<uint64_t> &mask, output_ndarray<real_t> &output) {
+    UNPACK_NUMPY(mask);
+    UNPACK_NUMPY(output);
+
+    const uint64_t *mask_data = mask.data;
+    ssize_t n_masks = output.shape[0];
+    real_t *output_data = output.data;
+
+    uint64_t
+        *total_masses = (uint64_t *) malloc(n_masks * sizeof(uint64_t)),
+        *cmzs = (uint64_t *) malloc(n_masks * sizeof(uint64_t)),
+        *cmys = (uint64_t *) malloc(n_masks * sizeof(uint64_t)),
+        *cmxs = (uint64_t *) malloc(n_masks * sizeof(uint64_t));
+
+    #pragma omp parallel for
+    for (int64_t z = 0; z < mask_Nz; z++) {
+        for (int64_t y = 0; y < mask_Ny; y++) {
+            for (int64_t x = 0; x < mask_Nx; x++) {
+                int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
+                uint64_t m = mask_data[flat_index];
+                if (m) { // We don't need to compute the background.
+                    #pragma omp atomic
+                    total_masses[m] += 1;
+                    #pragma omp atomic
+                    cmzs[m] += z;
+                    #pragma omp atomic
+                    cmys[m] += y;
+                    #pragma omp atomic
+                    cmxs[m] += x;
+                }
+            }
+        }
+    }
+
+    #pragma omp parallel for
+    for (int64_t m = 1; m < n_masks; m++) { // Skip the background.
+        output_data[m*3 + 0] = (real_t) cmzs[m] / (real_t) total_masses[m];
+        output_data[m*3 + 1] = (real_t) cmys[m] / (real_t) total_masses[m];
+        output_data[m*3 + 2] = (real_t) cmxs[m] / (real_t) total_masses[m];
+    }
+
+    free(total_masses);
+    free(cmzs);
+    free(cmys);
+    free(cmxs);
 }
 
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,

@@ -100,6 +100,8 @@ Computes the center of mass of the given tomography.
 */
 array<real_t,3> center_of_mass(const input_ndarray<mask_type> &voxels);
 
+void center_of_masses(const input_ndarray<uint64_t> &mask, output_ndarray<real_t> &output);
+
 void compute_front_mask(const input_ndarray<mask_type> solid_implant,
         const float voxel_size,
         const matrix4x4 &Muvw,

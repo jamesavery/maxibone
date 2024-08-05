@@ -8,6 +8,16 @@ array<real_t, 3> center_of_mass(const np_maskarray &np_voxels) {
     return NS::center_of_mass({voxels_info.ptr, voxels_info.shape});
 }
 
+void center_of_masses(const np_array<uint64_t> &np_voxels, np_array<real_t> &np_cms) {
+    auto voxels_info = np_voxels.request();
+    auto cms_info = np_cms.request();
+
+    output_ndarray<real_t> cms = {cms_info.ptr, cms_info.shape};
+
+    NS::center_of_masses({voxels_info.ptr, voxels_info.shape},
+            cms);
+}
+
 array<real_t, 9> inertia_matrix(const np_maskarray &np_voxels, array<real_t, 3> &cm) {
     auto voxels_info = np_voxels.request();
 
