@@ -158,6 +158,8 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<uint64_t> output);
 
+void outside_ellipsoid(const input_ndarray<uint64_t> &voxels, const input_ndarray<real_t> &cms, const input_ndarray<real_t> &abc, output_ndarray<uint64_t> &errors);
+
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,
                   const real_t voxel_size, // In micrometers

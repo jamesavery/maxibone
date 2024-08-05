@@ -36,6 +36,19 @@ void inertia_matrices(const np_array<uint64_t> &np_voxels, const np_array<real_t
             inertia_matrices);
 }
 
+void outside_ellipsoid(const np_array<uint64_t> &np_voxels, const np_array<real_t> &np_cms, const np_array<real_t> &np_abc, np_array<uint64_t> errors) {
+    auto voxels_info = np_voxels.request();
+    auto cms_info = np_cms.request();
+    auto abc_info = np_abc.request();
+    auto errors_info = errors.request();
+
+    output_ndarray<uint64_t> errors_out = {errors_info.ptr, errors_info.shape};
+
+    NS::outside_ellipsoid({voxels_info.ptr, voxels_info.shape},
+            {cms_info.ptr, cms_info.shape},
+            {abc_info.ptr, abc_info.shape},
+            errors_out);
+}
 
 template <typename T>
 void sample_plane(const np_array<T> &np_voxels,
@@ -198,6 +211,7 @@ PYBIND11_MODULE(geometry, m) {
     m.def("inertia_matrix",       &python_api::inertia_matrix, py::arg("np_voxels"), py::arg("cm"));
     m.def("inertia_matrices",     &python_api::inertia_matrices, py::arg("np_voxels"), py::arg("np_cms"), py::arg("np_inertia_matrices").noconvert());
     m.def("integrate_axes",       &python_api::integrate_axes, py::arg("np_voxels"), py::arg("x0"), py::arg("v_axis"), py::arg("w_axis"), py::arg("v_min"), py::arg("w_min"), py::arg("output").noconvert());
+    m.def("outside_ellipsoid",    &python_api::outside_ellipsoid, py::arg("np_voxels"), py::arg("np_cms"), py::arg("np_abc"), py::arg("errors").noconvert());
     m.def("zero_outside_bbox",    &python_api::zero_outside_bbox, py::arg("principal_axes"), py::arg("parameter_ranges"), py::arg("cm"), py::arg("np_voxels").noconvert());
     m.def("fill_implant_mask",    &python_api::fill_implant_mask, py::arg("np_implant_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("r_fraction"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert(), py::arg("np_solid_implant_mask").noconvert(), py::arg("np_profile").noconvert());
     m.def("fill_implant_mask_pre",&python_api::fill_implant_mask_pre, py::arg("np_mask"), py::arg("offset"), py::arg("voxel_size"), py::arg("bbox"), py::arg("Muvw"), py::arg("np_thetas").noconvert(), py::arg("np_rsqr_maxs").noconvert());

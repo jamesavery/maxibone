@@ -588,6 +588,46 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
     }
 }
 
+void outside_ellipsoid(const input_ndarray<uint64_t> &voxels, const input_ndarray<real_t> &cms, const input_ndarray<real_t> &abc, output_ndarray<uint64_t> &errors) {
+    UNPACK_NUMPY(voxels);
+    UNPACK_NUMPY(cms);
+    UNPACK_NUMPY(abc);
+    UNPACK_NUMPY(errors);
+
+    const uint64_t *voxels_data = voxels.data;
+    const real_t *cms_data = cms.data;
+    const real_t *abc_data = abc.data;
+    uint64_t *errors_data = errors.data;
+
+    #pragma omp parallel for
+    for (int64_t z = 0; z < voxels_Nz; z++) {
+        for (int64_t y = 0; y < voxels_Ny; y++) {
+            for (int64_t x = 0; x < voxels_Nx; x++) {
+                int64_t flat_index = z*voxels_Ny*voxels_Nx + y*voxels_Nx + x;
+                uint64_t m = voxels_data[flat_index];
+
+                real_t
+                    Z = std::abs((real_t) z - cms_data[m*3 + 0]),
+                    Y = std::abs((real_t) y - cms_data[m*3 + 1]),
+                    X = std::abs((real_t) x - cms_data[m*3 + 2]);
+
+                real_t
+                    a = abc_data[m*3 + 0],
+                    b = abc_data[m*3 + 1],
+                    c = abc_data[m*3 + 2];
+
+                //double value = std::pow(Z/a, 2) + std::pow(Y/b, 2) + std::pow(X/c, 2);
+                double value = ((Z*Z)/(a*a)) + ((Y*Y)/(b*b)) + ((X*X)/(c*c));
+
+                if (value >= 1) {
+                    #pragma omp atomic
+                    errors_data[m]++;
+                }
+            }
+        }
+    }
+}
+
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,
                   const real_t voxel_size, // In micrometers

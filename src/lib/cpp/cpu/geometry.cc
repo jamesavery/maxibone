@@ -83,6 +83,10 @@ void integrate_axes(const input_ndarray<mask_type> &mask,
     return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
 }
 
+void outside_ellipsoid(const input_ndarray<uint64_t> &voxels, const input_ndarray<real_t> &cms, const input_ndarray<real_t> &abc, output_ndarray<uint64_t> &errors) {
+    return cpu_seq::outside_ellipsoid(voxels, cms, abc, errors);
+}
+
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,
                   const real_t voxel_size, // In micrometers
