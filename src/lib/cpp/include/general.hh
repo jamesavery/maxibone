@@ -4,6 +4,17 @@
 
 namespace NS {
 
+    inline void bincount(const input_ndarray<uint64_t> &src, output_ndarray<uint64_t> &dst) {
+        UNPACK_NUMPY(src);
+        UNPACK_NUMPY(dst);
+
+        PARALLEL_TERM()
+        for (int64_t flat_index = 0; flat_index < src_length; flat_index++) {
+            ATOMIC()
+            dst.data[src.data[flat_index]]++;
+        }
+    }
+
     template <typename T>
     inline void min_max(const input_ndarray<T> &in, T &vmin, T &vmax) {
         UNPACK_NUMPY(in);
