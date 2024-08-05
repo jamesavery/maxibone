@@ -33,7 +33,7 @@ endif
 ifneq (, $(shell which nvc++))
 PLATFORMS += gpu
 gpu_CXX = nvc++
-gpu_FLAGS = -acc=gpu -tp=native #-Minfo=accel
+gpu_FLAGS = -acc=gpu -tp=native -gpu=pinned #-Minfo=accel
 #gpu_FLAGS += -mp=gpu -gpu=cc89 -Minfo=mp
 gpu_FLAGS += -Munroll -Minline -Mvect -Mcache_align -Mlre -Mflushz -Mpre -fast # Additional flags for performance
 gpu_FLAGS += -Xcudafe --display_error_number # Getting the warning codes for later suppression
