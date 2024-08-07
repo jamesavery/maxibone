@@ -20,6 +20,7 @@ namespace NS {
     std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks);
     std::vector<idx3d> merge_canonical_names(const std::vector<idx3d> &names_a, const std::vector<idx3d> &names_b);
     std::vector<int64_t> merge_labels(mapping_t &mapping_a, const mapping_t &mapping_b, const std::vector<int64_t> &to_rename_b);
+    void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, const int64_t *n_labels, const idx3d &global_shape, const bool verbose);
     int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b);
     std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose);
     void rename_mapping(mapping_t &mapping_a, const std::vector<int64_t> &to_rename_other);
