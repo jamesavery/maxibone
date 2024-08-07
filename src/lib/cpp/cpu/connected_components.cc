@@ -401,10 +401,9 @@ void apply_renaming(std::vector<int64_t> &img, std::vector<int64_t> &to_rename) 
 void apply_renaming(int64_t *__restrict__ img, const int64_t n, const std::vector<int64_t> &to_rename) {
     #pragma omp parallel for schedule(static)
     for (int64_t i = 0; i < n; i++) {
-        assert (img[i] < (int64_t) to_rename.size() && "Label out of bounds");
-        if (img[i] < (int64_t) to_rename.size()) {
+        // TODO Make into a debug macro
+        //assert (img[i] < (int64_t) to_rename.size() && "Label out of bounds");
             img[i] = to_rename[img[i]];
-        }
     }
 }
 
