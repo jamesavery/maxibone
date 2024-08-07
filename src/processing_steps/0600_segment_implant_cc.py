@@ -8,6 +8,7 @@ from lib.py.helpers import commandline_args, update_hdf5_mask
 from lib.cpp.cpu.io import load_slice
 from lib.cpp.cpu.connected_components import largest_connected_component, connected_components
 import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -100,7 +101,7 @@ else:
             return n_features
 
         start = datetime.datetime.now()
-        with mp.Pool(n_cores) as pool:
+        with ThreadPool(n_cores) as pool:
             label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_", implant_threshold_u16=implant_threshold_u16, global_shape=(nz,ny,nx))
             n_labels = pool.map(label_chunk_partial, range(n_chunks))
         end = datetime.datetime.now()

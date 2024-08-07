@@ -17,6 +17,7 @@ from numpy import array, newaxis as NA
 from scipy.ndimage import gaussian_filter1d
 import datetime
 import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 from functools import partial
 
 # close = dilate then erode
@@ -94,7 +95,7 @@ def largest_cc_of(mask, mask_name):
         return (label == largest_cc_ix)
     else:
         start = datetime.datetime.now()
-        with mp.Pool(n_cores) as pool:
+        with ThreadPool(n_cores) as pool:
             label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_")
             chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
             chunks.append(mask[(n_chunks-1)*layers_per_chunk:])

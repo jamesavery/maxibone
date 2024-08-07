@@ -11,6 +11,7 @@ from lib.py.helpers import block_info, commandline_args, update_hdf5
 from lib.py.resample import downsample2x, downsample3x
 import cupy as cp
 import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 import datetime
 from functools import partial
 
@@ -78,7 +79,7 @@ for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
             return n_features
 
         start = datetime.datetime.now()
-        with mp.Pool(n_cores) as pool:
+        with ThreadPool(n_cores) as pool:
             label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_", global_shape=(nz,ny,nx))
             n_labels = pool.map(label_chunk_partial, range(n_chunks))
         end = datetime.datetime.now()
