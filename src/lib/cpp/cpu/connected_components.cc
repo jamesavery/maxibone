@@ -403,7 +403,7 @@ void apply_renaming(int64_t *__restrict__ img, const int64_t n, const std::vecto
     for (int64_t i = 0; i < n; i++) {
         // TODO Make into a debug macro
         //assert (img[i] < (int64_t) to_rename.size() && "Label out of bounds");
-            img[i] = to_rename[img[i]];
+        img[i] = to_rename[img[i]];
     }
 }
 
@@ -744,7 +744,7 @@ std::tuple<mapping_t, mapping_t> get_mappings(const std::vector<int64_t> &a, con
 
     const int64_t plane_size = global_shape.y * global_shape.x;
     for (int64_t i = 0; i < plane_size; i++) {
-                if (a[i] != 0 && b[i] != 0) {
+        if (a[i] != 0 && b[i] != 0) {
             mapping_a[a[i]].insert(b[i]);
             mapping_b[b[i]].insert(a[i]);
         }
@@ -955,6 +955,43 @@ void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_la
     apply_renaming(chunks, n_chunks * chunk_size, renames_final[0]);
 }
 
+std::tuple<std::vector<int64_t>,std::vector<int64_t>,int64_t> merge_labels(mapping_t &mapping_a, mapping_t &mapping_b) {
+    std::vector<mapping_t> mappings = {mapping_a, mapping_b};
+    std::vector<std::vector<int64_t>> renames = {
+        std::vector<int64_t>(mapping_a.size()),
+        std::vector<int64_t>(mapping_b.size())
+    };
+
+    int64_t next_free = 1;
+    std::vector<std::tuple<int64_t, int64_t>> to_check;
+    for (int64_t i = 1; i < renames[0].size(); i++) {
+        if (renames[0][i] != 0) continue;
+
+        renames[0][i] = next_free;
+        for (int64_t entry : mappings[0][i]) {
+            to_check.push_back({1, entry});
+        }
+        while (!to_check.empty()) {
+            auto [current, entry] = to_check.back();
+            to_check.pop_back();
+            renames[current][entry] = next_free;
+            for (int64_t entry2 : mappings[current][entry]) {
+                if (renames[!current][entry2] == 0)
+                    to_check.push_back({!current, entry2});
+            }
+        }
+
+        next_free++;
+    }
+
+    // Renames the rest which haven't been touched
+    for (int64_t i = 1; i < renames[1].size(); i++) {
+        if (renames[1][i] == 0) renames[1][i] = next_free++;
+    }
+
+    return {renames[0], renames[1], next_free};
+}
+
 std::vector<int64_t> merge_labels(mapping_t &mapping_a, const mapping_t &mapping_b, const std::vector<int64_t> &to_rename_b) {
     std::list<int64_t> to_check;
     std::vector<int64_t> to_rename_a(mapping_a.size());
@@ -1101,6 +1138,19 @@ std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const st
     auto start = std::chrono::high_resolution_clock::now();
     auto [mapping_a, mapping_b] = get_mappings(a, n_labels_a, b, n_labels_b, global_shape);
     auto mappings_end = std::chrono::high_resolution_clock::now();
+    auto res = merge_labels(mapping_a, mapping_b);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> elapsed_get_mappings = mappings_end - start;
+    if (verbose) {
+        std::cout << "get_mappings: " << elapsed_get_mappings.count() << " s" << std::endl;
+    }
+    std::chrono::duration<double> elapsed_merge = end - mappings_end;
+    if (verbose) {
+        std::cout << "merge_labels: " << elapsed_merge.count() << " s" << std::endl;
+    }
+    return res;
+
     std::vector<int64_t> empty_vec;
     auto to_rename_a = merge_labels(mapping_a, mapping_b, empty_vec);
     auto merge_a_end = std::chrono::high_resolution_clock::now();
@@ -1114,7 +1164,7 @@ std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const st
     auto recount_end = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double>
-        elapsed_get_mappings = mappings_end - start,
+        //elapsed_get_mappings = mappings_end - start,
         elapsed_merge_a = merge_a_end - mappings_end,
         elapsed_merge_b = merge_b_end - merge_a_end,
         elapsed_rename_a = rename_a_end - merge_b_end,
@@ -1122,7 +1172,7 @@ std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const st
         elapsed_recount = recount_end - rename_b_end;
 
     if (verbose) {
-        std::cout << "get_mappings: " << elapsed_get_mappings.count() << " s" << std::endl;
+        //std::cout << "get_mappings: " << elapsed_get_mappings.count() << " s" << std::endl;
         std::cout << "merge_a: " << elapsed_merge_a.count() << " s" << std::endl;
         std::cout << "merge_b: " << elapsed_merge_b.count() << " s" << std::endl;
         std::cout << "rename_a: " << elapsed_rename_a.count() << " s" << std::endl;
