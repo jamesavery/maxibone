@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <omp.h>
+#include <stack>
 #include <unordered_set>
 
 // Debug functions
@@ -963,21 +964,21 @@ std::tuple<std::vector<int64_t>,std::vector<int64_t>,int64_t> merge_labels(mappi
     };
 
     int64_t next_free = 1;
-    std::vector<std::tuple<int64_t, int64_t>> to_check;
-    for (int64_t i = 1; i < renames[0].size(); i++) {
+    std::stack<std::tuple<int64_t, int64_t>> to_check;
+    for (int64_t i = 1; i < (int64_t)renames[0].size(); i++) {
         if (renames[0][i] != 0) continue;
 
         renames[0][i] = next_free;
         for (int64_t entry : mappings[0][i]) {
-            to_check.push_back({1, entry});
+            to_check.push({1, entry});
         }
         while (!to_check.empty()) {
-            auto [current, entry] = to_check.back();
-            to_check.pop_back();
+            auto [current, entry] = to_check.top();
+            to_check.pop();
             renames[current][entry] = next_free;
             for (int64_t entry2 : mappings[current][entry]) {
                 if (renames[!current][entry2] == 0)
-                    to_check.push_back({!current, entry2});
+                    to_check.push({!current, entry2});
             }
         }
 
@@ -985,7 +986,7 @@ std::tuple<std::vector<int64_t>,std::vector<int64_t>,int64_t> merge_labels(mappi
     }
 
     // Renames the rest which haven't been touched
-    for (int64_t i = 1; i < renames[1].size(); i++) {
+    for (int64_t i = 1; i < (int64_t)renames[1].size(); i++) {
         if (renames[1][i] == 0) renames[1][i] = next_free++;
     }
 
