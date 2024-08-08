@@ -3,7 +3,7 @@
 namespace python_api {
 
     // Assumes that the chunks are layed out flat
-    void merge_labeled_chunks(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const bool verbose = false) {
+    int64_t merge_labeled_chunks(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const bool verbose = false) {
         auto chunks_info = np_chunks.request();
         auto n_labels_info = np_n_labels.request();
 
@@ -18,7 +18,7 @@ namespace python_api {
 
         const idx3d chunk_shape = {nz, ny, nx};
 
-        NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, verbose);
+        return NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, verbose);
     }
 
     int64_t connected_components(const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const bool verbose = false) {

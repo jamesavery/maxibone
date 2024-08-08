@@ -862,7 +862,7 @@ std::vector<idx3d> merge_canonical_names(std::vector<idx3d> &names_a, std::vecto
 }
 
 // In memory version
-void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const bool verbose) {
+int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const bool verbose) {
     // Generate the adjacency tree
     auto adj_start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks);
@@ -874,14 +874,19 @@ void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_la
     const int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
     const idx3d global_strides = { global_shape.y * global_shape.x, global_shape.x, 1 };
 
-    std::vector<std::vector<std::vector<int64_t>>> renames(index_tree.size(), std::vector<std::vector<int64_t>>(n_chunks));
+    std::vector<std::vector<int64_t>> renames(n_chunks, std::vector<int64_t>());
+    for (int64_t i = 0; i < n_chunks; i++) {
+        renames[i].resize(n_labels[i]+1);
+        for (int64_t j = 0; j < n_labels[i]+1; j++) {
+            renames[i][j] = j;
+        }
+    }
+
     // Rename LUTs, one for each chunk
     for (int64_t i = 0; i < (int64_t) index_tree.size(); i++) {
-        //std::cout << "Layer " << i << " / " << index_tree.size() << std::endl;
         #pragma omp parallel for
         for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
             auto chunk_start = std::chrono::high_resolution_clock::now();
-            //std::cout << "\r" << j << " / " << index_tree[i].size() << std::flush;
             auto [l, r] = index_tree[i][j];
             // This doesn't handle the different chunk sizes, but it should be fine as the last chunk is the only one that differs and we only read the first layer from that one
             int64_t last_layer = (global_shape.z-1) * global_strides.z;
@@ -892,11 +897,13 @@ void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_la
             if (verbose) {
                 std::cout << "chunk_init: " << elapsed_chunk_init.count() << " s" << std::endl;
             }
-            for (int64_t k = 0; k < i; k++) {
-                // Apply the renamings obtained from the previous layer
-                apply_renaming(a, renames[k][l]);
-                apply_renaming(b, renames[k][r]);
-            }
+
+            // Apply the renamings obtained from the previous layers
+            if (renames[l].size() != 0)
+                apply_renaming(a, renames[l]);
+            if (renames[r].size() != 0)
+                apply_renaming(b, renames[r]);
+
             auto chunk_apply = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_chunk_apply = chunk_apply - chunk_init;
             if (verbose) {
@@ -913,23 +920,24 @@ void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_la
             n_labels[r] = n_new_labels;
 
             // Store the renamings
-            renames[i][l] = rename_l;
-            renames[i][r] = rename_r;
-            if (i > 0) {
-                int64_t subtrees = (int64_t) std::pow(2, i);
+            int64_t subtrees = (int64_t) std::pow(2, i);
 
-                // Run through the left subtree
-                for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
-                    renames[i][k] = rename_l;
-                    n_labels[k] = n_new_labels;
+            // Run through the left subtree
+            for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
+                for (int64_t l = 0; l < renames[k].size(); l++) {
+                    renames[k][l] = rename_l[renames[k][l]];
                 }
-
-                // Run through the right subtree
-                for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
-                    renames[i][k] = rename_r;
-                    n_labels[k] = n_new_labels;
-                }
+                n_labels[k] = n_new_labels;
             }
+
+            // Run through the right subtree
+            for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
+                for (int64_t l = 0; l < renames[k].size(); l++) {
+                    renames[k][l] = rename_r[renames[k][l]];
+                }
+                n_labels[k] = n_new_labels;
+            }
+
             auto chunk_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_store = chunk_end - chunk_relabel;
             if (verbose) {
@@ -940,20 +948,13 @@ void merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_la
                 std::cout << "chunk_total: " << elapsed_chunk.count() << " s" << std::endl;
             }
         }
-    //std::cout << std::endl;
     }
 
-    std::vector<std::vector<int64_t>> renames_final(n_chunks);
     for (int64_t i = 0; i < n_chunks; i++) {
-        renames_final[i] = renames[0][i];
-        for (int64_t j = 1; j < (int64_t) renames.size(); j++) {
-            for (int64_t k = 0; k < (int64_t) renames_final[i].size(); k++) {
-                renames_final[i][k] = renames[j][i][renames_final[i][k]];
-            }
-        }
+        apply_renaming(chunks + (i*chunk_size), chunk_size, renames[i]);
     }
 
-    apply_renaming(chunks, n_chunks * chunk_size, renames_final[0]);
+    return n_labels[std::get<0>(index_tree[index_tree.size()-1][0])];
 }
 
 std::tuple<std::vector<int64_t>,std::vector<int64_t>,int64_t> merge_labels(mapping_t &mapping_a, mapping_t &mapping_b) {
@@ -1136,52 +1137,65 @@ int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::ve
 }
 
 std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose) {
-    auto start = std::chrono::high_resolution_clock::now();
-    auto [mapping_a, mapping_b] = get_mappings(a, n_labels_a, b, n_labels_b, global_shape);
-    auto mappings_end = std::chrono::high_resolution_clock::now();
-    auto res = merge_labels(mapping_a, mapping_b);
-    auto end = std::chrono::high_resolution_clock::now();
+    std::vector<int64_t> rename_a(n_labels_a+1);
+    std::vector<int64_t> rename_b(n_labels_b+1);
 
-    std::chrono::duration<double> elapsed_get_mappings = mappings_end - start;
-    if (verbose) {
-        std::cout << "get_mappings: " << elapsed_get_mappings.count() << " s" << std::endl;
+    // TODO parallel where applicable? Do something with scan to get new global labels?
+
+    int64_t next = 0;
+    int64_t last_a = 0, last_b = 0;
+    for (int64_t y = 0; y < global_shape.y; y++) {
+        for (int64_t x = 0; x < global_shape.x; x++) {
+            int64_t va = a[y*global_shape.x + x];
+            int64_t vb = b[y*global_shape.x + x];
+
+            if (va && vb) {
+                if (rename_a[va]) {
+                    rename_b[vb] = rename_a[va];
+                } else if (rename_b[vb]) {
+                    rename_a[va] = rename_b[vb];
+                } else {
+                    rename_a[va] = rename_b[vb] = ++next;
+                }
+            } else {
+                if (va && !rename_a[va]) {
+                    if (last_a) {
+                        rename_a[va] = next;
+                    } else {
+                        rename_a[va] = ++next;
+                    }
+                }
+                if (vb && !rename_b[vb]) {
+                    if (last_b) {
+                        rename_b[vb] = next;
+                    } else {
+                        rename_b[vb] = ++next;
+                    }
+                }
+            }
+
+            if (x == global_shape.x-1) {
+                last_a = 0;
+                last_b = 0;
+            } else {
+                last_a = va;
+                last_b = vb;
+            }
+        }
     }
-    std::chrono::duration<double> elapsed_merge = end - mappings_end;
-    if (verbose) {
-        std::cout << "merge_labels: " << elapsed_merge.count() << " s" << std::endl;
+
+    for (int64_t i = 1; i < n_labels_a+1; i++) {
+        if (rename_a[i] == 0) {
+            rename_a[i] = ++next;
+        }
     }
-    return res;
-
-    std::vector<int64_t> empty_vec;
-    auto to_rename_a = merge_labels(mapping_a, mapping_b, empty_vec);
-    auto merge_a_end = std::chrono::high_resolution_clock::now();
-    auto to_rename_b = merge_labels(mapping_b, mapping_a, to_rename_a);
-    auto merge_b_end = std::chrono::high_resolution_clock::now();
-    NS::rename_mapping(mapping_a, to_rename_b);
-    auto rename_a_end = std::chrono::high_resolution_clock::now();
-    NS::rename_mapping(mapping_b, to_rename_a);
-    auto rename_b_end = std::chrono::high_resolution_clock::now();
-    int64_t n_new_labels = recount_labels(mapping_a, mapping_b, to_rename_a, to_rename_b);
-    auto recount_end = std::chrono::high_resolution_clock::now();
-
-    std::chrono::duration<double>
-        //elapsed_get_mappings = mappings_end - start,
-        elapsed_merge_a = merge_a_end - mappings_end,
-        elapsed_merge_b = merge_b_end - merge_a_end,
-        elapsed_rename_a = rename_a_end - merge_b_end,
-        elapsed_rename_b = rename_b_end - rename_a_end,
-        elapsed_recount = recount_end - rename_b_end;
-
-    if (verbose) {
-        //std::cout << "get_mappings: " << elapsed_get_mappings.count() << " s" << std::endl;
-        std::cout << "merge_a: " << elapsed_merge_a.count() << " s" << std::endl;
-        std::cout << "merge_b: " << elapsed_merge_b.count() << " s" << std::endl;
-        std::cout << "rename_a: " << elapsed_rename_a.count() << " s" << std::endl;
-        std::cout << "rename_b: " << elapsed_rename_b.count() << " s" << std::endl;
-        std::cout << "recount: " << elapsed_recount.count() << " s" << std::endl;
+    for (int64_t i = 1; i < n_labels_b+1; i++) {
+        if (rename_b[i] == 0) {
+            rename_b[i] = ++next;
+        }
     }
 
-    return { to_rename_a, to_rename_b, n_new_labels };
+    return { rename_a, rename_b, next };
 }
 
 void rename_mapping(mapping_t &mapping_a, const std::vector<int64_t> &to_rename_other) {
