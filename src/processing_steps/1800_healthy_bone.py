@@ -102,8 +102,9 @@ if __name__ == '__main__':
     del soft_threshed
 
     # Close, open, then dilate. The sizes are in micrometers
-    closing = 10
-    opening = 10
+    # TODO adjust accordingly
+    closing = 5
+    opening = 5
 
     closing_voxels = int(closing / voxel_size)
     opening_voxels = int(opening / voxel_size)

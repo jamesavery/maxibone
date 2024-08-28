@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # TODO scale may not trickle down correctly
     # Iterate over all subvolumes
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', block_size=block_size, n_blocks=0, z_offset=block_start)
+    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, block_size=block_size, n_blocks=0, z_offset=block_start)
     Nz, Ny, Nx = bi['dimensions'][:3]
     axes_names =  []     # ["x", "y", "z", "r"] # For later
     field_names = [scheme] #,"gauss"] # TODO: Vi bruger kun eet field p.t.
