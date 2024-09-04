@@ -18,7 +18,7 @@ namespace python_api {
 
         const idx3d chunk_shape = {nz, ny, nx};
 
-        return NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, verbose);
+        return NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, n_chunks*nz, verbose);
     }
 
     int64_t connected_components(const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const bool verbose = false) {
@@ -58,6 +58,7 @@ namespace python_api {
 PYBIND11_MODULE(connected_components, m) {
     m.doc() = "Connected Components"; // optional module docstring
 
+    m.def("cc3d_call", &python_api::cc3d_call, py::arg("np_image").noconvert(), py::arg("np_result").noconvert(), py::arg("verbose") = false);
     m.def("connected_components", &python_api::connected_components, py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = false);
     m.def("largest_connected_component", &python_api::largest_connected_component, py::arg("result").noconvert(), py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = false);
     m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("verbose") = false);
