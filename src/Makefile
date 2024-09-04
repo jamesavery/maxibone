@@ -6,9 +6,11 @@ PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
 
 CPP_FOLDER=lib/cpp
 #CXXFLAGS += -I../contrib/cpptqdm/ -Iinclude
-CXXFLAGS += -I$(CPP_FOLDER)/include -march=native -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++20 -O3
+CXXFLAGS += -I$(CPP_FOLDER)/include -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wuninitialized -Winit-self -shared -fPIC -g -std=c++20 -O3
+# To use valgrind, this should be commented out:
+#CXXFLAGS += -march=native
 # To enable address sanitizer:
-#CXXFLAGS += -fsanitize=address
+#CXXFLAGS += -fsanitize=address -static-libasan -lasan
 PLATFORMS=cpu_seq cpu
 cpu_seq_CXX=$(CXX)
 cpu_seq_FLAGS=-Wno-unknown-pragmas -Wno-comment -Wconversion #-Weffc++
