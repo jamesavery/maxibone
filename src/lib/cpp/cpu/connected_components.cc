@@ -557,24 +557,30 @@ void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out
 std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose) {
     auto cc_start = std::chrono::high_resolution_clock::now();
     // Check if the call is well-formed
-    int64_t chunks = n_labels.size();
-    assert ((chunks & (chunks - 1)) == 0 && "Chunks must be a power of 2");
+    int64_t n_chunks = n_labels.size();
+    assert ((n_chunks & (n_chunks - 1)) == 0 && "Chunks must be a power of 2");
 
     // Constants
     const idx3d
         global_strides = { global_shape.y * global_shape.x, global_shape.x, 1 };
 
     // Generate the paths to the different chunks
-    std::vector<std::string> paths(chunks);
-    for (int64_t i = 0; i < chunks; i++) {
+    std::vector<std::string> paths(n_chunks);
+    for (int64_t i = 0; i < n_chunks; i++) {
         paths[i] = base_path + std::to_string(i) + ".int64";
     }
 
     // Generate the adjacency tree
-    std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(chunks);
+    std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks);
 
+    std::vector<std::vector<int64_t>> renames(n_chunks, std::vector<int64_t>());
+    for (int64_t i = 0; i < n_chunks; i++) {
+        renames[i].resize(n_labels[i]+1);
+        for (int64_t j = 0; j < n_labels[i]+1; j++) {
+            renames[i][j] = j;
+        }
+    }
 
-    std::vector<std::vector<std::vector<int64_t>>> renames(index_tree.size(), std::vector<std::vector<int64_t>>(chunks));
     // Rename LUTs, one for each chunk
     for (int64_t i = 0; i < (int64_t) index_tree.size(); i++) {
         #pragma omp parallel for
@@ -590,43 +596,45 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
                 store_file_flat(b, base_path + "b_" + std::to_string(r) + ".int64", 0);
             }
 
-            for (int64_t k = 0; k < i; k++) {
-                // Apply the renamings obtained from the previous layer
-                apply_renaming(a, renames[k][l]);
-                apply_renaming(b, renames[k][r]);
+            // Apply the renamings obtained from the previous layers
+            apply_renaming(a, renames[l]);
+            apply_renaming(b, renames[r]);
+
+            for (size_t k = 0; k < a.size(); k++) {
+                assert (a[k] <= n_labels[l] && "Label out of bounds");
+            }
+            for (size_t k = 0; k < b.size(); k++) {
+                assert (b[k] <= n_labels[r] && "Label out of bounds");
             }
 
-            auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, false);
+            auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, verbose);
             n_labels[l] = n_new_labels;
             n_labels[r] = n_new_labels;
 
-            // Store the renamings
-            renames[i][l] = rename_l;
-            renames[i][r] = rename_r;
-            if (i > 0) {
-                int64_t subtrees = (int64_t) std::pow(2, i);
-
-                // Run through the left subtree
-                for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
-                    renames[i][k] = rename_l;
-                    n_labels[k] = n_new_labels;
-                }
-
-                // Run through the right subtree
-                for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
-                    renames[i][k] = rename_r;
-                    n_labels[k] = n_new_labels;
-                }
+            for (size_t k = 0; k < rename_l.size(); k++) {
+                assert (rename_l[k] >= 0 && rename_l[k] <= n_new_labels && "Label out of bounds");
             }
-        }
-    }
+            for (size_t k = 0; k < rename_r.size(); k++) {
+                assert (rename_r[k] >= 0 && rename_r[k] <= n_new_labels && "Label out of bounds");
+            }
 
-    std::vector<std::vector<int64_t>> renames_final(chunks);
-    for (int64_t i = 0; i < chunks; i++) {
-        renames_final[i] = renames[0][i];
-        for (int64_t j = 1; j < (int64_t) renames.size(); j++) {
-            for (int64_t k = 0; k < (int64_t) renames_final[i].size(); k++) {
-                renames_final[i][k] = renames[j][i][renames_final[i][k]];
+            // Store the renamings
+            int64_t subtrees = (int64_t) std::pow(2, i);
+
+            // Run through the left subtree
+            for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
+                for (int64_t sub_l = 0; sub_l < (int64_t)renames[k].size(); sub_l++) {
+                    renames[k][sub_l] = rename_l[renames[k][sub_l]];
+                }
+                n_labels[k] = n_new_labels;
+            }
+
+            // Run through the right subtree
+            for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
+                for (int64_t sub_r = 0; sub_r < (int64_t)renames[k].size(); sub_r++) {
+                    renames[k][sub_r] = rename_r[renames[k][sub_r]];
+                }
+                n_labels[k] = n_new_labels;
             }
         }
     }
@@ -637,7 +645,7 @@ std::vector<std::vector<int64_t>> connected_components(const std::string &base_p
         std::cout << "connected_components lut building: " << elapsed_cc.count() << " s" << std::endl;
     }
 
-    return renames_final;
+    return renames;
 }
 
 void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size) {
@@ -899,8 +907,8 @@ int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n
             }
 
             // Apply the renamings obtained from the previous layers
-                apply_renaming(a, renames[l]);
-                apply_renaming(b, renames[r]);
+            apply_renaming(a, renames[l]);
+            apply_renaming(b, renames[r]);
 
             // TODO Make into a debug macro
             for (size_t k = 0; k < a.size(); k++) {
@@ -1100,8 +1108,8 @@ int64_t recount_labels(std::vector<int64_t> &to_rename_a, std::vector<int64_t> &
     for (int64_t i = 1; i < (int64_t) to_rename_a.size(); i++) {
         if (to_rename_a[i] == -1) {
             to_rename_a[i] = next++;
-            }
         }
+    }
     to_rename_b[0] = 0;
     for (int64_t i = 1; i < (int64_t) to_rename_b.size(); i++) {
         if (to_rename_b[i] == -1) {
