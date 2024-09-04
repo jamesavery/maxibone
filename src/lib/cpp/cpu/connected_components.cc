@@ -1137,8 +1137,10 @@ int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::ve
 }
 
 std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose) {
-    std::vector<int64_t> rename_a(n_labels_a+1);
-    std::vector<int64_t> rename_b(n_labels_b+1);
+    mapping_t mapping_a(n_labels_a+1);
+    mapping_t mapping_b(n_labels_b+1);
+    std::vector<int64_t> rename_a(n_labels_a+1, 0);
+    std::vector<int64_t> rename_b(n_labels_b+1, 0);
 
     // TODO parallel where applicable? Do something with scan to get new global labels?
 
@@ -1150,13 +1152,24 @@ std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const st
             int64_t vb = b[y*global_shape.x + x];
 
             if (va && vb) {
+                mapping_a[va].insert(vb); // Before as it should be included in the entry loop
                 if (rename_a[va]) {
-                    rename_b[vb] = rename_a[va];
+                    int64_t lab = rename_a[va];
+                    rename_b[vb] = lab;
+                    if (rename_b[vb]) {
+                        for (int64_t entry : mapping_a[va]) {
+                            rename_b[entry] = lab;
+                            for (int64_t entry2 : mapping_b[entry]) {
+                                rename_a[entry2] = lab;
+                            }
+                        }
+                    }
                 } else if (rename_b[vb]) {
                     rename_a[va] = rename_b[vb];
                 } else {
                     rename_a[va] = rename_b[vb] = ++next;
                 }
+                mapping_b[vb].insert(va); // After as it shouldn't be included in the entry2 loop
             } else {
                 if (va && !rename_a[va]) {
                     if (last_a) {
@@ -1184,18 +1197,12 @@ std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const st
         }
     }
 
-    for (int64_t i = 1; i < n_labels_a+1; i++) {
-        if (rename_a[i] == 0) {
-            rename_a[i] = ++next;
-        }
-    }
-    for (int64_t i = 1; i < n_labels_b+1; i++) {
-        if (rename_b[i] == 0) {
-            rename_b[i] = ++next;
-        }
-    }
+    // Ensure the labels are consecutive
+    int64_t n_new_labels = recount_labels(rename_a, rename_b, next);
 
-    return { rename_a, rename_b, next };
+    assert (n_new_labels <= n_labels_a + n_labels_b && "New labels exceed the sum of the old labels");
+
+    return { rename_a, rename_b, n_new_labels };
 }
 
 void rename_mapping(mapping_t &mapping_a, const std::vector<int64_t> &to_rename_other) {
