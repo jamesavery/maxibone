@@ -862,7 +862,7 @@ std::vector<idx3d> merge_canonical_names(std::vector<idx3d> &names_a, std::vecto
 }
 
 // In memory version
-int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const bool verbose) {
+int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const bool verbose) {
     // Generate the adjacency tree
     auto adj_start = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks);
@@ -899,10 +899,16 @@ int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n
             }
 
             // Apply the renamings obtained from the previous layers
-            if (renames[l].size() != 0)
                 apply_renaming(a, renames[l]);
-            if (renames[r].size() != 0)
                 apply_renaming(b, renames[r]);
+
+            // TODO Make into a debug macro
+            for (size_t k = 0; k < a.size(); k++) {
+                assert (a[k] >= 0 && a[k] <= n_labels[l] && "Label out of bounds");
+            }
+            for (size_t k = 0; k < b.size(); k++) {
+                assert (b[k] >= 0 && b[k] <= n_labels[r] && "Label out of bounds");
+            }
 
             auto chunk_apply = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_chunk_apply = chunk_apply - chunk_init;
@@ -918,22 +924,25 @@ int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n
             }
             n_labels[l] = n_new_labels;
             n_labels[r] = n_new_labels;
+            if (verbose) {
+                std::cout << "Found " << n_new_labels << " new labels." << std::endl;
+            }
 
             // Store the renamings
             int64_t subtrees = (int64_t) std::pow(2, i);
 
             // Run through the left subtree
             for (int64_t k = j*2*subtrees; k < (j*2*subtrees)+subtrees; k++) {
-                for (int64_t l = 0; l < renames[k].size(); l++) {
-                    renames[k][l] = rename_l[renames[k][l]];
+                for (int64_t sub_l = 0; sub_l < (int64_t)renames[k].size(); sub_l++) {
+                    renames[k][sub_l] = rename_l[renames[k][sub_l]];
                 }
                 n_labels[k] = n_new_labels;
             }
 
             // Run through the right subtree
             for (int64_t k = (j*2*subtrees)+subtrees; k < (j*2*subtrees)+(2*subtrees); k++) {
-                for (int64_t l = 0; l < renames[k].size(); l++) {
-                    renames[k][l] = rename_r[renames[k][l]];
+                for (int64_t sub_r = 0; sub_r < (int64_t)renames[k].size(); sub_r++) {
+                    renames[k][sub_r] = rename_r[renames[k][sub_r]];
                 }
                 n_labels[k] = n_new_labels;
             }
@@ -951,7 +960,8 @@ int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n
     }
 
     for (int64_t i = 0; i < n_chunks; i++) {
-        apply_renaming(chunks + (i*chunk_size), chunk_size, renames[i]);
+        int64_t this_chunk_size = std::min(chunk_size, (total_z - (i * global_shape.z)) * global_shape.y * global_shape.x);
+        apply_renaming(chunks + (i*chunk_size), this_chunk_size, renames[i]);
     }
 
     return n_labels[std::get<0>(index_tree[index_tree.size()-1][0])];
