@@ -1061,79 +1061,45 @@ void print_rename(const std::vector<int64_t> &to_rename) {
 }
 
 // Ensures that the labels in the renaming LUTs are consecutive
-int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b) {
-    // We assume that mapping_t includes 0
-    std::vector<int64_t> mapped_a, unmapped_a, unmapped_b;
-    int64_t popped_a = 0, popped_b = 0;
-    for (int64_t i = 1; i < (int64_t) mapping_a.size(); i++) {
-        if (mapping_a[i].size() == 0) {
-            unmapped_a.push_back(i);
-        } else if (!mapping_a[i].contains(-1)) {
-            mapped_a.push_back(i);
-        } else {
-            popped_a++;
+int64_t recount_labels(std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b, int64_t max_label) {
+    // Find the labels that are actually used
+    std::unordered_set<int64_t> mapped_a;
+    for (int64_t i = 1; i < (int64_t) to_rename_a.size(); i++) {
+        if (to_rename_a[i] != 0) {
+            mapped_a.insert(to_rename_a[i]);
         }
     }
-    for (int64_t i = 1; i < (int64_t) mapping_b.size(); i++) {
-        if (mapping_b[i].size() == 0) {
-            unmapped_b.push_back(i);
-        } else if (mapping_b[i].contains(-1)) {
-            popped_b++;
-        }
-    }
-    // Sanity check
-    assert (mapped_a.size() + unmapped_a.size() == mapping_a.size()-popped_a-1);
-    assert (mapped_a.size() + unmapped_b.size() == mapping_b.size()-popped_b-1);
 
-    // Assign the first mapped_a labels to start from 1
-    std::vector<int64_t> new_rename_a(mapping_a.size());
-    for (int64_t i = 0; i < (int64_t) mapped_a.size(); i++) {
-        new_rename_a[mapped_a[i]] = i+1;
-    }
-    // Assign the unmapped_a labels to start from mapped_a.size()+1
-    for (int64_t i = 0; i < (int64_t) unmapped_a.size(); i++) {
-        new_rename_a[unmapped_a[i]] = i+1+mapped_a.size();
+    // Assign the first mapped_a labels to start from 1. These labels should be the same in both to_rename_a and to_rename_b
+    std::vector<int64_t> new_rename(max_label+1, -1); // -1 to capture faulty values
+    int64_t next = 1;
+    for (int64_t label : mapped_a) {
+        new_rename[label] = next++;
     }
 
-    // Apply the new renaming to the renaming LUT
-    for (int64_t i = 0; i < (int64_t) to_rename_a.size(); i++) {
-        to_rename_a[i] = new_rename_a[to_rename_a[i]];
+    // Apply the new renaming to the renaming LUTs
+    for (int64_t i = 1; i < (int64_t) to_rename_a.size(); i++) {
+        to_rename_a[i] = new_rename[to_rename_a[i]];
+    }
+    for (int64_t i = 1; i < (int64_t) to_rename_b.size(); i++) {
+        to_rename_b[i] = new_rename[to_rename_b[i]];
     }
 
-    // Update mapping_t b to use the new a labels
-    for (int64_t i = 1; i < (int64_t) mapping_b.size(); i++) {
-        auto entries = mapping_b[i];
-        std::unordered_set<int64_t> new_entries;
-        for (int64_t entry : entries) {
-            if (entry != -1) {
-                new_entries.insert(new_rename_a[entry]);
+    // Assign the rest of the unmapped labels in both LUTs
+    to_rename_a[0] = 0;
+    for (int64_t i = 1; i < (int64_t) to_rename_a.size(); i++) {
+        if (to_rename_a[i] == -1) {
+            to_rename_a[i] = next++;
             }
         }
-        mapping_b[i] = new_entries;
-    }
-
-    // Assign the first mapped_b labels to match the mapped_a labels
-    std::vector<int64_t> new_rename_b(mapping_b.size());
-    for (int64_t i = 0; i < (int64_t) mapped_a.size(); i++) {
-        auto label = mapped_a[i];
-        auto new_label = to_rename_a[label];
-        auto entries = mapping_a[label];
-        for (int64_t entry : entries) {
-            if (entry != -1) {
-                new_rename_b[entry] = new_label;
-            }
+    to_rename_b[0] = 0;
+    for (int64_t i = 1; i < (int64_t) to_rename_b.size(); i++) {
+        if (to_rename_b[i] == -1) {
+            to_rename_b[i] = next++;
         }
     }
-    // Assign the unmapped_b labels to start from 1+mapped_a.size()+unmapped_a.size()
-    for (int64_t i = 0; i < (int64_t) unmapped_b.size(); i++) {
-        new_rename_b[unmapped_b[i]] = i+1+mapped_a.size()+unmapped_a.size();
-    }
-    // Apply the new renaming to the renaming LUT
-    for (int64_t i = 0; i < (int64_t) to_rename_b.size(); i++) {
-        to_rename_b[i] = new_rename_b[to_rename_b[i]];
-    }
 
-    return mapped_a.size() + unmapped_a.size() + unmapped_b.size();
+    return next-1;
 }
 
 std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose) {
