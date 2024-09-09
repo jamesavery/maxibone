@@ -538,12 +538,15 @@ namespace gpu {
     }
 
     void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius) {
-        diffusion_core(buf0, kernel, buf1, P, 0, radius);
-        //diffusion_core_z(buf0, kernel, buf1, P, radius);
-        diffusion_core(buf1, kernel, buf0, P, 1, radius);
-        //diffusion_core_y(buf1, kernel, buf0, P, radius);
-        diffusion_core(buf0, kernel, buf1, P, 2, radius);
-        //diffusion_core_x(buf0, kernel, buf1, P, radius);
+        if (radius < 16) {
+            diffusion_core_z(buf0, kernel, buf1, P, radius);
+            diffusion_core_y(buf1, kernel, buf0, P, radius);
+            diffusion_core_x(buf0, kernel, buf1, P, radius);
+        } else {
+            diffusion_core(buf0, kernel, buf1, P, 0, radius);
+            diffusion_core(buf1, kernel, buf0, P, 1, radius);
+            diffusion_core(buf0, kernel, buf1, P, 2, radius);
+        }
         std::swap(buf0, buf1);
 
         illuminate(voxels, buf0, N, P);

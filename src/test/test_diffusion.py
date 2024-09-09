@@ -15,9 +15,9 @@ import scipy.ndimage as ndi
 from lib.cpp.cpu.diffusion import diffusion as diffusion_cpu
 from lib.cpp.gpu.diffusion import diffusion as diffusion_gpu
 
-n = 333
-sigma = 3 # Radius has to be <= 16 for the GPU implementation
-reps = 1
+n = 128
+sigma = 3 # Radius has to be <= 16 for the faster GPU implementation
+reps = 100
 plot = False
 
 run_py = True
