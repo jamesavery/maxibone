@@ -15,6 +15,7 @@
 #endif
 
 #include <array>
+#include <chrono>
 #include <iostream>
 #include <vector>
 #include <pybind11/pybind11.h>
