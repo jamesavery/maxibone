@@ -465,23 +465,19 @@ namespace gpu {
         }
     }
 
-    inline void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P, const int32_t stream) {
-        #pragma acc parallel vector_length(128) num_workers(1) present(src, dst) async(stream)
-        {
-            #pragma acc loop gang collapse(2)
-            for (int32_t z = 0; z < P.z; z++) {
-                for (int32_t y = 0; y < P.y; y++) {
-                    #pragma acc loop vector
-                    for (int32_t x = 0; x < P.x; x++) {
-                        const bool
-                            valid_z = z < N.z,
-                            valid_y = y < N.y,
-                            valid_x = x < N.x;
-                        const int64_t
-                            src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
-                            dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
-                        dst[dst_index] = valid_z && valid_y && valid_x ? (float) src[src_index] : 0.0f;
-                    }
+    void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P) {
+        #pragma acc parallel loop collapse(3) present(src, dst)
+        for (int32_t z = 0; z < (int32_t)P.z; z++) {
+            for (int32_t y = 0; y < (int32_t)P.y; y++) {
+                for (int32_t x = 0; x < (int32_t)P.x; x++) {
+                    const bool
+                        valid_z = z < (int32_t)N.z,
+                        valid_y = y < (int32_t)N.y,
+                        valid_x = x < (int32_t)N.x;
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)N.y*(int64_t)N.x + (int64_t)y*(int64_t)N.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)P.y*(int64_t)P.x + (int64_t)y*(int64_t)P.x + (int64_t)x;
+                    dst[dst_index] = valid_z && valid_y && valid_x && src[src_index] ? 1.0f : 0.0f;
                 }
             }
         }
@@ -541,17 +537,15 @@ namespace gpu {
         }
     }
 
-    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const float *__restrict__ kernel, const int64_t radius) {
-        constexpr int32_t veclen = 64;
-        const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
-        //for (int64_t dim = 0; dim < 3; dim++) {
-        //    diffusion_core(buf0, kernel, buf1, N, dim, radius);
-        //    std::swap(buf0, buf1);
-        //}
-        diffusion_core_z(buf0, kernel, buf1, P, radius);
-        diffusion_core_y(buf1, kernel, buf0, P, radius);
-        diffusion_core_x(buf0, kernel, buf1, P, radius);
+    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius) {
+        diffusion_core(buf0, kernel, buf1, P, 0, radius);
+        //diffusion_core_z(buf0, kernel, buf1, P, radius);
+        diffusion_core(buf1, kernel, buf0, P, 1, radius);
+        //diffusion_core_y(buf1, kernel, buf0, P, radius);
+        diffusion_core(buf0, kernel, buf1, P, 2, radius);
+        //diffusion_core_x(buf0, kernel, buf1, P, radius);
         std::swap(buf0, buf1);
+
         illuminate(voxels, buf0, N, P);
     }
 
@@ -569,7 +563,7 @@ namespace gpu {
     }
 
     void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
-        constexpr int32_t veclen = 64; // TODO
+        constexpr int32_t veclen = 32; // TODO
         const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
         const int64_t
             padded_size = P.z*P.y*P.x,
@@ -581,10 +575,9 @@ namespace gpu {
 
         #pragma acc data copyin(voxels[0:total_size], kernel[0:kernel_size]) copyout(output[0:total_size]) create(buf0[0:padded_size], buf1[0:padded_size])
         {
-            convert_uint8_to_float(voxels, buf0, N, P, 42);
-            #pragma acc wait
+            convert_uint8_to_float(voxels, buf0, N, P);
             for (int64_t rep = 0; rep < repititions; rep++) {
-                diffusion_step(voxels, buf0, buf1, N, kernel, radius);
+                diffusion_step(voxels, buf0, buf1, N, P, kernel, radius);
                 std::swap(buf0, buf1);
             }
             convert_float_to_uint16(buf0, output, N, P);
@@ -670,7 +663,7 @@ namespace gpu {
                     #pragma acc data copyin(buf0[:global_flat_size_padded]) copyout(buf1[:global_flat_size_padded])
                     {
                         store_mask(buf0, mask, global_flat_size_padded);
-                        diffusion_step(mask, buf0, buf1, global_shape_padded, kernel, radius);
+                        diffusion_step(mask, buf0, buf1, global_shape_padded, global_shape_padded, kernel, radius);
                     }
                     std::swap(buf0, buf1);
                     auto diffusion_end = std::chrono::high_resolution_clock::now();
@@ -735,7 +728,7 @@ namespace gpu {
             total_shape_padded = {total_shape.z, total_shape.y, (total_shape.x + veclen - 1) / veclen * veclen},
             global_shape_padded = {global_shape.z+kernel_size-1, global_shape.y, (global_shape.x + veclen - 1) / veclen * veclen};
         const int64_t
-            total_size = total_shape.z*total_shape.y*total_shape.x,
+            //total_size = total_shape.z*total_shape.y*total_shape.x,
             total_size_padded = total_shape_padded.z*total_shape_padded.y*total_shape_padded.x,
             global_size = global_shape.z*global_shape.y*global_shape.x,
             global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x,
