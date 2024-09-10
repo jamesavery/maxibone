@@ -4,6 +4,7 @@
 #include <iostream>
 #include <filesystem>
 #include "openacc.h"
+#include "omp.h"
 
 constexpr bool
     DEBUG = false,
@@ -11,7 +12,7 @@ constexpr bool
 
 namespace gpu {
 
-    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
+    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius, const int stream = 0) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
 
         const int32_t
@@ -19,7 +20,7 @@ namespace gpu {
             stride = strides[dim],
             Ns[3] = {N.z, N.y, N.x};
 
-        #pragma acc parallel loop collapse(3) present(input, kernel, output)
+        #pragma acc parallel loop collapse(3) present(input, kernel, output) async(stream)
         for (int32_t i = 0; i < N.z; i++) {
             for (int32_t j = 0; j < N.y; j++) {
                 for (int32_t k = 0; k < N.x; k++) {
@@ -118,7 +119,7 @@ namespace gpu {
     }
 
     // TODO Make this call y, since they're VERY similar?
-    void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+    void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream = 0) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
@@ -128,7 +129,7 @@ namespace gpu {
         const int32_t
             kernel_size = 2*radius+1,
             nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output) async(stream)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t y = 0; y < ny; y++) {
@@ -171,7 +172,7 @@ namespace gpu {
         }
     }
 
-    void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+    void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream = 0) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
@@ -181,7 +182,7 @@ namespace gpu {
         const int32_t
             kernel_size = 2*radius+1,
             nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output) async(stream)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t z = 0; z < nz; z++) {
@@ -224,12 +225,12 @@ namespace gpu {
         }
     }
 
-    void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+    void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
         constexpr int32_t veclen = 32;
         float local[3*veclen], local_kernel[veclen]; // Local memory.
         const int32_t nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
+        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output) async(stream)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t z = 0; z < nz; z++) {
@@ -510,8 +511,8 @@ namespace gpu {
         fclose(file_src);
     }
 
-    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size) {
-        #pragma acc parallel loop present(mask, output)
+    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size, const int stream = 0) {
+        #pragma acc parallel loop present(mask, output) async(stream)
         for (int64_t thread = 0; thread < gpu_threads; thread++) {
             const int64_t
                 chunk_size = local_flat_size / gpu_threads,
@@ -523,8 +524,8 @@ namespace gpu {
         }
     }
 
-    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P) {
-        #pragma acc parallel loop collapse(3) present(mask, output)
+    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P, const int stream = 0) {
+        #pragma acc parallel loop collapse(3) present(mask, output) async(stream)
         for (int32_t z = 0; z < N.z; z++) {
             for (int32_t y = 0; y < N.y; y++) {
                 for (int32_t x = 0; x < N.x; x++) {
@@ -537,19 +538,19 @@ namespace gpu {
         }
     }
 
-    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius) {
+    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius, const int stream = 0) {
         if (radius < 16) {
-            diffusion_core_z(buf0, kernel, buf1, P, radius);
-            diffusion_core_y(buf1, kernel, buf0, P, radius);
-            diffusion_core_x(buf0, kernel, buf1, P, radius);
+            diffusion_core_z(buf0, kernel, buf1, P, radius, stream);
+            diffusion_core_y(buf1, kernel, buf0, P, radius, stream);
+            diffusion_core_x(buf0, kernel, buf1, P, radius, stream);
         } else {
-            diffusion_core(buf0, kernel, buf1, P, 0, radius);
-            diffusion_core(buf1, kernel, buf0, P, 1, radius);
-            diffusion_core(buf0, kernel, buf1, P, 2, radius);
+            diffusion_core(buf0, kernel, buf1, P, 0, radius, stream);
+            diffusion_core(buf1, kernel, buf0, P, 1, radius, stream);
+            diffusion_core(buf0, kernel, buf1, P, 2, radius, stream);
         }
         std::swap(buf0, buf1);
 
-        illuminate(voxels, buf0, N, P);
+        illuminate(voxels, buf0, N, P, stream);
     }
 
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
@@ -729,169 +730,174 @@ namespace gpu {
         fclose(tmp1);
     }
 
+    // The full data sample resides in main memory, but out of GPU memory.
+    // Assumes that each shape in global_shape is > kernel_size in order to contain the overlap. This assumption allows for controlling the memory used by each thread / async operation outside of this call.
     void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
-        constexpr int32_t veclen = 32; // TODO
+        // TODO should be a configuration parameter set somewhere global / statically during configuration/compilation.
+        constexpr int32_t
+            veclen = 32,
+            #pragma diag_suppress 177
+            n_devices = 1,
+            n_streams = 1;
+        const int64_t radius = kernel_size / 2;
         const shape_t
-            total_shape_padded = {total_shape.z, total_shape.y, (total_shape.x + veclen - 1) / veclen * veclen},
-            global_shape_padded = {global_shape.z+kernel_size-1, global_shape.y, (global_shape.x + veclen - 1) / veclen * veclen};
+            //total_shape_padded = {
+            //    ((total_shape.z + veclen - 1) / veclen) * veclen,
+            //    ((total_shape.y + veclen - 1) / veclen) * veclen,
+            //    ((total_shape.x + veclen - 1) / veclen) * veclen
+            //},
+            // TODO assume that global_shape is also aligned to veclen?
+            global_shape_padded = {
+                (((global_shape.z + 2*radius) + veclen - 1) / veclen) * veclen,
+                (((global_shape.y + 2*radius) + veclen - 1) / veclen) * veclen,
+                (((global_shape.x + 2*radius) + veclen - 1) / veclen) * veclen
+            },
+            blocks_shape = {
+                (total_shape.z + global_shape.z - 1) / global_shape.z,
+                (total_shape.y + global_shape.y - 1) / global_shape.y,
+                (total_shape.x + global_shape.x - 1) / global_shape.x
+            };
         const int64_t
-            //total_size = total_shape.z*total_shape.y*total_shape.x,
-            total_size_padded = total_shape_padded.z*total_shape_padded.y*total_shape_padded.x,
-            global_size = global_shape.z*global_shape.y*global_shape.x,
-            global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x,
-            radius = kernel_size / 2,
-            blocks = (total_shape.z + global_shape.z - 1) / global_shape.z;
+            total_size = total_shape.z*total_shape.y*total_shape.x,
+            //total_size_padded = total_shape_padded.z*total_shape_padded.y*total_shape_padded.x,
+            //global_size = global_shape.z*global_shape.y*global_shape.x,
+            //blocks = (total_shape.z + global_shape.z - 1) / global_shape.z,
+            global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x;
 
-        float *buf0 = new float[total_size_padded];
-        float *buf1 = new float[total_size_padded];
-        float *buf0_stage = new float[global_size_padded];
-        float *buf1_stage = new float[global_size_padded];
-        uint8_t *mask = new uint8_t[global_size_padded];
+        float *buf0 = (float *) malloc(total_size * sizeof(float));
+        float *buf1 = (float *) malloc(total_size * sizeof(float));
 
-        const int32_t n_streams = 3; // read, compute, write
-        uint8_t *voxels_ds[n_streams];
-        float *buf0_ds[n_streams];
-        for (int32_t i = 0; i < n_streams; i++) {
-            voxels_ds[i] = (uint8_t *) acc_malloc(global_size * sizeof(uint8_t));
-            buf0_ds[i] = (float *) acc_malloc(global_size_padded * sizeof(float));
+        // Should be faster on CPU, compared to GPU, since the data has to come back to the CPU anyways due to the size. For in-memory, the GPU version is faster, since the transfer back can be avoided.
+        // This should be tested to confirm.
+        #pragma omp parallel for collapse(3) schedule(static)
+        for (int32_t z = 0; z < total_shape.z; z++) {
+            for (int32_t y = 0; y < total_shape.y; y++) {
+                for (int32_t x = 0; x < total_shape.x; x++) {
+                    bool
+                        z_valid = z < total_shape.z,
+                        y_valid = y < total_shape.y,
+                        x_valid = x < total_shape.x;
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)y*(int64_t)total_shape.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)y*(int64_t)total_shape.x + (int64_t)x;
+                    buf0[dst_index] = z_valid && y_valid && x_valid && voxels[src_index] ? 1.0f : 0.0f;
+                }
+            }
         }
 
-        for (int64_t start_z = 0; start_z < total_shape.z; start_z += global_shape.z) {
-            const int64_t
-                end_z = std::min(total_shape.z, start_z + global_shape.z),
-                this_z = end_z - start_z;
-            const shape_t
-                this_shape = {this_z, global_shape.y, global_shape.x},
-                this_shape_padded = {this_z, global_shape_padded.y, global_shape_padded.x};
-            const int64_t
-                this_block_size = this_shape.z * this_shape.y * this_shape.x,
-                this_block_size_padded = this_shape_padded.z * this_shape_padded.y * this_shape_padded.x;
-            uint8_t *this_voxels = voxels + (start_z * total_shape.y * total_shape.x);
-            float *this_buf0 = buf0 + (start_z * total_shape_padded.y * total_shape_padded.x);
-            const int32_t stream = ((start_z / global_shape.z) % n_streams);
-            uint8_t *voxels_d = voxels_ds[stream];
-            float *buf0_d = buf0_ds[stream];
-            #pragma acc declare deviceptr(voxels_d, buf0_d)
-            {
-                acc_memcpy_to_device_async(voxels_d, this_voxels, this_block_size * sizeof(uint8_t), stream);
-                // TODO for some reason, it fails when called as a function. Pasted function content works.
-                //convert_uint8_to_float(voxels_d, buf0_d, this_shape, this_shape_padded, stream);
+        #pragma omp parallel num_threads(n_devices * n_streams)
+        {
+            int32_t
+                tid = omp_get_thread_num(),
+                __attribute__((unused)) device = tid / n_streams,
+                stream = tid % n_streams;
+            acc_set_device_num(device, acc_device_nvidia);
 
-                #pragma acc parallel vector_length(128) num_workers(1) present(voxels_d, buf0_d) async(stream)
-                {
-                    #pragma acc loop gang collapse(2)
-                    for (int32_t z = 0; z < this_shape_padded.z; z++) {
-                        for (int32_t y = 0; y < this_shape_padded.y; y++) {
-                            #pragma acc loop vector
-                            for (int32_t x = 0; x < this_shape_padded.x; x++) {
-                                const bool
-                                    valid_z = z < this_shape.z,
-                                    valid_y = y < this_shape.y,
-                                    valid_x = x < this_shape.x;
-                                const int64_t
-                                    src_index = (int64_t)z*(int64_t)this_shape.y*(int64_t)this_shape.x + (int64_t)y*(int64_t)this_shape.x + (int64_t)x,
-                                    dst_index = (int64_t)z*(int64_t)this_shape_padded.y*(int64_t)this_shape_padded.x + (int64_t)y*(int64_t)this_shape_padded.x + (int64_t)x;
-                                buf0_d[dst_index] = valid_z && valid_y && valid_x ? (float) voxels_d[src_index] : 0.0f;
+            uint8_t
+                // Staging area on host
+                *voxels_h = (uint8_t *) malloc(global_size_padded * sizeof(uint8_t)),
+                // Device memory
+                *voxels_d = (uint8_t *) acc_malloc(global_size_padded * sizeof(uint8_t));
+            float
+                // Staging area on host
+                *buf0_h = (float *) malloc(global_size_padded * sizeof(float)),
+                *buf1_h = (float *) malloc(global_size_padded * sizeof(float)),
+                // Device memory
+                *buf0_d = (float *) acc_malloc(global_size_padded * sizeof(float)),
+                *buf1_d = (float *) acc_malloc(global_size_padded * sizeof(float));
+
+            acc_map_data(voxels_d, voxels_h, global_size_padded * sizeof(uint8_t));
+            acc_map_data(buf0_d, buf0_h, global_size_padded * sizeof(float));
+            acc_map_data(buf1_d, buf1_h, global_size_padded * sizeof(float));
+
+            for (int64_t rep = 0; rep < repititions; rep++) {
+                #pragma omp for collapse(3) schedule(dynamic)
+                for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
+                    for (int32_t by = 0; by < blocks_shape.y; by++) {
+                        for (int32_t bx = 0; bx < blocks_shape.x; bx++) {
+                            const int64_t
+                                start_z = bz * global_shape.z,
+                                start_y = by * global_shape.y,
+                                start_x = bx * global_shape.x,
+                                end_z = std::min(total_shape.z, start_z + global_shape.z),
+                                end_y = std::min(total_shape.y, start_y + global_shape.y),
+                                end_x = std::min(total_shape.x, start_x + global_shape.x);
+
+                            // Copy the data to the staging area
+                            for (int32_t z = 0; z < global_shape_padded.z; z++) {
+                                for (int32_t y = 0; y < global_shape_padded.y; y++) {
+                                    for (int32_t x = 0; x < global_shape_padded.x; x++) {
+                                        const int64_t
+                                            offsetted_z = start_z + z - radius,
+                                            offsetted_y = start_y + y - radius,
+                                            offsetted_x = start_x + x - radius,
+                                            src_index = (int64_t)offsetted_z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)offsetted_y*(int64_t)total_shape.x + (int64_t)offsetted_x,
+                                            dst_index = (int64_t)z*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + (int64_t)y*(int64_t)global_shape_padded.x + (int64_t)x;
+                                        const bool
+                                            valid_z = offsetted_z >= 0 && offsetted_z < total_shape.z,
+                                            valid_y = offsetted_y >= 0 && offsetted_y < total_shape.y,
+                                            valid_x = offsetted_x >= 0 && offsetted_x < total_shape.x;
+                                        voxels_h[dst_index] = valid_z && valid_y && valid_x ? voxels[src_index] : 0;
+                                        buf0_h[dst_index] = valid_z && valid_y && valid_x ? buf0[src_index] : 0;
+                                    }
+                                }
+                            }
+
+                            #pragma acc declare deviceptr(voxels_d, buf0_d, buf1_d)
+                            {
+                                acc_memcpy_to_device_async(voxels_d, voxels_h, global_size_padded * sizeof(uint8_t), stream);
+                                acc_memcpy_to_device_async(buf0_d, buf0_h, global_size_padded * sizeof(float), stream);
+                                acc_wait(stream);
+                                diffusion_step(voxels_d, buf0_d, buf1_d, global_shape_padded, global_shape_padded, kernel, radius, stream);
+                                acc_memcpy_from_device_async(buf1_h, buf1_d, global_size_padded * sizeof(float), stream);
+                                acc_wait(stream);
+                            }
+
+                            // Copy the data back
+                            for (int32_t z = 0; z < global_shape.z; z++) {
+                                for (int32_t y = 0; y < global_shape.y; y++) {
+                                    for (int32_t x = 0; x < global_shape.x; x++) {
+                                        const int64_t
+                                            src_index = ((int64_t)z+radius)*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + ((int64_t)y+radius)*(int64_t)global_shape_padded.x + (int64_t)x+radius,
+                                            dst_index = ((int64_t)start_z+(int64_t)z)*(int64_t)total_shape.y*(int64_t)total_shape.x + ((int64_t)start_y+(int64_t)y)*(int64_t)total_shape.x + (int64_t)start_x+(int64_t)x;
+                                        buf1[dst_index] = buf1_h[src_index];
+                                    }
+                                }
                             }
                         }
                     }
                 }
-
-                acc_memcpy_from_device_async(this_buf0, buf0_d, this_block_size_padded * sizeof(float), stream);
+                std::swap(buf0, buf1);
             }
+
+            acc_unmap_data(voxels_d);
+            acc_unmap_data(buf0_d);
+            acc_unmap_data(buf1_d);
+
+            free(voxels_h);
+            free(buf0_h);
+            free(buf1_h);
+
+            acc_free(voxels_d);
+            acc_free(buf0_d);
+            acc_free(buf1_d);
         }
-        #pragma acc wait
-        const std::string debug_newline = DEBUG ? "\n" : "";
-        for (int32_t i = 0; i < n_streams; i++) {
-            acc_free(voxels_ds[i]);
-            acc_free(buf0_ds[i]);
-        }
 
-        #pragma acc data copyin(kernel[:kernel_size]) // TODO pad kernel?
-        {
-        for (int64_t rep = 0; rep < repititions; rep++) {
-            for (int64_t block = 0; block < blocks; block++) {
-                std::cout << "\rDiffusion: " << rep*blocks + block << "/" << repititions*blocks << debug_newline << std::flush;
-
-                const int64_t
-                    global_start_z = block * global_shape.z,
-                    global_end_z = std::min(total_shape.z, global_start_z + global_shape.z),
-                    padding_front = std::min((int64_t) radius, global_start_z),
-                    padding_back = std::min((int64_t) radius, total_shape.z - global_end_z),
-                    global_start_z_padded = global_start_z - padding_front,
-                    global_end_z_padded = global_end_z + padding_back,
-                    this_z = global_end_z - global_start_z,
-                    this_z_padded = global_end_z_padded - global_start_z_padded,
-                    leading_zeros_z = radius - padding_front,
-                    trailing_zeros_z = global_end_z_padded == total_shape.z ? global_shape_padded.z - this_z_padded : radius - padding_back,
-                    leading_zeros = leading_zeros_z * total_shape_padded.y * total_shape_padded.x,
-                    trailing_zeros = trailing_zeros_z * total_shape_padded.y * total_shape_padded.x,
-                    this_block_size = this_z * total_shape_padded.y * total_shape_padded.x,
-                    this_block_size_padded = this_z_padded * total_shape_padded.y * total_shape_padded.x;
-
-                if (DEBUG) {
-                    std::cout << global_shape_padded.z << " " << global_shape.z << " " << total_shape.z << std::endl;
-                    std::cout << global_start_z_padded << " " << global_start_z << " " << global_end_z << " " << global_end_z_padded << std::endl;
-                    std::cout << leading_zeros_z << " " << padding_front << " " << this_z << " " << padding_back << " " << trailing_zeros_z << std::endl;
-                    std::cout << leading_zeros << " " << this_block_size_padded << " " << trailing_zeros << std::endl;
-                    std::cout << this_block_size << std::endl;
-                    std::cout << "-----" << std::endl;
+        // Same argument as above - should be faster for CPU.
+        #pragma omp parallel for collapse(3) schedule(static)
+        for (int32_t z = 0; z < total_shape.z; z++) {
+            for (int32_t y = 0; y < total_shape.y; y++) {
+                for (int32_t x = 0; x < total_shape.x; x++) {
+                    const int64_t
+                        src_index = (int64_t)z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)y*(int64_t)total_shape.x + (int64_t)x,
+                        dst_index = (int64_t)z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)y*(int64_t)total_shape.x + (int64_t)x;
+                    output[dst_index] = (uint16_t) std::floor(buf0[src_index] * 65535.0f);
                 }
-
-                assert (this_block_size <= global_size_padded && "Block size is too large");
-                assert (leading_zeros_z + padding_front + this_z + padding_back + trailing_zeros_z == global_shape_padded.z && "Block size is incorrect");
-                assert (leading_zeros + this_block_size_padded + trailing_zeros == global_size_padded && "Block size is incorrect");
-
-                // Set the leading 0s of the stage
-                memset(buf0_stage, 0, leading_zeros * sizeof(float));
-                memcpy(buf0_stage + leading_zeros, buf0 + (global_start_z_padded * total_shape_padded.y * total_shape_padded.x), this_block_size_padded * sizeof(float));
-                memset(buf0_stage + leading_zeros + this_block_size_padded, 0, trailing_zeros * sizeof(float));
-
-                // TODO yuck
-                memset(mask, 0, leading_zeros * sizeof(uint8_t));
-                memcpy(mask + leading_zeros, voxels + (global_start_z_padded * total_shape.y * total_shape.x), (this_z_padded * total_shape.y * total_shape.x) * sizeof(uint8_t));
-                memset(mask + leading_zeros + (this_z_padded * total_shape.y * total_shape.x), 0, trailing_zeros * sizeof(uint8_t));
-
-                #pragma acc data copy(mask[:global_shape_padded.z*global_shape.y*global_shape.x], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded])
-                {
-                    //diffusion_core(buf0_stage, kernel, buf1_stage, global_shape_padded, 0, radius);
-                    //diffusion_core(buf1_stage, kernel, buf0_stage, global_shape_padded, 1, radius);
-                    //diffusion_core(buf0_stage, kernel, buf1_stage, global_shape_padded, 2, radius);
-                    diffusion_core_z(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
-                    diffusion_core_y(buf1_stage, kernel, buf0_stage, global_shape_padded, radius);
-                    diffusion_core_x(buf0_stage, kernel, buf1_stage, global_shape_padded, radius);
-                    illuminate(mask, buf1_stage, {global_shape_padded.z, global_shape.y, global_shape.x}, global_shape_padded);
-                }
-
-                // Copy the result back
-                memcpy(buf1 + (global_start_z * total_shape_padded.y * total_shape_padded.x), buf1_stage + leading_zeros + (padding_front*total_shape_padded.y*total_shape_padded.x), this_block_size * sizeof(float));
-            }
-            std::swap(buf0, buf1);
-        }
-        }
-        std::cout << "\rDiffusion is complete!" << std::endl;
-
-        for (int64_t start_z = 0; start_z < total_shape.z; start_z += global_shape.z) {
-            const int64_t end_z = std::min(total_shape.z, start_z + global_shape.z);
-            const shape_t
-                this_shape = {end_z - start_z, global_shape.y, global_shape.x},
-                this_shape_padded = {end_z - start_z, global_shape_padded.y, global_shape_padded.x};
-            const int64_t
-                this_block_size = this_shape.z * this_shape.y * this_shape.x,
-                this_block_size_padded = this_shape_padded.z * this_shape_padded.y * this_shape_padded.x;
-            const float *this_buf0 = buf0 + (start_z * total_shape_padded.y * total_shape_padded.x);
-            uint16_t *this_output = output + (start_z * total_shape.y * total_shape.x);
-
-            #pragma acc data copyin(this_buf0[:this_block_size_padded]) create(this_output[:this_block_size]) copyout(this_output[:this_block_size])
-            {
-                convert_float_to_uint16(this_buf0, this_output, this_shape, this_shape_padded);
             }
         }
 
-        delete[] buf0;
-        delete[] buf1;
-        delete[] buf0_stage;
-        delete[] buf1_stage;
+        free(buf0);
+        free(buf1);
     }
 
 }
