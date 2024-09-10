@@ -19,6 +19,7 @@ n = 128
 sigma = 3 # Radius has to be <= 16 for the faster GPU implementation
 reps = 100
 plot = False
+verify = True
 
 run_py = True
 run_cpp = True
@@ -73,21 +74,25 @@ if run_cpp:
     cpp_impl = np.empty(a.shape, np.uint16)
     diffusion_cpu(a.astype(np.uint8), kernel, cpp_impl, reps)
     cpp_end = datetime.datetime.now()
-    print (f"Parallel CPU C++ implementation took {cpp_end - cpp_start} ({(python_end - python_start) / (cpp_end - cpp_start):.2f}x)")
+    if verify:
+        print (f"Parallel CPU C++ implementation took {cpp_end - cpp_start} ({(python_end - python_start) / (cpp_end - cpp_start):.2f}x)")
+    else:
+        print (f"Parallel CPU C++ implementation took {cpp_end - cpp_start}")
 
     if plot:
         plt.imshow(cpp_impl[n//2], cmap='gray')
         plt.savefig('cpp_impl.png')
         plt.close()
 
-    # Check if the results are the same
-    diff = np.abs(python_impl.astype(np.int32) - cpp_impl.astype(np.int32))
-    divergers = np.sum(diff > 0)
-    divergers2 = np.sum(diff > 1)
-    if divergers2 > 0:
-        print (f"Found {divergers} diverging pixels out of ({n**3}) ({divergers / n**3 * 100:.2f}%)")
-        print (f"Found {divergers2} pixels with a difference greater than 1 ({divergers2 / n**3 * 100:.2f}%)")
-    assert np.all(diff <= 1)
+    if verify:
+        # Check if the results are the same
+        diff = np.abs(python_impl.astype(np.int32) - cpp_impl.astype(np.int32))
+        divergers = np.sum(diff > 0)
+        divergers2 = np.sum(diff > 1)
+        if divergers2 > 0:
+            print (f"Found {divergers} diverging pixels out of ({n**3}) ({divergers / n**3 * 100:.2f}%)")
+            print (f"Found {divergers2} pixels with a difference greater than 1 ({divergers2 / n**3 * 100:.2f}%)")
+        assert np.all(diff <= 1)
 
 #
 # Parallel GPU C++ implementation
@@ -97,25 +102,29 @@ if run_gpu:
     gpu_impl = np.empty(a.shape, np.uint16)
     diffusion_gpu(a.astype(np.uint8), kernel, gpu_impl, reps)
     gpu_end = datetime.datetime.now()
-    print (f"Parallel GPU C++ implementation took {gpu_end - gpu_start} ({(python_end - python_start) / (gpu_end - gpu_start):.2f}x)")
+    if verify:
+        print (f"Parallel GPU C++ implementation took {gpu_end - gpu_start} ({(python_end - python_start) / (gpu_end - gpu_start):.2f}x)")
+    else:
+        print (f"Parallel GPU C++ implementation took {gpu_end - gpu_start}")
 
     if plot:
         plt.imshow(gpu_impl[n//2], cmap='gray')
         plt.savefig('gpu_impl.png')
         plt.close()
 
-    # Check if the results are the same
-    diff = np.abs(python_impl.astype(np.int32) - gpu_impl.astype(np.int32))
-    divergers = np.sum(diff > 0)
-    divergers2 = np.sum(diff > 1)
-    if divergers2 > 0:
-        print (f"Found {divergers} diverging pixels out of ({n**3}) ({divergers / n**3 * 100:.2f}%)")
-        print (f"Found {divergers2} pixels with a difference greater than 1 ({divergers2 / n**3 * 100:.2f}%)")
-        if plot:
-            plt.imshow(diff[n//2])
-            plt.colorbar()
-            plt.savefig('diff.png')
-            plt.close()
-        checksum = np.sum(gpu_impl)
-        print (f"Checksum of GPU: {checksum != 0} ({checksum})")
-    assert np.all(diff <= 1)
+    if verify:
+        # Check if the results are the same
+        diff = np.abs(python_impl.astype(np.int32) - gpu_impl.astype(np.int32))
+        divergers = np.sum(diff > 0)
+        divergers2 = np.sum(diff > 1)
+        if divergers2 > 0:
+            print (f"Found {divergers} diverging pixels out of ({n**3}) ({divergers / n**3 * 100:.2f}%)")
+            print (f"Found {divergers2} pixels with a difference greater than 1 ({divergers2 / n**3 * 100:.2f}%)")
+            if plot:
+                plt.imshow(diff[n//2])
+                plt.colorbar()
+                plt.savefig('diff.png')
+                plt.close()
+            checksum = np.sum(gpu_impl)
+            print (f"Checksum of GPU: {checksum != 0} ({checksum})")
+        assert np.all(diff <= 1)
