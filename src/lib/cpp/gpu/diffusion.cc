@@ -567,7 +567,11 @@ namespace gpu {
 
     void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
         constexpr int32_t veclen = 32; // TODO
-        const shape_t P = { N.z, N.y, (N.x + veclen-1) / veclen * veclen };
+        const shape_t P = {
+            ((N.z + veclen-1) / veclen) * veclen,
+            ((N.y + veclen-1) / veclen) * veclen,
+            ((N.x + veclen-1) / veclen) * veclen
+        };
         const int64_t
             padded_size = P.z*P.y*P.x,
             total_size = N.z*N.y*N.x,
