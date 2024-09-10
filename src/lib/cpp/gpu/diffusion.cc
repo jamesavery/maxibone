@@ -122,7 +122,7 @@ namespace gpu {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
-            veclen = 64,
+            veclen = 32,
             max_k = 32,
             sqvec = max_k*veclen;
         const int32_t
@@ -175,7 +175,7 @@ namespace gpu {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
-            veclen = 64,
+            veclen = 32,
             max_k = 32,
             sqvec = max_k*veclen;
         const int32_t
@@ -726,7 +726,7 @@ namespace gpu {
     }
 
     void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
-        constexpr int32_t veclen = 64; // TODO
+        constexpr int32_t veclen = 32; // TODO
         const shape_t
             total_shape_padded = {total_shape.z, total_shape.y, (total_shape.x + veclen - 1) / veclen * veclen},
             global_shape_padded = {global_shape.z+kernel_size-1, global_shape.y, (global_shape.x + veclen - 1) / veclen * veclen};
