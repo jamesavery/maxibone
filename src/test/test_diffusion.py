@@ -26,6 +26,7 @@ if plot: os.makedirs(plotting_dir, exist_ok=True)
 run_py = True
 run_cpp = True
 run_gpu = True
+verify = run_py and True
 
 # Generate a random 3d array and binarize it
 np.random.seed(42)
