@@ -777,7 +777,7 @@ namespace gpu {
             }
         }
 
-        #pragma omp parallel num_threads(n_devices * n_streams)
+        #pragma omp parallel num_threads(n_devices * n_streams) shared(voxels, buf0, buf1, output) firstprivate(kernel, kernel_size, total_shape, global_shape, global_shape_padded, blocks_shape, repititions, radius, total_size, global_size_padded)
         {
             int32_t
                 tid = omp_get_thread_num(),
