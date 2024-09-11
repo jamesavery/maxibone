@@ -793,23 +793,12 @@ namespace gpu {
                 stream = tid % n_streams;
             acc_set_device_num(device, acc_device_nvidia);
 
-            uint8_t
-                // Staging area on host
-                *voxels_h = (uint8_t *) malloc(global_size_padded * sizeof(uint8_t)),
-                // Device memory
-                *voxels_d = (uint8_t *) acc_malloc(global_size_padded * sizeof(uint8_t));
-            float
-                // Staging area on host
-                *buf0_h = (float *) malloc(global_size_padded * sizeof(float)),
-                *buf1_h = (float *) malloc(global_size_padded * sizeof(float)),
-                // Device memory
-                *buf0_d = (float *) acc_malloc(global_size_padded * sizeof(float)),
-                *buf1_d = (float *) acc_malloc(global_size_padded * sizeof(float));
+            uint8_t *voxels_stage = (uint8_t *) malloc(global_size_padded * sizeof(uint8_t));
+            float *buf0_stage = (float *) malloc(global_size_padded * sizeof(float));
+            float *buf1_stage = (float *) malloc(global_size_padded * sizeof(float));
 
-            acc_map_data(voxels_d, voxels_h, global_size_padded * sizeof(uint8_t));
-            acc_map_data(buf0_d, buf0_h, global_size_padded * sizeof(float));
-            acc_map_data(buf1_d, buf1_h, global_size_padded * sizeof(float));
-
+            #pragma acc data create(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded]) copyin(kernel[:kernel_size])
+            {
             for (int64_t rep = 0; rep < repititions; rep++) {
                 #pragma omp for collapse(3) schedule(dynamic)
                 for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
@@ -837,30 +826,24 @@ namespace gpu {
                                             valid_z = offsetted_z >= 0 && offsetted_z < total_shape.z,
                                             valid_y = offsetted_y >= 0 && offsetted_y < total_shape.y,
                                             valid_x = offsetted_x >= 0 && offsetted_x < total_shape.x;
-                                        voxels_h[dst_index] = valid_z && valid_y && valid_x ? voxels[src_index] : 0;
-                                        buf0_h[dst_index] = valid_z && valid_y && valid_x ? buf0[src_index] : 0;
+                                        voxels_stage[dst_index] = valid_z && valid_y && valid_x ? voxels[src_index] : 0;
+                                        buf0_stage[dst_index] = valid_z && valid_y && valid_x ? buf0[src_index] : 0;
                                     }
                                 }
                             }
 
-                            #pragma acc declare deviceptr(voxels_d, buf0_d, buf1_d)
-                            {
-                                acc_memcpy_to_device_async(voxels_d, voxels_h, global_size_padded * sizeof(uint8_t), stream);
-                                acc_memcpy_to_device_async(buf0_d, buf0_h, global_size_padded * sizeof(float), stream);
-                                acc_wait(stream);
-                                diffusion_step(voxels_d, buf0_d, buf1_d, global_shape_padded, global_shape_padded, kernel, radius, stream);
-                                acc_memcpy_from_device_async(buf1_h, buf1_d, global_size_padded * sizeof(float), stream);
-                                acc_wait(stream);
-                            }
+                            #pragma acc update device(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded])
+                            diffusion_step(voxels_stage, buf0_stage, buf1_stage, global_shape_padded, global_shape_padded, kernel, radius);
+                            #pragma acc update self(buf1_stage[:global_size_padded])
 
-                            // Copy the data back
+                            // Copy the data back from the staging area
                             for (int32_t z = 0; z < global_shape.z; z++) {
                                 for (int32_t y = 0; y < global_shape.y; y++) {
                                     for (int32_t x = 0; x < global_shape.x; x++) {
                                         const int64_t
                                             src_index = ((int64_t)z+radius)*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + ((int64_t)y+radius)*(int64_t)global_shape_padded.x + (int64_t)x+radius,
                                             dst_index = ((int64_t)start_z+(int64_t)z)*(int64_t)total_shape.y*(int64_t)total_shape.x + ((int64_t)start_y+(int64_t)y)*(int64_t)total_shape.x + (int64_t)start_x+(int64_t)x;
-                                        buf1[dst_index] = buf1_h[src_index];
+                                        buf1[dst_index] = buf1_stage[src_index];
                                     }
                                 }
                             }
@@ -869,18 +852,11 @@ namespace gpu {
                 }
                 std::swap(buf0, buf1);
             }
+            }
 
-            acc_unmap_data(voxels_d);
-            acc_unmap_data(buf0_d);
-            acc_unmap_data(buf1_d);
-
-            free(voxels_h);
-            free(buf0_h);
-            free(buf1_h);
-
-            acc_free(voxels_d);
-            acc_free(buf0_d);
-            acc_free(buf1_d);
+            free(voxels_stage);
+            free(buf0_stage);
+            free(buf1_stage);
         }
 
         // Same argument as above - should be faster for CPU.
