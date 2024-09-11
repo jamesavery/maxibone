@@ -780,7 +780,7 @@ namespace gpu {
         {
             int32_t
                 tid = omp_get_thread_num(),
-                __attribute__((unused)) device = tid / n_streams,
+                device = tid / n_streams,
                 stream = tid % n_streams;
             acc_set_device_num(device, acc_device_nvidia);
 
