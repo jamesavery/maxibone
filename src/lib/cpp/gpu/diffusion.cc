@@ -12,7 +12,7 @@ constexpr bool
 
 namespace gpu {
 
-    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius, const int stream = 0) {
+    void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
 
         const int32_t
@@ -20,7 +20,7 @@ namespace gpu {
             stride = strides[dim],
             Ns[3] = {N.z, N.y, N.x};
 
-        #pragma acc parallel loop collapse(3) present(input, kernel, output) async(stream)
+        #pragma acc parallel loop collapse(3) present(input, kernel, output)
         for (int32_t i = 0; i < N.z; i++) {
             for (int32_t j = 0; j < N.y; j++) {
                 for (int32_t k = 0; k < N.x; k++) {
@@ -119,7 +119,7 @@ namespace gpu {
     }
 
     // TODO Make this call y, since they're VERY similar?
-    void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream = 0) {
+    void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
@@ -129,7 +129,7 @@ namespace gpu {
         const int32_t
             kernel_size = 2*radius+1,
             nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output) async(stream)
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t y = 0; y < ny; y++) {
@@ -172,7 +172,7 @@ namespace gpu {
         }
     }
 
-    void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream = 0) {
+    void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
@@ -182,7 +182,7 @@ namespace gpu {
         const int32_t
             kernel_size = 2*radius+1,
             nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output) async(stream)
+        #pragma acc parallel vector_length(veclen) num_workers(worklen) present(input, kernel, output)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t z = 0; z < nz; z++) {
@@ -225,12 +225,12 @@ namespace gpu {
         }
     }
 
-    void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius, const int stream) {
+    void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
         constexpr int32_t veclen = 32;
         float local[3*veclen], local_kernel[veclen]; // Local memory.
         const int32_t nz = N.z, ny = N.y, nx = N.x;
-        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output) async(stream)
+        #pragma acc parallel vector_length(veclen) num_workers(1) present(input, kernel, output)
         {
             #pragma acc loop gang collapse(2)
             for (int32_t z = 0; z < nz; z++) {
@@ -511,8 +511,8 @@ namespace gpu {
         fclose(file_src);
     }
 
-    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size, const int stream = 0) {
-        #pragma acc parallel loop present(mask, output) async(stream)
+    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size) {
+        #pragma acc parallel loop present(mask, output)
         for (int64_t thread = 0; thread < gpu_threads; thread++) {
             const int64_t
                 chunk_size = local_flat_size / gpu_threads,
@@ -524,8 +524,8 @@ namespace gpu {
         }
     }
 
-    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P, const int stream = 0) {
-        #pragma acc parallel loop collapse(3) present(mask, output) async(stream)
+    void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P) {
+        #pragma acc parallel loop collapse(3) present(mask, output)
         for (int32_t z = 0; z < N.z; z++) {
             for (int32_t y = 0; y < N.y; y++) {
                 for (int32_t x = 0; x < N.x; x++) {
@@ -538,19 +538,18 @@ namespace gpu {
         }
     }
 
-    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius, const int stream = 0) {
+    void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius) {
         if (radius < 16) {
-            diffusion_core_z(buf0, kernel, buf1, P, radius, stream);
-            diffusion_core_y(buf1, kernel, buf0, P, radius, stream);
-            diffusion_core_x(buf0, kernel, buf1, P, radius, stream);
+            diffusion_core_z(buf0, kernel, buf1, P, radius);
+            diffusion_core_y(buf1, kernel, buf0, P, radius);
+            diffusion_core_x(buf0, kernel, buf1, P, radius);
         } else {
-            diffusion_core(buf0, kernel, buf1, P, 0, radius, stream);
-            diffusion_core(buf1, kernel, buf0, P, 1, radius, stream);
-            diffusion_core(buf0, kernel, buf1, P, 2, radius, stream);
+            diffusion_core(buf0, kernel, buf1, P, 0, radius);
+            diffusion_core(buf1, kernel, buf0, P, 1, radius);
+            diffusion_core(buf0, kernel, buf1, P, 2, radius);
         }
-        std::swap(buf0, buf1);
 
-        illuminate(voxels, buf0, N, P, stream);
+        illuminate(voxels, buf1, N, P);
     }
 
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
