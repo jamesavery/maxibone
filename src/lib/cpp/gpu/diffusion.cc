@@ -736,16 +736,11 @@ namespace gpu {
         // TODO should be a configuration parameter set somewhere global / statically during configuration/compilation.
         constexpr int32_t
             veclen = 32,
-            #pragma diag_suppress 177
-            n_devices = 1,
-            n_streams = 1;
+            #pragma diag_suppress 177 // Ignore the n_devices unused warning - it is used in the pragma below.
+            n_devices = acc_get_num_devices(acc_device_nvidia),
+            n_streams = 8;
         const int64_t radius = kernel_size / 2;
         const shape_t
-            //total_shape_padded = {
-            //    ((total_shape.z + veclen - 1) / veclen) * veclen,
-            //    ((total_shape.y + veclen - 1) / veclen) * veclen,
-            //    ((total_shape.x + veclen - 1) / veclen) * veclen
-            //},
             // TODO assume that global_shape is also aligned to veclen?
             global_shape_padded = {
                 (((global_shape.z + 2*radius) + veclen - 1) / veclen) * veclen,
@@ -759,9 +754,6 @@ namespace gpu {
             };
         const int64_t
             total_size = total_shape.z*total_shape.y*total_shape.x,
-            //total_size_padded = total_shape_padded.z*total_shape_padded.y*total_shape_padded.x,
-            //global_size = global_shape.z*global_shape.y*global_shape.x,
-            //blocks = (total_shape.z + global_shape.z - 1) / global_shape.z,
             global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x;
 
         float *buf0 = (float *) malloc(total_size * sizeof(float));
