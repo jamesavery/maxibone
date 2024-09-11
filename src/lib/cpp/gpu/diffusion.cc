@@ -844,7 +844,13 @@ namespace gpu {
                                             const int64_t
                                                 src_index = ((int64_t)z+radius)*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + ((int64_t)y+radius)*(int64_t)global_shape_padded.x + (int64_t)x+radius,
                                                 dst_index = ((int64_t)start_z+(int64_t)z)*(int64_t)total_shape.y*(int64_t)total_shape.x + ((int64_t)start_y+(int64_t)y)*(int64_t)total_shape.x + (int64_t)start_x+(int64_t)x;
+                                            const bool
+                                                valid_z = start_z+z < total_shape.z,
+                                                valid_y = start_y+y < total_shape.y,
+                                                valid_x = start_x+x < total_shape.x;
+                                            if (valid_z && valid_y && valid_x) {
                                             buf1[dst_index] = buf1_stage[src_index];
+                                            }
                                         }
                                     }
                                 }
