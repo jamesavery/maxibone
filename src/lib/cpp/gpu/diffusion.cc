@@ -790,59 +790,60 @@ namespace gpu {
 
             #pragma acc data create(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded]) copyin(kernel[:kernel_size])
             {
-            for (int64_t rep = 0; rep < repititions; rep++) {
-                #pragma omp for collapse(3) schedule(dynamic)
-                for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
-                    for (int32_t by = 0; by < blocks_shape.y; by++) {
-                        for (int32_t bx = 0; bx < blocks_shape.x; bx++) {
-                            const int64_t
-                                start_z = bz * global_shape.z,
-                                start_y = by * global_shape.y,
-                                start_x = bx * global_shape.x,
-                                end_z = std::min(total_shape.z, start_z + global_shape.z),
-                                end_y = std::min(total_shape.y, start_y + global_shape.y),
-                                end_x = std::min(total_shape.x, start_x + global_shape.x);
+                for (int64_t rep = 0; rep < repititions; rep++) {
+                    #pragma omp for collapse(3) schedule(dynamic)
+                    for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
+                        for (int32_t by = 0; by < blocks_shape.y; by++) {
+                            for (int32_t bx = 0; bx < blocks_shape.x; bx++) {
+                                const int64_t
+                                    start_z = bz * global_shape.z,
+                                    start_y = by * global_shape.y,
+                                    start_x = bx * global_shape.x,
+                                    end_z = std::min(total_shape.z, start_z + global_shape.z),
+                                    end_y = std::min(total_shape.y, start_y + global_shape.y),
+                                    end_x = std::min(total_shape.x, start_x + global_shape.x);
 
-                            // Copy the data to the staging area
-                            for (int32_t z = 0; z < global_shape_padded.z; z++) {
-                                for (int32_t y = 0; y < global_shape_padded.y; y++) {
-                                    for (int32_t x = 0; x < global_shape_padded.x; x++) {
-                                        const int64_t
-                                            offsetted_z = start_z + z - radius,
-                                            offsetted_y = start_y + y - radius,
-                                            offsetted_x = start_x + x - radius,
-                                            src_index = (int64_t)offsetted_z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)offsetted_y*(int64_t)total_shape.x + (int64_t)offsetted_x,
-                                            dst_index = (int64_t)z*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + (int64_t)y*(int64_t)global_shape_padded.x + (int64_t)x;
-                                        const bool
-                                            valid_z = offsetted_z >= 0 && offsetted_z < total_shape.z,
-                                            valid_y = offsetted_y >= 0 && offsetted_y < total_shape.y,
-                                            valid_x = offsetted_x >= 0 && offsetted_x < total_shape.x;
-                                        voxels_stage[dst_index] = valid_z && valid_y && valid_x ? voxels[src_index] : 0;
-                                        buf0_stage[dst_index] = valid_z && valid_y && valid_x ? buf0[src_index] : 0;
+                                // Copy the data to the staging area
+                                for (int32_t z = 0; z < global_shape_padded.z; z++) {
+                                    for (int32_t y = 0; y < global_shape_padded.y; y++) {
+                                        for (int32_t x = 0; x < global_shape_padded.x; x++) {
+                                            const int64_t
+                                                offsetted_z = start_z + z - radius,
+                                                offsetted_y = start_y + y - radius,
+                                                offsetted_x = start_x + x - radius,
+                                                src_index = (int64_t)offsetted_z*(int64_t)total_shape.y*(int64_t)total_shape.x + (int64_t)offsetted_y*(int64_t)total_shape.x + (int64_t)offsetted_x,
+                                                dst_index = (int64_t)z*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + (int64_t)y*(int64_t)global_shape_padded.x + (int64_t)x;
+                                            const bool
+                                                valid_z = offsetted_z >= 0 && offsetted_z < total_shape.z,
+                                                valid_y = offsetted_y >= 0 && offsetted_y < total_shape.y,
+                                                valid_x = offsetted_x >= 0 && offsetted_x < total_shape.x;
+                                            voxels_stage[dst_index] = valid_z && valid_y && valid_x ? voxels[src_index] : 0;
+                                            buf0_stage[dst_index] = valid_z && valid_y && valid_x ? buf0[src_index] : 0;
+                                        }
                                     }
                                 }
-                            }
 
-                            #pragma acc update device(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded])
-                            diffusion_step(voxels_stage, buf0_stage, buf1_stage, global_shape_padded, global_shape_padded, kernel, radius);
-                            #pragma acc update self(buf1_stage[:global_size_padded])
+                                #pragma acc update device(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded])
+                                diffusion_step(voxels_stage, buf0_stage, buf1_stage, global_shape_padded, global_shape_padded, kernel, radius);
+                                #pragma acc update self(buf1_stage[:global_size_padded])
 
-                            // Copy the data back from the staging area
-                            for (int32_t z = 0; z < global_shape.z; z++) {
-                                for (int32_t y = 0; y < global_shape.y; y++) {
-                                    for (int32_t x = 0; x < global_shape.x; x++) {
-                                        const int64_t
-                                            src_index = ((int64_t)z+radius)*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + ((int64_t)y+radius)*(int64_t)global_shape_padded.x + (int64_t)x+radius,
-                                            dst_index = ((int64_t)start_z+(int64_t)z)*(int64_t)total_shape.y*(int64_t)total_shape.x + ((int64_t)start_y+(int64_t)y)*(int64_t)total_shape.x + (int64_t)start_x+(int64_t)x;
-                                        buf1[dst_index] = buf1_stage[src_index];
+                                // Copy the data back from the staging area
+                                for (int32_t z = 0; z < global_shape.z; z++) {
+                                    for (int32_t y = 0; y < global_shape.y; y++) {
+                                        for (int32_t x = 0; x < global_shape.x; x++) {
+                                            const int64_t
+                                                src_index = ((int64_t)z+radius)*(int64_t)global_shape_padded.y*(int64_t)global_shape_padded.x + ((int64_t)y+radius)*(int64_t)global_shape_padded.x + (int64_t)x+radius,
+                                                dst_index = ((int64_t)start_z+(int64_t)z)*(int64_t)total_shape.y*(int64_t)total_shape.x + ((int64_t)start_y+(int64_t)y)*(int64_t)total_shape.x + (int64_t)start_x+(int64_t)x;
+                                            buf1[dst_index] = buf1_stage[src_index];
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    #pragma omp single
+                    std::swap(buf0, buf1);
                 }
-                std::swap(buf0, buf1);
-            }
             }
 
             free(voxels_stage);
