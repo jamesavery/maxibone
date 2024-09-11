@@ -788,9 +788,19 @@ namespace gpu {
             float *buf0_stage = (float *) malloc(global_size_padded * sizeof(float));
             float *buf1_stage = (float *) malloc(global_size_padded * sizeof(float));
 
+            // Find the number of characters for pretty printing the repititions
+            int64_t repititions_digits = 1;
+            for (int64_t i = repititions; i >= 10; i /= 10) {
+                repititions_digits++;
+            }
+
             #pragma acc data create(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded]) copyin(kernel[:kernel_size])
             {
                 for (int64_t rep = 0; rep < repititions; rep++) {
+                    #pragma omp single
+                    printf("\rDiffusion: %*ld/%ld", repititions_digits, rep, repititions);
+                    #pragma omp single
+                    fflush(stdout);
                     #pragma omp for collapse(3) schedule(dynamic)
                     for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
                         for (int32_t by = 0; by < blocks_shape.y; by++) {
@@ -844,6 +854,10 @@ namespace gpu {
                     #pragma omp single
                     std::swap(buf0, buf1);
                 }
+                #pragma omp single
+                printf("\rDiffusion is complete!\n");
+                #pragma omp single
+                fflush(stdout);
             }
 
             free(voxels_stage);
