@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import scipy.ndimage as ndi
 
 from lib.cpp.cpu.diffusion import diffusion as diffusion_cpu
@@ -19,7 +20,8 @@ n = 128
 sigma = 3 # Radius has to be <= 16 for the faster GPU implementation
 reps = 100
 plot = False
-verify = True
+plotting_dir = sys.path[0] + '/debug_plots/'
+if plot: os.makedirs(plotting_dir, exist_ok=True)
 
 run_py = True
 run_cpp = True
@@ -60,10 +62,10 @@ if run_py:
 
     if plot:
         plt.imshow(python_impl[n//2], cmap='gray')
-        plt.savefig('python_impl.png')
+        plt.savefig(f'{plotting_dir}/python_impl.png')
         plt.close()
         plt.imshow(a[n//2], cmap='gray')
-        plt.savefig('original.png')
+        plt.savefig(f'{plotting_dir}/original.png')
         plt.close()
 
 #
@@ -81,7 +83,7 @@ if run_cpp:
 
     if plot:
         plt.imshow(cpp_impl[n//2], cmap='gray')
-        plt.savefig('cpp_impl.png')
+        plt.savefig(f'{plotting_dir}/cpp_impl.png')
         plt.close()
 
     if verify:
@@ -109,7 +111,7 @@ if run_gpu:
 
     if plot:
         plt.imshow(gpu_impl[n//2], cmap='gray')
-        plt.savefig('gpu_impl.png')
+        plt.savefig(f'{plotting_dir}/gpu_impl.png')
         plt.close()
 
     if verify:
@@ -123,7 +125,7 @@ if run_gpu:
             if plot:
                 plt.imshow(diff[n//2])
                 plt.colorbar()
-                plt.savefig('diff.png')
+                plt.savefig(f'{plotting_dir}/diff.png')
                 plt.close()
             checksum = np.sum(gpu_impl)
             print (f"Checksum of GPU: {checksum != 0} ({checksum})")
