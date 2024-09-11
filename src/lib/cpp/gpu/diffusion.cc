@@ -734,7 +734,7 @@ namespace gpu {
     // Assumes that each shape in global_shape is > kernel_size in order to contain the overlap. This assumption allows for controlling the memory used by each thread / async operation outside of this call.
     void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
         // TODO should be a configuration parameter set somewhere global / statically during configuration/compilation.
-        constexpr int32_t
+        const int32_t
             veclen = 32,
             #pragma diag_suppress 177 // Ignore the n_devices unused warning - it is used in the pragma below.
             n_devices = acc_get_num_devices(acc_device_nvidia),
