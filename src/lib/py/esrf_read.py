@@ -1,19 +1,28 @@
 #!/usr/bin/python3
-# Read metadata and data from raw tomograms from ESRF.
-# (C) James Avery for the MAXIBONE project, 2018
-import numpy as np;
-#import bohrium as bh;
-import numpy as bh;
-#import jax.numpy as jp
-import numpy.ma as ma;
-import sys,re,os,tqdm;
+'''
+Read metadata and data from raw tomograms from ESRF.
+
+(C) James Avery for the MAXIBONE project, 2018
+'''
 #from joblib import Parallel, delayed
 
 # TODO: Switch more elegantly between numpy and bohrium
 
 def esrf_edf_metadata(filename):
-    meta = {};
-    header_length = 1024;
+    '''
+    Read metadata from an ESRF EDF file.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the EDF file.
+
+    Returns
+    -------
+    `meta` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    '''
+
     with open(filename,"r",encoding="latin-1") as f:
         header = f.read(header_length);
 
@@ -33,8 +42,20 @@ def esrf_edf_metadata(filename):
         return meta;
 
 def esrf_edf_to_npy(filename):
-    meta = esrf_edf_metadata(filename);
-    header_length = 1024;
+    '''
+    Read data from an ESRF EDF file into a numpy array.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the EDF file.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), numpy.array)
+        Tuple of metadata and data from the EDF file.
+    '''
+
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -48,13 +69,39 @@ def esrf_edf_to_npy(filename):
 # TODO: function that uses seek to only actually read the appropriate region
 
 def esrf_edf_n_to_npy(info,n):
-    dirname        = info["dirname"];
-    subvolume_name = info["subvolume_name"].format(n);
-    return esrf_edf_to_npy(dirname+"/"+subvolume_name);
+    '''
+    Read data from a single slab (subvolume) of an ESRF EDF file into a numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `n` : int
+        Index of the slab to read.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), numpy.array)
+        Tuple of metadata and data from the EDF file.
+    '''
 
 def esrf_edfrange_to_npy(info,region):
-    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
-    assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
+    '''
+    Read data from a region of an ESRF EDF file into a numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `region` : list[list[int]]
+        List of two lists of three integers, specifying the start and end points of the region to read.
+
+    Returns
+    -------
+    `data` : numpy.array
+        Data from the EDF file.
+    '''
+
 
     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
     image = np.zeros(shape,dtype=np.float32);
@@ -66,13 +113,36 @@ def esrf_edfrange_to_npy(info,region):
 
 
 def esrf_full_tomogram(info):
-    (nx,ny,nz) = (int(info['sizex']),int(info['sizey']),int(info['sizez']));
-    return esrf_edfrange_to_npy(info,[[0,0,0],[nx,ny,nz]]);
+    '''
+    Read a full tomogram from an ESRF EDF file into a numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+
+    Returns
+    -------
+    `data` : numpy.array
+        Data from the EDF file.
+    '''
+
 
 def esrf_edf_to_bh(filename):
-    meta = esrf_edf_metadata(filename);
-    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));
-    header_length = 1024;
+    '''
+    Read data from an ESRF EDF file into a bohrium array.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the EDF file.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), bohrium.array)
+        Tuple of metadata and data from the EDF file.
+    '''
+
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -81,12 +151,40 @@ def esrf_edf_to_bh(filename):
         return (meta,data.reshape(ny,nx));
 
 def esrf_edf_n_to_bh(info,n):
-    dirname        = info["dirname"];
-    subvolume_name = info["subvolume_name"].format(n);
-    return esrf_edf_to_bh(dirname+"/"+subvolume_name);
+    '''
+    Read data from a single slab (subvolume) of an ESRF EDF file into a bohrium array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `n` : int
+        Index of the slab to read.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), bohrium.array)
+        Tuple of metadata and data from the EDF file.
+    '''
+
 
 def esrf_edfrange_to_bh(info,region):
-    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
+    '''
+    Read data from a region of an ESRF EDF file into a bohrium array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `region` : list[list[int]]
+        List of two lists of three integers, specifying the start and end points of the region to read.
+
+    Returns
+    -------
+    `data` : bohrium.array
+        Data from the EDF file.
+    '''
+
     try:
         assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
     except:
@@ -106,9 +204,20 @@ def esrf_edfrange_to_bh(info,region):
 
 
 def esrf_edf_to_jp(filename):
-    meta = esrf_edf_metadata(filename);
-    (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]));
-    header_length = 1024;
+    '''
+    Read data from an ESRF EDF file into a jax.numpy array.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the EDF file.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array)
+        Tuple of metadata and data from the EDF file.
+    '''
+
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET);
@@ -117,13 +226,40 @@ def esrf_edf_to_jp(filename):
         return (meta,data.reshape(ny,nx));
 
 def esrf_edf_n_to_jp(info,n):
-    dirname        = info["dirname"];
-    subvolume_name = info["subvolume_name"].format(n);
-    return esrf_edf_to_jp(dirname+"/"+subvolume_name);
+    '''
+    Read data from a single slab (subvolume) of an ESRF EDF file into a jax.numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `n` : int
+        Index of the slab to read.
+
+    Returns
+    -------
+    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array)
+        Tuple of metadata and data from the EDF file.
+    '''
+
 
 def esrf_edfrange_to_jp(info,region):
-    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region;
-    assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"]);
+    '''
+    Read data from a region of an ESRF EDF file into a jax.numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+    `region` : list[list[int]]
+        List of two lists of three integers, specifying the start and end points of the region to read.
+
+    Returns
+    -------
+    `data` : jax.numpy.array
+        Data from the EDF file.
+    '''
+
 
     shape = (z_end-z_start,y_end-y_start,x_end-x_start);
     image = jp.zeros(shape,dtype=jp.float32);
@@ -137,15 +273,37 @@ def esrf_edfrange_to_jp(info,region):
     return image;
 
 def esrf_full_tomogram_jp(info):
-    (nx,ny,nz) = (int(info['sizex']),int(info['sizey']),int(info['sizez']));
-    return esrf_edfrange_to_jp(info,[[0,0,0],[nx,ny,nz]]);
+    '''
+    Read a full tomogram from an ESRF EDF file into a jax.numpy array.
+
+    Parameters
+    ----------
+    `info` : dict(str, Any)
+        Dictionary of metadata from the EDF file.
+
+    Returns
+    -------
+    `data` : jax.numpy.array
+        Data from the EDF file.
+    '''
+
 
 
 def esrf_read_xml(filename):
-    fields = ["subvolume_name","sizex","sizey","sizez","originx","originy","originz","voxelsize","valmin","valmax","byte_order","s1","s2","S1","S2"];
-    fieldstrings = ["\<{}\>(.*)\<\/{}\>".format(f,f) for f in fields];
-    res = [re.compile(s,re.IGNORECASE) for s in fieldstrings];
-    xmlmeta = {};
+    '''
+    Read metadata from an ESRF XML file.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the XML file.
+
+    Returns
+    -------
+    `meta` : dict(str, Any)
+        Dictionary of metadata from the XML file.
+    '''
+
     with open(filename,"r") as file:
         for l in file.readlines():
             for i in range(len(fields)):
@@ -162,6 +320,20 @@ def esrf_read_xml(filename):
 
 
 def readfile(filename):
+    '''
+    Read a text file into a list of strings.
+
+    Parameters
+    ----------
+    `filename` : str
+        Path to the text file.
+
+    Returns
+    -------
+    `lines` : list[str]
+        List of strings from the text file.
+    '''
+
     with open(filename,'r') as f:
         return f.readlines()
 
