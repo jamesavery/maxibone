@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This module provides functions to resample 3D images.
+'''
 import importlib
 cupy_available = importlib.util.find_spec("cupy") is not None
 if cupy_available:
@@ -6,12 +10,24 @@ else:
     import numpy as np
 NA = np.newaxis
 
-def downsample2x(V):
-    (Nz,Ny,Nx) = V.shape
-    (nz,ny,nx) = (Nz//2,Ny//2,Nx//2)
-    xs = np.linspace(-1,1,nx)[:,NA]
-    ys = np.linspace(-1,1,ny)[NA,:]
-    cylinder_mask = (xs*xs + ys*ys)<=1
+    '''
+    Downsample a 3D image by a factor of 2 in each dimension.
+    The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
+    The output is a 3D array with dimensions (Nz//2, Ny//2, Nx//2).
+
+    Parameters
+    ----------
+    `V` : numpy.array[Any]
+        The input 3D image.
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `result`: numpy.array[Any]
+        The downsampled 3D image.
+    '''
+
 
 #    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
 #    print("Extracting S1")
@@ -27,12 +43,24 @@ def downsample2x(V):
 #    print("Storing")
     return (cylinder_mask*(s1+s2)/8).astype(V.dtype)
 
-def downsample3x(V):
-    (Nz,Ny,Nx) = V.shape
-    (nz,ny,nx) = (Nz//3,Ny//3,Nx//3)
-    xs = np.linspace(-1,1,nx)[:,np.newaxis]
-    ys = np.linspace(-1,1,ny)[np.newaxis,:]
-    cylinder_mask = (xs*xs + ys*ys)<=1
+    '''
+    Downsample a 3D image by a factor of 3 in each dimension.
+    The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
+    The output is a 3D array with dimensions (Nz//3, Ny//3, Nx//3).
+
+    Parameters
+    ----------
+    `V` : numpy.array[Any]
+        The input 3D image.
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `result`: numpy.array[Any]
+        The downsampled 3D image.
+    '''
+
 
 #    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
     print("Extracting S1")
@@ -57,11 +85,25 @@ def downsample3x(V):
 
     return (cylinder_mask*(s1+s2+s3)/27).astype(V.dtype)
 
-def sample(image,xs,ys):
-    yminus,iminus= np.modf(ys-0.5)
-    yplus, iplus = np.modf(ys+0.5)
-    xminus,jminus= np.modf(xs-0.5)
-    xplus, jplus = np.modf(xs+0.5)
+    '''
+    Sample an image at the given coordinates.
+    The image is assumed to be a 2D array with dimensions (Ny, Nx).
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The input 2D image.
+    `xs` : numpy.array[float]
+        The x-coordinates of the samples.
+    `ys` : numpy.array[float]
+        The y-coordinates of the samples.
+
+    Returns
+    -------
+    `I_polar`: numpy.array[Any]
+        The sampled image.
+    '''
+
 
     ny,nx = image.shape[-2:]
 
@@ -79,10 +121,29 @@ def sample(image,xs,ys):
 
     return I_polar.reshape((-1,xs.shape[0],xs.shape[1]))
 
-def cart_to_polar(image,nr,ntheta, r=0, R=None):
-    midy, midx = np.array(image.shape[-2:])/2
-    assert(midx==midy)
-    if(R==None):
+    '''
+    Convert a 2D image to polar coordinates.
+    The image is assumed to be a 2D array with dimensions (Ny, Nx).
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The input 2D image.
+    `nr` : int
+        The number of radial samples.
+    `ntheta` : int
+        The number of angular samples.
+    `r` : float
+        The inner radius of the polar image.
+    `R` : float
+        The outer radius of the polar image.
+
+    Returns
+    -------
+    `I_polar`: numpy.array[Any]
+        The polar image.
+    '''
+
         R = midx
 
     rs = np.linspace(r,R,nr,endpoint=False)
@@ -93,7 +154,25 @@ def cart_to_polar(image,nr,ntheta, r=0, R=None):
     return sample(image,xs,ys)
 
 
-def polar_to_cart(polar_image,nx,ny):
+    '''
+    Convert a polar image to cartesian coordinates.
+    The image is assumed to be a 2D array with dimensions (Nr, Ntheta).
+
+    Parameters
+    ----------
+    `polar_image` : numpy.array[Any]
+        The input polar image.
+    `nx` : int
+        The number of x samples.
+    `ny` : int
+        The number of y samples.
+
+    Returns
+    -------
+    `I_cart`: numpy.array[Any]
+        The cartesian image
+    '''
+
     R = polar_image.shape[1]
     xs = np.arange(nx)+0.5 - R
     ys = np.arange(ny)+0.5 - R
