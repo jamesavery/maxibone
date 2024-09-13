@@ -2,7 +2,6 @@
 
 namespace cpu_seq {
 
-    // Assumes that the mask and field are the same size
     void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output) {
         UNPACK_NUMPY(voxels);
         UNPACK_NUMPY(field);
