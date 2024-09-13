@@ -11,6 +11,38 @@ import pathlib
 import tqdm
 
 def commandline_args(defaults):
+    '''
+    Parse commandline arguments, and return them in the order of the keys in the defaults dictionary.
+    If a key is not provided, the default value is used.
+    If a key is not provided and has the value `"<required>"`, the script will print the helpstring and exit.
+    The type of the default value is used to convert the commandline argument to the appropriate type.
+
+    Example usage:
+    ```
+    defaults = {
+        "input_file" : "<required>",
+        "output_file" : "output.txt",
+        "threshold" : 0.5
+    }
+    input_file, output_file, threshold = commandline_args(defaults)
+    ```
+
+    The above will parse the commandline arguments, and return the values in the order of the keys in the defaults dictionary.
+    If the `input_file` is not provided, the script will print the helpstring and exit.
+
+    The helpstring is generated from the keys in the defaults dictionary, and is printed if the script is called with `--help` or `-h`.
+
+    Parameters
+    ----------
+    `defaults` : dict(str, str)
+        A dictionary of key-value pairs, where the key is the name of the parameter, and the value is the default value or `"<required>"` if the parameter is required and cannot have a default value. If the default value is not a string, the type of the default value is used to convert the commandline argument to the appropriate type.
+
+    Returns
+    -------
+    args : list[Any]
+        A list of the values of the parameters, in the order of the keys in the defaults dictionary.
+    '''
+
     keys = list(defaults.keys())
 
     helpstring = f"Syntax: {sys.argv[0]} "
@@ -40,12 +72,48 @@ def commandline_args(defaults):
     return args
 
 def generate_cylinder_mask(nx):
+    '''
+    Generate a 2D mask of a cylinder with diameter `nx` pixels.
+
+    Parameters
+    ----------
+    `nx` : int
+        The diameter of the cylinder in pixels.
+
+    Returns
+    -------
+    `mask` : numpy.array[bool]
+        A 2D boolean mask of the cylinder.
+    '''
+
     xs = np.linspace(-1, 1, nx)
     rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
     return rs <= 1
 
-def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
-                compression=None,chunk_shape=None):
+    '''
+    Update an HDF5 file with new datasets and attributes.
+
+    Parameters
+    ----------
+    `filename` : str
+        The path to the HDF5 file to update.
+    `group_name` : str
+        The name of the group in the HDF5 file to update.
+    `datasets` : dict[str, numpy.array[Any]]
+        A dictionary of dataset names and numpy arrays to update or add to the HDF5 file.
+    `attributes` : dict[str, Any]
+        A dictionary of attribute names and values to update or add to the HDF5 file.
+    `dimensions` : dict[str, list[str]]
+        A dictionary of dataset names and lists of dimension descriptions to update or add to the HDF5 file.
+    `compression` : str
+        The compression algorithm to use for the datasets. Default is no compression.
+    `chunk_shape` : tuple[int]
+        The shape of the chunks to use for the datasets. Default is no chunking.
+
+    Returns
+    -------
+    None
+    '''
 
     output_dir = os.path.dirname(filename)
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -79,13 +147,48 @@ def update_hdf5(filename,group_name,datasets={},attributes={},dimensions=None,
 
 
 #TODO: Use this for masks, no compression and no chunking default for small metadata datasets
-def update_hdf5_mask(filename,group_name,datasets={},attributes={},dimensions=None,
-                     compression="lzf",chunk_shape=None):
-    update_hdf5(filename,group_name,datasets,attributes,dimensions,compression,chunk_shape)
+    '''
+    Update an HDF5 file with new datasets and attributes.
+    This function is specifically for updating masks, and uses lzf compression and no chunking by default.
+
+    Parameters
+    ----------
+    `filename` : str
+        The path to the HDF5 file to update.
+    `group_name` : str
+        The name of the group in the HDF5 file to update.
+    `datasets` : dict[str, numpy.array[Any]]
+        A dictionary of dataset names and numpy arrays to update or add to the HDF5 file.
+    `attributes` : dict[str, Any]
+        A dictionary of attribute names and values to update or add to the HDF5 file.
+    `dimensions` : dict[str, list[str]]
+        A dictionary of dataset names and lists of dimension descriptions to update or add to the HDF5 file.
+    `compression` : str
+        The compression algorithm to use for the datasets. Default is lzf.
+    `chunk_shape` : tuple[int]
+        The shape of the chunks to use for the datasets. Default is no chunking.
+
+    Returns
+    -------
+    None
+    '''
 
 
 def h5meta_info_volume_matched(sample):
-    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5","r") as h5meta:
+    '''
+    Returns the volume-matched dimensions, subvolume dimensions, and voxel size for a sample.
+
+    Parameters
+    ----------
+    `sample` : str
+        The name of the sample to get the information for.
+
+    Returns
+    -------
+    `((Nz,Ny,Nx), subvolume_nzs, voxel_size)` : tuple(tuple(int,int,int), numpy.array[int], numpy.array[float])
+        A tuple containing the volume-matched dimensions, subvolume dimensions, and voxel size for the sample.
+    '''
+
         vm_shifts  = h5meta["volume_matching_shifts"][:]
         Nz, Ny, Nx = h5meta['voxels'].shape
         Nz -= np.sum(vm_shifts)
@@ -96,7 +199,29 @@ def h5meta_info_volume_matched(sample):
 
         return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
 
-def block_info(h5meta_filename,scale,block_size=0, n_blocks=0,z_offset=0):
+    '''
+    Returns information about the blocks in a volume-matched dataset. It is used for loading blocks in the `load_block` function.
+
+    Parameters
+    ----------
+    `h5meta_filename` : str
+        The path to the HDF5 file containing the metadata.
+    `scale` : int
+        The scale of the data.
+    `block_size` : int
+        The size of the blocks to load. If 0, the block size is the size of a subvolume.
+    `n_blocks` : int
+        The number of blocks to load. If 0, all blocks are loaded.
+    `z_offset` : int
+        The offset in the z-dimension to start loading blocks.
+
+    Returns
+    -------
+    `info` : dict(str, Any)
+        A dictionary containing the dimensions, voxel size, number of blocks, block size, whether blocks are subvolumes, subvolume dimensions, subvolume nzs, and subvolume starts.
+
+    '''
+
     print(f"Opening {h5meta_filename}")
     with h5py.File(h5meta_filename, 'r') as h5meta:
         vm_shifts  = h5meta["volume_matching_shifts"][:]
@@ -136,8 +261,37 @@ def block_info(h5meta_filename,scale,block_size=0, n_blocks=0,z_offset=0):
 
 def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_names, field_scale):
     '''
-    Loads a block of data from disk into memory.
+    Load a block of voxels and fields from the binary and HDF5 files.
+    The block is loaded at the given offset and has the given size.
+    The data itself is loaded from the binary files, and the mask and metadata are loaded from the HDF5 files.
+    If a mask is provided, it is applied to the voxels.
+    If the field and/or mask scales are different from the voxel scale, they are upscaled to the voxel scale.
+
+    Parameters
+    ----------
+    `sample` : str
+        The name of the sample to load the block from.
+    `scale` : int
+        The scale of the voxels.
+    `offset` : int
+        The offset in the z-dimension to start loading the block.
+    `block_size` : int
+        The size of the block to load.
+    `mask_name` : str
+        The name of the mask to apply to the voxels. If None, no mask is applied.
+    `mask_scale` : int
+        The scale of the mask.
+    `field_names` : list[str]
+        The names of the fields to load.
+    `field_scale` : int
+        The scale of the fields.
+
+    Returns
+    -------
+    `voxels, fields` : tuple(numpy.array[uint16], numpy.array[uint16])
+        A tuple containing the voxels and fields loaded from the binary files. Note that the fields have an additional dimension for the number of fields.
     '''
+
     NA = np.newaxis
     Nfields = len(field_names)
 
@@ -179,11 +333,43 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 #    plt.imshow(fields[0,:,fields[0].shape[1]//2,:]); plt.show()
     return voxels, fields
 
-def row_normalize(A,r):
+    '''
+    Normalize the rows of a matrix A by the vector r.
+
+    Parameters
+    ----------
+    `A` : numpy.array[float]
+        The matrix to normalize.
+    `r` : numpy.array[float]
+        The vector to normalize the rows by.
+
+    Returns
+    -------
+    `A_normed` : numpy.array[float]
+        The normalized matrix.
+    '''
+
     na = np.newaxis
     return A/(r[:,na]+(r==0)[:,na])
 
-def to_int_py(x,dtype):
+    '''
+    Convert a numpy array to an integer type.
+    This is a pure Python implementation, which is slower than the C++ implementation in `to_int`.
+    It is used as a fallback when the dimensions of the array are not 3.
+
+    Parameters
+    ----------
+    `x` : numpy.array[Any]
+        The array to convert.
+    `dtype` : numpy.dtype
+        The integer type to convert the array to.
+
+    Returns
+    -------
+    `result` : numpy.array[dtype]
+        The converted array.
+    '''
+
     vmin, vmax = x.min(), x.max()
     # Ensure everything is float32, to ensure float32 computations
     int_max = np.float32(np.iinfo(dtype).max - 1)
@@ -197,7 +383,24 @@ def to_int_py(x,dtype):
     result += 1
     return result
 
-def to_int(x,dtype):
+    '''
+    Convert a numpy array to an integer type.
+    This is a wrapper around the C++ implementation in `lib/cpp/*/general.cc`.
+    If the dimensions of the array are 3, the C++ implementation is used, otherwise the pure Python implementation is used.
+
+    Parameters
+    ----------
+    `x` : numpy.array[Any]
+        The array to convert.
+    `dtype` : numpy.dtype
+        The integer type to convert the array to.
+
+    Returns
+    -------
+    `result` : numpy.array[dtype]
+        The converted array.
+    '''
+
     if len(x.shape) != 3:
         return to_int_py(x,dtype)
 
