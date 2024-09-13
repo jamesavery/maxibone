@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This file contains helper functions for loading and updating HDF5 files, generating cylinder masks, and parsing commandline arguments.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 

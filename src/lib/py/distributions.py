@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 '''
 This module contains functions for generating Gaussian, exponential, power, and Lorentzian distributions.
 '''
