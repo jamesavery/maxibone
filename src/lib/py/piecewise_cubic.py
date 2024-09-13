@@ -1,3 +1,30 @@
+'''
+This module contains functions for generating Gaussian, exponential, power, and Lorentzian distributions.
+
+Scheme:
+    Fit an N-segment piecewise cubic polynomial to a set of points with linear least squares with two exact conditions:
+        (1) Continuity at the borders:        f_n (X_n) = f_{n-1} (X_n)
+        (2) Differentiability at the borders: f_n'(X_n) = f'_{n-1}(X_n)
+
+    Input: A list of M data points [(x1,y1),....(x_M,y_M)] and
+           A list of N+1 borders   [X0,X1,....,X_N]
+
+This file generalizes the 2-segment method given in cubic2.py to an arbitrary number of segments.
+           / f1(x) = A1 + B1*(x-X0) + C1*(x-X0)**2 + D1*(x-X0)**3          if x>=X0 & x<=X1
+    f(x) = |
+           | f2(x) = f1(X1) + f1'(X1)*(x-X2) + C2*(x-X2)**2 + D2*(x-X2)**3 if x>=X1 & x<=X2
+           |
+           | f3(x) = f2(X2) + f2'(X2)*(x-X3) + C2*(x-X3)**2 + D2*(x-X3)**3 if x>=X2 & x<=X3
+           |   ...
+           \ f_N(x) = f_{N-1}(X_{N-1}) + f'_{N-1}(X_{N-1})*(x-X_N) + C_N*(x-X_N)**2 + D_N*(x-X_N)**3
+                                                                           if x>=X_{N-1} & x<= X_N
+
+We still want to set up a linear least squares system of equations that implicitly obeys the two exact conditions (so they are not weakened by the least squares approximation to the over-determined system).
+
+Eq. (1) and (2) determine A_n (the function value at X_n) and B_n (the derivative at X_n).
+So we have 4+2*(N-1) = 2*(N+1) variables to determine: A1, B1, C1, D1, and C2, D2, C3, D3, ..., C_N, D_N
+'''
+
 from numpy import array, linspace, sin, empty, zeros, linalg, random, pad, concatenate
 import numpy as np
 import numpy.linalg as la
@@ -29,8 +56,25 @@ import numpy.linalg as la
 # So we have 4+2*(N-1) = 2*(N+1) variables to determine: A1, B1, C1, D1, and C2, D2, C3, D3, ..., C_N, D_N
 
 # Each data point (x_i,y_i)  defines a row with the coefficients for A1,B1,C1,D1,C2,D2,...,C_N,D_N in the matrix, and y_i on the RHS.
-def mxrow_f (x, borders):
-    if(len(borders) < 2):
+    '''
+    Recursive function to construct the matrix row for the function value `f_n(x) = A + B*(x-Xn) + C*(x-Xn)**2 + D*(x-Xn)**3`.
+    The function is defined by the borders of the segments, and the current segment number `n`.
+
+    Parameters
+    ----------
+    `x` : float
+        The x-coordinate at which to evaluate the function.
+    `borders` : list[float]
+        A list of the segment borders, [X0,X1,...,Xn].
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `row` : array
+        The matrix row for the function value `f_n(x) = A + B*(x-Xn) + C*(x-Xn)**2 + D*(x-Xn)**3`.
+    '''
+
         print(f"No segments: borders = {borders}")
         return
 
@@ -51,7 +95,25 @@ def mxrow_f (x, borders):
 #        print(f"returning length = {len(row)} row at level {n}")
         return row
 
-def mxrow_df(x,borders):
+    '''
+    Recursive function to construct the matrix row for the derivative of the function value `f'_n(x) = f'_{n-1}(Xn) + Cn*2*(x-Xn) + Dn*3*(x-Xn)`.
+    The function is defined by the borders of the segments, and the current segment number `n`.
+
+    Parameters
+    ----------
+    `x` : float
+        The x-coordinate at which to evaluate the function.
+    `borders` : list[float]
+        A list of the segment borders, [X0,X1,...,Xn].
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `row` : numpy.array[float]
+        The matrix row for the derivative of the function value `f'_n(x) = f'_{n-1}(Xn) + Cn*2*(x-Xn) + Dn*3*(x-Xn)`.
+    '''
+
     if len(borders) < 2:
         print(f"No segments: borders={borders}")
         return
@@ -75,9 +137,26 @@ def mxrow_df(x,borders):
 #
 
 # We can now put these together to construct the matrix and RHS row by row:
-def piecewisecubic_matrix(xs,ys, Xs):
-    M = len(xs)                 # M data points
-    N = len(Xs)-1               # N segments, i.e. N+1 borders
+    '''
+    Construct the matrix `A` and the RHS vector `b` for the linear least squares problem to fit a piecewise cubic polynomial to the data points.
+
+    Parameters
+    ----------
+    `xs` : numpy.array[float]
+        The x-coordinates of the data points.
+    `ys` : numpy.array[float]
+        The y-coordinates of the data points.
+    `Xs` : numpy.array[float]
+        The borders of the segments.
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `A,b` : numpy.array[float], numpy.array[float]
+        The matrix `A` and the RHS vector `b` for the linear least squares problem.
+    '''
+
 
     A = zeros((M,2*(N+1)),dtype=float)
     b = zeros((M,1),dtype=float)
@@ -97,15 +176,24 @@ def piecewisecubic_matrix(xs,ys, Xs):
 
     return A,b
 
+    '''
+    A function that takes an N-segment piecewise cubic polynomial produced by `fit_piecewisecubic()` and evaluates it on an arbitrary set of coordinates `all_xs` (not necessarily the same as the data points it was fitted to).
 
+    Parameters
+    ----------
+    `pc` : tuple(numpy.array[float], numpy.array[float])
+        The polynomial coefficients and the borders of the segments.
+    `all_xs` : numpy.array[float]
+        The x-coordinates at which to evaluate the function.
+    `extrapolation` : str
+        The type of extrapolation to use for points outside the domain. Options are "cubic", "linear", and "constant".
 
+    Returns
+    -------
+    `ys` : numpy.array[float]
+        The y-coordinates of the function evaluated at the x-coordinates `all_xs`.
+    '''
 
-
-# A function that takes an N-segment piecewise cubic polynomial
-# produced by fit_piecewisecubic() and evaluates it on an arbitrary
-# set of coordinates xs (not necessarily the same as the data points
-# it was fitted to):
-def piecewisecubic(pc,all_xs,extrapolation="cubic"):
     coefs, Xs = pc          # Polynomial coefficients A1,B1,C1,D1,C2,D2,C3,D3,... and borders
     all_xs = all_xs.astype(float)
     N = len(Xs)-1           # N segments have N+1 borders: |seg1|seg2|...|segN|
@@ -159,12 +247,28 @@ def piecewisecubic(pc,all_xs,extrapolation="cubic"):
 
     return concatenate(ys)
 
+    '''
+    A function to construct the overdetermined linear system of equations and find the least squares optimal approximate solution for a piecewise cubic polynomial.
 
+    Parameters
+    ----------
+    `xs` : numpy.array[float]
+        The x-coordinates of the data points.
+    `ys` : numpy.array[float]
+        The y-coordinates of the data points.
+    `Xs` : numpy.array[float]
+        The borders of the segments.
+    `regularization_beta` : float
+        The regularization parameter for the least squares problem.
+    `verbose` : bool
+        Print debug information.
 
-# ...and a function to construct the overdetermined linear system of
-# equations and find the least squares optimal approximate solution:
-def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
-    A, b = piecewisecubic_matrix(xs,ys,Xs)
+    Returns
+    -------
+    `coefs, Xs` : tuple(numpy.array[float], numpy.array[float])
+        The polynomial coefficients and the borders of the segments.
+    '''
+
 
     if regularization_beta>0:
         m,n = A.shape
@@ -181,8 +285,29 @@ def fit_piecewisecubic(xs,ys, Xs,regularization_beta=0):
 
     return (coefs.reshape(-1),Xs)
 
-def smooth_fun(xs,ys,n_segments,regularization_beta=0):
-    borders = linspace(xs.min(), xs.max()+1,n_segments)
+    '''
+    A function to fit a smooth piecewise cubic polynomial to a set of data points.
+    The number of segments is given by `n_segments`.
+
+    Parameters
+    ----------
+    `xs` : numpy.array[float]
+        The x-coordinates of the data points.
+    `ys` : numpy.array[float]
+        The y-coordinates of the data points.
+    `n_segments` : int
+        The number of segments in the piecewise cubic polynomial.
+    `regularization_beta` : float
+        The regularization parameter for the least squares problem.
+    `verbose` : bool
+        Print debug information.
+
+    Returns
+    -------
+    `pc` : tuple(numpy.array[float], numpy.array[float])
+        The polynomial coefficients and the borders of the segments.
+    '''
+
 
     return fit_piecewisecubic(xs,ys,borders,regularization_beta)
 
