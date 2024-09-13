@@ -10,6 +10,7 @@ else:
     import numpy as np
 NA = np.newaxis
 
+def downsample2x(V, verbose=False):
     '''
     Downsample a 3D image by a factor of 2 in each dimension.
     The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
@@ -28,21 +29,21 @@ NA = np.newaxis
         The downsampled 3D image.
     '''
 
-
-#    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
-#    print("Extracting S1")
+    if verbose:
+        print(f"Rescaling from {Nz, Ny, Nx} to {nz, ny, nx}", flush=True)
+        print("Extracting S1")
     S1 = V[0:(2*nz):2].astype(np.float32)
-#    print("Extracting S2",flush=True)
-    S2 = V[1:(2*nz+1):2].astype(np.float32)
+    if verbose:
+        print("Extracting S2", flush=True)
 
-#    print(S1.shape,S2.shape)
-#    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
-#    print("Averaging",flush=True)
-    s1 = S1[:,0:2*ny:2, 0:2*nx:2]+S1[:,0:2*ny:2, 1:(2*nx+1):2]+S1[:,1:(2*ny+1):2, 0:(2*nx):2]+S1[:,1:(2*ny+1):2, 1:(2*nx+1):2]
-    s2 = S2[:,0:2*ny:2, 0:2*nx:2]+S2[:,0:2*ny:2, 1:(2*nx+1):2]+S2[:,1:(2*ny+1):2, 0:(2*nx):2]+S2[:,1:(2*ny+1):2, 1:(2*nx+1):2]
-#    print("Storing")
-    return (cylinder_mask*(s1+s2)/8).astype(V.dtype)
+    if verbose:
+        print(S1.shape, S2.shape)
+        print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
+        print("Averaging", flush=True)
 
+    if verbose:
+        print("Storing")
+def downsample3x(V, verbose=False):
     '''
     Downsample a 3D image by a factor of 3 in each dimension.
     The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
@@ -62,29 +63,20 @@ NA = np.newaxis
     '''
 
 
-#    print(f"Rescaling from {Nz,Ny,Nx} to {nz,ny,nx}",flush=True)
-    print("Extracting S1")
-    S1 = V[0:(3*nz):3].astype(np.float32)
-    print("Extracting S2",flush=True)
-    S2 = V[1:(3*nz+1):3].astype(np.float32)
-    print("Extracting S3",flush=True)
-    S3 = V[2:(3*nz+2):3].astype(np.float32)
+    if verbose:
+        print(f"Rescaling from {Nz, Ny, Nx} to {nz, ny, nx}", flush=True)
+        print("Extracting S1")
 
-    print(S1.shape,S2.shape,S3.shape)
-    print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
-    print("Averaging",flush=True)
-    s1 = S1[:,0:3*ny:3,     0:3*nx:3]  +S1[:,0:3*ny:3,     1:(3*nx+1):3]+ S1[:,0:3*ny:3,     2:(3*nx+2):3] + \
-         S1[:,1:(3*ny+1):3, 0:3*nx:3]  +S1[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S1[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
-         S1[:,2:(3*ny+2):3, 0:3*nx:3]  +S1[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S1[:,2:(3*ny+2):3, 2:(3*nx+2):3]
-    s2 = S2[:,0:3*ny:3,     0:3*nx:3]  +S2[:,0:3*ny:3,     1:(3*nx+1):3]+ S2[:,0:3*ny:3,     2:(3*nx+2):3] + \
-         S2[:,1:(3*ny+1):3, 0:3*nx:3]  +S2[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S2[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
-         S2[:,2:(3*ny+2):3, 0:3*nx:3]  +S2[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S2[:,2:(3*ny+2):3, 2:(3*nx+2):3]
-    s3 = S3[:,0:3*ny:3,     0:3*nx:3]  +S3[:,0:3*ny:3,     1:(3*nx+1):3]+ S3[:,0:3*ny:3,     2:(3*nx+2):3] + \
-         S3[:,1:(3*ny+1):3, 0:3*nx:3]  +S3[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S3[:,1:(3*ny+1):3, 2:(3*nx+2):3]+\
-         S3[:,2:(3*ny+2):3, 0:3*nx:3]  +S3[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S3[:,2:(3*ny+2):3, 2:(3*nx+2):3]
+    if verbose:
+        print("Extracting S2", flush=True)
 
-    return (cylinder_mask*(s1+s2+s3)/27).astype(V.dtype)
+    if verbose:
+        print("Extracting S3", flush=True)
 
+    if verbose:
+        print(S1.shape, S2.shape, S3.shape)
+        print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
+        print("Averaging", flush=True)
     '''
     Sample an image at the given coordinates.
     The image is assumed to be a 2D array with dimensions (Ny, Nx).
@@ -154,6 +146,7 @@ NA = np.newaxis
     return sample(image,xs,ys)
 
 
+def polar_to_cart(polar_image, nx, ny, verbose=False):
     '''
     Convert a polar image to cartesian coordinates.
     The image is assumed to be a 2D array with dimensions (Nr, Ntheta).
@@ -174,11 +167,10 @@ NA = np.newaxis
     '''
 
     R = polar_image.shape[1]
-    xs = np.arange(nx)+0.5 - R
-    ys = np.arange(ny)+0.5 - R
-    print(nx,ny,R)
-    print(xs.min(),xs.max())
-    print(ys.min(),ys.max())
+    if verbose:
+        print(nx, ny, R)
+        print(xs.min(), xs.max())
+        print(ys.min(), ys.max())
 
     rs     = np.sqrt(xs[None,:]**2 + ys[:,None]**2)
     invalid = rs>=R
@@ -187,8 +179,8 @@ NA = np.newaxis
     rs     = ma.masked_array(rs,    mask=invalid)
     thetas = ma.masked_array(thetas,mask=invalid)
 
-    print(rs.min(),rs.max())
-    print(thetas.min(),thetas.max())
-    return sample(polar_image,rs,thetas)
+    if verbose:
+        print(rs.min(), rs.max())
+        print(thetas.min(), thetas.max())
 
 
