@@ -112,7 +112,7 @@ def esrf_edfrange_to_npy(info, region):
 
     Returns
     -------
-    `data` : numpy.array
+    `data` : numpy.array[float32]
         Data from the EDF file.
     '''
 
@@ -138,7 +138,7 @@ def esrf_full_tomogram(info):
 
     Returns
     -------
-    `data` : numpy.array
+    `data` : numpy.array[float32]
         Data from the EDF file.
     '''
 
@@ -156,7 +156,7 @@ def esrf_edf_to_bh(filename):
 
     Returns
     -------
-    `(meta, data)` : tuple(dict(str, Any), bohrium.array)
+    `(meta, data)` : tuple(dict(str, Any), bohrium.array[meta["NumpyType"]])
         Tuple of metadata and data from the EDF file.
     '''
 
@@ -183,7 +183,7 @@ def esrf_edf_n_to_bh(info, n):
 
     Returns
     -------
-    `(meta, data)` : tuple(dict(str, Any), bohrium.array)
+    `(meta, data)` : tuple(dict(str, Any), bohrium.array[meta["NumpyType"]])
         Tuple of metadata and data from the EDF file.
     '''
 
@@ -204,7 +204,7 @@ def esrf_edfrange_to_bh(info, region):
 
     Returns
     -------
-    `data` : bohrium.array
+    `data` : bohrium.array[float32]
         Data from the EDF file.
     '''
 
@@ -237,7 +237,7 @@ def esrf_edf_to_jp(filename):
 
     Returns
     -------
-    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array)
+    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array[meta["NumpyType"]])
         Tuple of metadata and data from the EDF file.
     '''
 
@@ -247,7 +247,7 @@ def esrf_edf_to_jp(filename):
 
     with open(filename,"rb") as f:
         f.seek(header_length,os.SEEK_SET)
-        data = jp.fromfile(file=f,dtype=meta["NumpyType"])
+        data = jp.fromfile(file=f, dtype=meta["NumpyType"])
         assert data.shape[0]*2 == int(meta["Size"])
         return (meta,data.reshape(ny,nx))
 
@@ -264,7 +264,7 @@ def esrf_edf_n_to_jp(info, n):
 
     Returns
     -------
-    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array)
+    `(meta, data)` : tuple(dict(str, Any), jax.numpy.array[meta["NumpyType"]])
         Tuple of metadata and data from the EDF file.
     '''
 
@@ -285,7 +285,7 @@ def esrf_edfrange_to_jp(info, region):
 
     Returns
     -------
-    `data` : jax.numpy.array
+    `data` : jax.numpy.array[float32]
         Data from the EDF file.
     '''
 
@@ -314,7 +314,7 @@ def esrf_full_tomogram_jp(info):
 
     Returns
     -------
-    `data` : jax.numpy.array
+    `data` : jax.numpy.array[float32]
         Data from the EDF file.
     '''
 
