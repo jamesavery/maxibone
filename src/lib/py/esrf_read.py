@@ -99,7 +99,7 @@ def esrf_edf_n_to_npy(info,n):
     subvolume_name = info["subvolume_name"].format(n)
     return esrf_edf_to_npy(f'{dirname}/{subvolume_name}')
 
-def esrf_edfrange_to_npy(info,region):
+def esrf_edfrange_to_npy(info, region):
     '''
     Read data from a region of an ESRF EDF file into a numpy array.
 
@@ -143,7 +143,7 @@ def esrf_full_tomogram(info):
     '''
 
     (nx,ny,nz) = (int(info['sizex']), int(info['sizey']), int(info['sizez']))
-    return esrf_edfrange_to_npy(info,[[0,0,0],[nx,ny,nz]])
+    return esrf_edfrange_to_npy(info, [[0,0,0],[nx,ny,nz]])
 
 def esrf_edf_to_bh(filename):
     '''
@@ -170,7 +170,7 @@ def esrf_edf_to_bh(filename):
 #        assert data.shape[0]*2 == int(meta["Size"])
         return (meta, data.reshape(ny,nx))
 
-def esrf_edf_n_to_bh(info,n):
+def esrf_edf_n_to_bh(info, n):
     '''
     Read data from a single slab (subvolume) of an ESRF EDF file into a bohrium array.
 
@@ -191,7 +191,7 @@ def esrf_edf_n_to_bh(info,n):
     subvolume_name = info["subvolume_name"].format(n)
     return esrf_edf_to_bh(f'{dirname}/{subvolume_name}')
 
-def esrf_edfrange_to_bh(info,region):
+def esrf_edfrange_to_bh(info, region):
     '''
     Read data from a region of an ESRF EDF file into a bohrium array.
 
@@ -251,7 +251,7 @@ def esrf_edf_to_jp(filename):
         assert data.shape[0]*2 == int(meta["Size"])
         return (meta,data.reshape(ny,nx))
 
-def esrf_edf_n_to_jp(info,n):
+def esrf_edf_n_to_jp(info, n):
     '''
     Read data from a single slab (subvolume) of an ESRF EDF file into a jax.numpy array.
 
@@ -272,7 +272,7 @@ def esrf_edf_n_to_jp(info,n):
     subvolume_name = info["subvolume_name"].format(n)
     return esrf_edf_to_jp(dirname+"/"+subvolume_name)
 
-def esrf_edfrange_to_jp(info,region):
+def esrf_edfrange_to_jp(info, region):
     '''
     Read data from a region of an ESRF EDF file into a jax.numpy array.
 
