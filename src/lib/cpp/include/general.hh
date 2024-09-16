@@ -84,7 +84,6 @@ namespace NS {
         normalized_convert(in, out, vmin, vmax);
     }
 
-    // Assumes `allowed` is sorted
     /**
      * Filters the input array `src` such that only elements that are in the `allowed` array are kept.
      * The `allowed` array is assumed to be sorted as it uses a binary search to find the elements.
