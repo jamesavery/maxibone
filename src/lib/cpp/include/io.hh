@@ -143,6 +143,7 @@ template <typename T>
 int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
 
 
+// TODO Functions cannot be overloaded purely on return type. Hence the following function is commented out.
 /**
  * Load a flat array from a file. This version allocates memory for the data.
  *
@@ -152,8 +153,8 @@ int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &
  * @tparam T The type of the data.
  * @return A pointer to the data.
  */
-template <typename T>
-T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+//template <typename T>
+//T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
 
 /**
  * Load a flat array from a file. This version allocates a vector for containing the data.
@@ -412,15 +413,16 @@ int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &
     return e_total_n;
 }
 
-template <typename T>
-T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
-    T *data = (T *) malloc(e_n_elements * sizeof(T));
-    FILE *fp = open_file_read(path);
-    int64_t e_n = load_flat(data, fp, e_offset, e_n_elements);
-    assert (e_n == e_n_elements && "Failed to read all elements");
-    fclose(fp);
-    return data;
-}
+// TODO Functions cannot be overloaded purely on return type. Hence the following function is commented out.
+//template <typename T>
+//T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+//    T *data = (T *) malloc(e_n_elements * sizeof(T));
+//    FILE *fp = open_file_read(path);
+//    int64_t e_n = load_flat(data, fp, e_offset, e_n_elements);
+//    assert (e_n == e_n_elements && "Failed to read all elements");
+//    fclose(fp);
+//    return data;
+//}
 
 template <typename T>
 std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
