@@ -32,7 +32,7 @@
  * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM()` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM()` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
 #define PARALLEL_TERM() PRAGMA(acc parallel loop)
-#elif _OPENMP
+#elif defined _OPENMP
 /**
  * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM()` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM()` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
@@ -49,7 +49,7 @@
  * Inserts boilerplate code for atomic operations. This macro will generate the appropriate pragma for the compiler. For example, `ATOMIC()` will generate `#pragma acc atomic` for OpenACC, while `ATOMIC()` will generate `#pragma omp atomic` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
 #define ATOMIC() PRAGMA(acc atomic)
-#elif _OPENMP
+#elif defined _OPENMP
 /**
  * Inserts boilerplate code for atomic operations. This macro will generate the appropriate pragma for the compiler. For example, `ATOMIC()` will generate `#pragma acc atomic` for OpenACC, while `ATOMIC()` will generate `#pragma omp atomic` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
