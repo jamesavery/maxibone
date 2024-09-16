@@ -8,21 +8,6 @@
 #include <stack>
 #include <unordered_set>
 
-// Debug functions
-void print_idx3d(const idx3d &idx) {
-    std::cout << idx.z << " " << idx.y << " " << idx.x << std::endl;
-}
-
-void print_vector(const std::vector<int64_t> &vec) {
-    std::cout << "[ ";
-    for (int64_t i = 0; i < (int64_t) vec.size(); i++) {
-        if (i > 0)
-            std::cout << ", ";
-        std::cout << vec[i];
-    }
-    std::cout << " ]" << std::endl;
-}
-
 namespace cpu_par {
 
     void apply_renaming(std::vector<int64_t> &img, std::vector<int64_t> &to_rename) {
@@ -418,7 +403,6 @@ namespace cpu_par {
     }
 
     int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
-
         // Apply the renaming to a new global file
         int64_t
             chunks = renames.size(),
@@ -486,7 +470,6 @@ namespace cpu_par {
         return largest;
     }
 
-    // In memory version
     int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const bool verbose) {
         // Generate the adjacency tree
         auto adj_start = std::chrono::high_resolution_clock::now();
@@ -620,7 +603,6 @@ namespace cpu_par {
         std::cout << "----------------" << std::endl;
     }
 
-    // Ensures that the labels in the renaming LUTs are consecutive
     int64_t recount_labels(std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b, int64_t max_label) {
         // Find the labels that are actually used
         std::unordered_set<int64_t> mapped_a;
