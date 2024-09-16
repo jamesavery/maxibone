@@ -15,12 +15,12 @@ namespace cpu_seq {
             const uint64_t offset,
             const uint64_t size) {
         std::ifstream file;
-        file.open(filename.c_str(), ios::binary);
+        file.open(filename.c_str(), std::ios::binary);
         if (!file.is_open()) {
             fprintf(stderr, "load_slice: Error opening %s for reading.\n", filename.c_str());
             exit(-1);
         }
-        file.seekg(offset * sizeof(T), ios::beg);
+        file.seekg(offset * sizeof(T), std::ios::beg);
         file.read((char*) data, size * sizeof(T));
         uint64_t n = file.tellg() - offset * sizeof(T);
         assert (n == size * sizeof(T) && "Error reading the correct amount of bytes.");
@@ -33,18 +33,18 @@ namespace cpu_seq {
             const uint64_t offset,
             const uint64_t size) {
         std::ofstream file;
-        file.open(filename.c_str(), ios::binary | ios::in | ios::out);
+        file.open(filename.c_str(), std::ios::binary | std::ios::in | std::ios::out);
         if (!file.is_open()) {
             file.clear();
-            file.open(filename.c_str(), ios::binary | ios::out);
+            file.open(filename.c_str(), std::ios::binary | std::ios::out);
         }
         // Error handling
-        if (file.seekp(offset * sizeof(T), ios::beg).fail()) {
+        if (file.seekp(offset * sizeof(T), std::ios::beg).fail()) {
             fprintf(stderr, "write_slice: Error seeking to %lu in %s.\n", offset, filename.c_str());
             file.close();
             exit(-1);
         }
-        //file.seekp(offset * sizeof(T), ios::beg);
+        //file.seekp(offset * sizeof(T), std::ios::beg);
         uint64_t
             byte_size = size * sizeof(T),
             block_size = 4096 * 1024,
