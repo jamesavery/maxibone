@@ -96,4 +96,8 @@ typedef struct {
 
 typedef std::vector<std::unordered_set<int64_t>> mapping_t;
 
+constexpr bool
+    DEBUG = false,
+    PROFILE = false;
+
 #endif

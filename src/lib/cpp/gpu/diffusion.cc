@@ -6,10 +6,6 @@
 #include "openacc.h"
 #include "omp.h"
 
-constexpr bool
-    DEBUG = false,
-    PROFILE = true;
-
 namespace gpu {
 
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
