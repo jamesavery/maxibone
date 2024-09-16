@@ -1,5 +1,4 @@
 #include "bitpacking.hh"
-#include "datatypes.hh"
 
 namespace gpu {
 

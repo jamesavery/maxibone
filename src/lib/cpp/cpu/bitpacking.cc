@@ -1,5 +1,4 @@
 #include "bitpacking.hh"
-#include "datatypes.hh"
 
 #include "../cpu_seq/bitpacking.cc"
 
