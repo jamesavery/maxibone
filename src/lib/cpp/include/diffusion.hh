@@ -59,6 +59,7 @@ namespace NS {
      * This function assumes that the host has enough memory to hold both input, output and working memory.
      * This translates to `N.z*N.y*N.x * (sizeof(uint8_t) + 2*sizeof(float) + sizeof(uint16_t)) + kernel_size`.
      * The target will only have to be able to hold a chunk of size `global_shape`.
+     * The function also assumes that each shape in global_shape is > kernel_size in order to contain the overlap. This assumption allows for controlling the memory used by each thread / async operation outside of this call.
      *
      * @param voxels Pointer to the mask. Assumed to be either 1 or 0.
      * @param total_shape The shape of the volume.

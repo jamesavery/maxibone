@@ -1,3 +1,12 @@
+/**
+ * @file diffusion.cc
+ * @author Carl-Johannes Johnsen (carl-johannes@di.ku.dk)
+ * @brief GPU implementation of the diffusion approximation algorithm.
+ * @version 0.1
+ * @date 2024-09-16
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "diffusion.hh"
 
 #include <chrono>
@@ -8,6 +17,21 @@
 
 namespace gpu {
 
+    /**
+     * Diffusion core function. This function is the core of the diffusion algorithm, and is called for each dimension.
+     * It convolves `kernel` alongside the dimension specified by `dim`.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     * This particular version is branch-free, and uses a variety of techniques to avoid branching.
+     * It is however still generic for each dimension, and can be used for all dimensions.
+     * It is also able to handle arbitrary kernel sizes, as long as the kernel size is odd.
+     *
+     * @param input The input array.
+     * @param kernel The kernel to convolve with.
+     * @param output The output array.
+     * @param N The shape of the input array.
+     * @param dim The dimension to convolve along.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
 
@@ -78,6 +102,19 @@ namespace gpu {
         }
     }
 
+    /**
+     * Diffusion core function. This function is the core of the diffusion algorithm, and is called for each dimension.
+     * It convolves `kernel` alongside the dimension specified by `dim`.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     * This is the original implementation, and is used for comparison against the optimized versions.
+     *
+     * @param input The input array.
+     * @param kernel The kernel to convolve with.
+     * @param output The output array.
+     * @param N The shape of the array.
+     * @param dim The dimension to convolve along.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core_og(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t dim, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
 
@@ -114,8 +151,19 @@ namespace gpu {
         }
     }
 
-    // TODO Make this call y, since they're VERY similar?
+    /**
+     * Diffusion core function. This function is optimized for application along the z axis.
+     * It assumes that the x dimension is a multiple of 32, and that the kernel size is less than 32.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     *
+     * @param input The input array.
+     * @param kernel The kernel to convolve with.
+     * @param output The output array.
+     * @param N The shape of the array.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core_z(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
+        // TODO Make this call y, since they're VERY similar?
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
             worklen = 1,
@@ -168,6 +216,17 @@ namespace gpu {
         }
     }
 
+    /**
+     * Diffusion core function. This function is optimized for application along the y axis.
+     * It assumes that the x dimension is a multiple of 32, and that the kernel size is less than 32.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     *
+     * @param input The input array.
+     * @param kernel The kernel to convolve with.
+     * @param output The output array.
+     * @param N The shape of the array.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core_y(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Assumes that the x dimension is a multiple of veclen.
         constexpr int32_t
@@ -221,6 +280,17 @@ namespace gpu {
         }
     }
 
+    /**
+     * Diffusion core function. This function is optimized for application along the x axis.
+     * It assumes that the x dimension is a multiple of 32, and that the kernel size is less than 32.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     *
+     * @param input The input array.
+     * @param kernel The kernel to convolve with.
+     * @param output The output array.
+     * @param N The shape of the array.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core_x(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int32_t radius) {
         // Note: the use of 32-bit is intentional to reduce register pressure on GPU. Each of the 32-bit values shouldn't exceed 2^32, but the indices (address) to the arrays can be.
         constexpr int32_t veclen = 32;
@@ -294,6 +364,8 @@ namespace gpu {
             }
         }
     }
+
+    // TODO use I/O functions rather than reimplementing them here!
 
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
@@ -375,6 +447,14 @@ namespace gpu {
         return file;
     }
 
+    /**
+     * Converts `src` from `float` to `uint8_t` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_float_to_uint8(const float *__restrict__ src, uint8_t *__restrict__ dst, const int64_t total_flat_size) {
         #pragma acc parallel loop
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -382,6 +462,14 @@ namespace gpu {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `float` to `uint8_t` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -407,6 +495,14 @@ namespace gpu {
         fclose(file_src);
     }
 
+    /**
+     * Converts `src` from `float` to `uint16_t` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_float_to_uint16(const float *__restrict__ src, uint16_t *__restrict__ dst, const int64_t total_flat_size) {
         #pragma acc parallel loop
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -414,6 +510,15 @@ namespace gpu {
         }
     }
 
+    /**
+     * Converts `src` from `float` to `uint16_t` and stores the result in `dst`.
+     * `src` is assumed to have shape `P`, and `dst` is assumed to have shape `N`.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param N The shape of the output array.
+     * @param P The shape of the input array.
+     */
     void convert_float_to_uint16(const float *__restrict__ src, uint16_t *__restrict__ dst, const shape_t &N, const shape_t &P) {
         #pragma acc parallel loop collapse(3) present(src, dst)
         for (int32_t z = 0; z < N.z; z++) {
@@ -428,6 +533,14 @@ namespace gpu {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `float` to `uint16_t` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -455,6 +568,14 @@ namespace gpu {
         fclose(file_src);
     }
 
+    /**
+     * Converts `src` from `uint8_t` to `float` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const int64_t total_flat_size) {
         #pragma acc parallel loop
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -462,6 +583,15 @@ namespace gpu {
         }
     }
 
+    /**
+     * Converts `src` from `uint8_t` to `float` and stores the result in `dst`.
+     * `src` is assumed to have shape `P`, and `dst` is assumed to have shape `N`.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param N The shape of the output array.
+     * @param P The shape of the input array.
+     */
     void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const shape_t &N, const shape_t &P) {
         #pragma acc parallel loop collapse(3) present(src, dst)
         for (int32_t z = 0; z < (int32_t)P.z; z++) {
@@ -480,6 +610,14 @@ namespace gpu {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `uint8_t` to `float` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -507,6 +645,14 @@ namespace gpu {
         fclose(file_src);
     }
 
+    /**
+     * Illuminates the voxels in `output` where `mask` is true.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param mask The mask array.
+     * @param output The output array.
+     * @param local_flat_size The size of the array.
+     */
     void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size) {
         #pragma acc parallel loop present(mask, output)
         for (int64_t thread = 0; thread < gpu_threads; thread++) {
@@ -520,6 +666,15 @@ namespace gpu {
         }
     }
 
+    /**
+     * Illuminates the voxels in `output` where `mask` is true.
+     * `mask` is assumed to have shape `N`, and `output` is assumed to have shape `P`.
+     *
+     * @param mask The mask array.
+     * @param output The output array.
+     * @param N The shape of the mask array.
+     * @param P The shape of the output array.
+     */
     void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const shape_t &N, const shape_t &P) {
         #pragma acc parallel loop collapse(3) present(mask, output)
         for (int32_t z = 0; z < N.z; z++) {
@@ -534,6 +689,19 @@ namespace gpu {
         }
     }
 
+    /**
+     * Perform one step of the diffusion approximation.
+     * This means apply the gaussian in each dimension, and then illuminate the pixels where the mask is greater than zero.
+     * If the radius is less than 16, the optimized core functions are used. Otherwise, the generic core function is used.
+     *
+     * @param voxels The input array.
+     * @param buf0 The first buffer.
+     * @param buf1 The second buffer.
+     * @param N The shape of the input array.
+     * @param P The shape of the buffer arrays, which are padded to a multiple of 32.
+     * @param kernel The kernel to convolve with.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_step(const uint8_t *__restrict__ voxels, float *buf0, float *buf1, const shape_t &N, const shape_t &P, const float *__restrict__ kernel, const int64_t radius) {
         if (radius < 16) {
             diffusion_core_z(buf0, kernel, buf1, P, radius);
@@ -548,6 +716,15 @@ namespace gpu {
         illuminate(voxels, buf1, N, P);
     }
 
+    /**
+     * Stores the mask in `mask` where `input` is equal to 1.0f.
+     * This is used later to illuminate the pixels.
+     * The arrays are assumed to be of the same shape.
+     *
+     * @param input The input array.
+     * @param mask The output mask.
+     * @param local_flat_size The size of the arrays.
+     */
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
         #pragma acc parallel loop present(input, mask)
         for (int64_t thread = 0; thread < gpu_threads; thread++) {
@@ -725,8 +902,6 @@ namespace gpu {
         fclose(tmp1);
     }
 
-    // The full data sample resides in main memory, but out of GPU memory.
-    // Assumes that each shape in global_shape is > kernel_size in order to contain the overlap. This assumption allows for controlling the memory used by each thread / async operation outside of this call.
     void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
         // TODO should be a configuration parameter set somewhere global / statically during configuration/compilation.
         const int32_t

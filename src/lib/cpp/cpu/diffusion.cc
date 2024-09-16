@@ -1,3 +1,12 @@
+/**
+ * @file diffusion.cc
+ * @author Carl-Johannes Johnsen (carl-johannes@di.ku.dk)
+ * @brief Parallel CPU implementation of the diffusion approximation algorithm.
+ * @version 0.1
+ * @date 2024-09-16
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "diffusion.hh"
 
 #include <fcntl.h>
@@ -7,8 +16,20 @@
 
 namespace cpu_par {
 
-    // TODO Transposed write-back should be faster, as each the reads will be sequential for all three dimensions. Test it!
+    /**
+     * Diffusion core function. This function is the core of the diffusion algorithm, and is called for each dimension.
+     * It convolves `kernel` alongside the dimension specified by `dim`.
+     * It does not handle padding, and out-of-bound voxels are treated as zero - i.e. they are ignored.
+     *
+     * @param input The input volume.
+     * @param kernel The kernel to convolve with.
+     * @param output The output volume.
+     * @param N The shape of the volume.
+     * @param dim The dimension to convolve along.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_core(const float *__restrict__ input, const float *__restrict__ kernel, float *__restrict__ output, const shape_t &N, const int64_t dim, const int64_t radius) {
+        // TODO Transposed write-back should be faster, as each the reads will be sequential for all three dimensions. Test it!
         #pragma omp parallel for collapse(3)
         for (int64_t i = 0; i < N.z; i++) {
             for (int64_t j = 0; j < N.y; j++) {
@@ -38,6 +59,7 @@ namespace cpu_par {
         }
     }
 
+    // Use I/O functions rather than reimplementing the same functionality!
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
     void load_partial(FILE *f, T *__restrict__ buffer, const int64_t buffer_size, const int64_t offset, const int64_t size, const int64_t total_size, const int64_t padding) {
@@ -106,6 +128,14 @@ namespace cpu_par {
         return file;
     }
 
+    /**
+     * Converts `src` from `float` to `uint8_t` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_float_to_uint8(const float *__restrict__ src, uint8_t *__restrict__ dst, const int64_t total_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -113,6 +143,14 @@ namespace cpu_par {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `float` to `uint8_t` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -135,6 +173,14 @@ namespace cpu_par {
         fclose(file_src);
     }
 
+    /**
+     * Converts `src` from `float` to `uint16_t` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_float_to_uint16(const float *__restrict__ src, uint16_t *__restrict__ dst, const int64_t total_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -142,6 +188,14 @@ namespace cpu_par {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `float` to `uint16_t` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -166,6 +220,14 @@ namespace cpu_par {
         fclose(file_src);
     }
 
+    /**
+     * Converts `src` from `uint8_t` to `float` and stores the result in `dst`.
+     * The arrays are assumed to be of the same size.
+     *
+     * @param src The input array.
+     * @param dst The output array.
+     * @param total_flat_size The size of the array.
+     */
     void convert_uint8_to_float(const uint8_t *__restrict__ src, float *__restrict__ dst, const int64_t total_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < total_flat_size; i++) {
@@ -173,6 +235,14 @@ namespace cpu_par {
         }
     }
 
+    /**
+     * Converts the contents of a file `src` from `uint8_t` to `float` and stores the result in a new file `dst`.
+     * The files are assumed to have the same size.
+     *
+     * @param src The path to the input file.
+     * @param dst The path to the output file.
+     * @param total_flat_size The size of each file.
+     */
     void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
         constexpr int64_t
             disk_block_size = 4096,
@@ -195,6 +265,14 @@ namespace cpu_par {
         fclose(file_src);
     }
 
+    /**
+     * Illuminates the pixels in `output` where `mask` is greater than zero.
+     * The arrays are assumed to have the same size.
+     *
+     * @param mask The mask to determine the illumination.
+     * @param output The output to illuminate.
+     * @param local_flat_size The size of the arrays.
+     */
     void illuminate(const uint8_t *__restrict__ mask, float *__restrict__ output, const int64_t local_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < local_flat_size; i++) {
@@ -204,6 +282,16 @@ namespace cpu_par {
         }
     }
 
+    /**
+     * Perform one step of the diffusion approximation.
+     * This means apply the gaussian in each dimension, and then illuminate the pixels where the mask is greater than zero.
+     *
+     * @param voxels The mask to diffuse.
+     * @param buffers The working memory. Should be of size 2.
+     * @param N The shape of the mask and the working memory.
+     * @param kernel The kernel to apply.
+     * @param radius The radius of the kernel.
+     */
     void diffusion_step(const uint8_t *__restrict__ voxels, float **buffers, const shape_t &N, const float *__restrict__ kernel, const int64_t radius) {
         for (int64_t dim = 0; dim < 3; dim++) {
             diffusion_core(buffers[0], kernel, buffers[1], N, dim, radius);
@@ -212,6 +300,15 @@ namespace cpu_par {
         illuminate(voxels, buffers[0], N.z*N.y*N.x);
     }
 
+    /**
+     * Stores the mask in `mask` where `input` is equal to 1.0f.
+     * This is used later to illuminate the pixels.
+     * The arrays are assumed to be of the same shape.
+     *
+     * @param input The input array.
+     * @param mask The output mask.
+     * @param local_flat_size The size of the arrays.
+     */
     void store_mask(const float *__restrict__ input, uint8_t *__restrict__ mask, const int64_t local_flat_size) {
         #pragma omp parallel for
         for (int64_t i = 0; i < local_flat_size; i++) {
