@@ -11,41 +11,280 @@
 // b_ = byte sizes / indices
 constexpr int64_t b_disk_block_size = 4096; // TODO get from filesystem.
 
+//
+// External functions (expected to be called by Python)
+//
 namespace NS {
 
-    //
-    // External functions (expected to be called by Python)
-    //
+    /**
+     * Load a contiguous array from a file.
+     *
+     * @param data The memory pointer to load the data into.
+     * @param filename The path to the file.
+     * @param offset The offset in number of elements into the file to start reading from.
+     * @param size The number of elements to read.
+     * @tparam T The type of the data.
+     */
     template <typename T>
     void load_contiguous_slice(const T *data, const std::string filename, const uint64_t offset, const uint64_t size);
+
+    /**
+     * Write a contiguous array to a file.
+     *
+     * @param data The memory pointer to write the data from.
+     * @param filename The path to the file.
+     * @param offset The offset in number of elements into the file to start writing to.
+     * @param size The number of elements to write.
+     * @tparam T The type of the data.
+     */
     template <typename T>
-    void write_contiguous_slice(const T *np_data, const std::string filename, const uint64_t offset, const uint64_t size);
+    void write_contiguous_slice(const T *data, const std::string filename, const uint64_t offset, const uint64_t size);
+
+    // TODO non-contiguous
 
 }
 
 //
 // Internal Functions (expected to be called by C++)
 //
+
+/**
+ * Open a file for reading. The file is expected to be in binary format.
+ * This version uses the standard `fopen` function, which lets the OS handle caching.
+ *
+ * @param path The path to the file.
+ * @return A pointer to the file.
+ */
 FILE* open_file_read(const std::string &path);
+
+/**
+ * Open a file for reading. The file is expected to be in binary format.
+ * This version uses the `O_DIRECT` flag, which bypasses the OS cache. This allows for faster reading, but comes with the following restrictions:
+ *
+ * 1. The file must be aligned to the block size of the disk.
+ *
+ * 2. The file must be read in multiples of the block size of the disk.
+ *
+ * 3. The pointer to memory must be aligned to the block size of the disk.
+ *
+ * @param path The path to the file.
+ * @return A pointer to the file.
+ * @see open_file_read
+ */
 FILE* open_file_read_direct(const std::string &path);
+
+/**
+ * Open a file for writing. The file is expected to be in binary format.
+ * This version uses the standard `fopen` function, which lets the OS handle caching.
+ *
+ * @param path The path to the file.
+ * @return A pointer to the file.
+ */
 FILE* open_file_write(const std::string &path);
+
+/**
+ * Open a file for writing. The file is expected to be in binary format.
+ * This version uses the `O_DIRECT` flag, which bypasses the OS cache. This allows for faster writing, but comes with the following restrictions:
+ *
+ * 1. The file must be aligned to the block size of the disk.
+ *
+ * 2. The file must be written in multiples of the block size of the disk.
+ *
+ * 3. The pointer to memory must be aligned to the block size of the disk.
+ *
+ * @param path The path to the file.
+ * @return A pointer to the file.
+ */
 FILE* open_file_write_direct(const std::string &path);
 
-template <typename T> int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
-//template <typename T> T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> void load_file_flat(T *__restrict__ dst, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> std::vector<T> load_file_strided(const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+/**
+ * Load a contiguous array from a file.
+ *
+ * @param dst The memory pointer to load the data into.
+ * @param fp The file pointer.
+ * @param e_offset The offset in number of elements into the file to start reading from.
+ * @param e_n_elements The number of elements to read.
+ * @tparam T The type of the data.
+ * @return The number of elements read.
+ */
+template <typename T>
+int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
 
-template <typename T> int64_t store_flat_aligned(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> int64_t store_strided(const T *__restrict__ src, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
-template <typename T> void store_file_flat(const T *__restrict__ data, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
-template <typename T> void store_file_flat(const std::vector<T> &data, const std::string &path, const int64_t e_offset);
-template <typename T> void store_file_strided(const T *__restrict__ data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
-template <typename T> void store_file_strided(const std::vector<T> &data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+/**
+ * Load a contiguous array from a file. This version assumes that the memory pointer and number of bytes to read is aligned to the block size of the disk.
+ *
+ * @param dst The memory pointer to load the data into.
+ * @param fp The file pointer.
+ * @param e_offset The offset in number of elements into the file to start reading from.
+ * @param e_n_elements The number of elements to read.
+ * @tparam T The type of the data.
+ * @return The number of elements read.
+ */
+template <typename T>
+int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Reads the specified index `range` of a file located at `path` on disk which is of the given `shape`, into `dst`.
+ * `disk_shape` is the shape of the file on disk, and `shape` is the shape of the allocated memory.
+ * This version exists to avoid allocating a vector for each call, and reads directly from disk.
+ * The last stride is always assumed to be 1, for both src and dst.
+ * It is up to the caller to ensure that 1) `range` doesn't exceed `shape`, 2) `dst` is large enough to hold the data, 3) `dst` is set to 0 in case of a partial read and 0s are desired and 4) `dst` is an aligned allocation (e.g. using `aligned_alloc()`) to maximize performance.
+ *
+ * @param dst The memory pointer to load the data into.
+ * @param path The path to the file.
+ * @param e_shape_total The total shape of the data in memory, in number of elements.
+ * @param e_shape_global The shape of the data on disk, in number of elements.
+ * @param e_range The range of the data to read, in number of elements.
+ * @param e_offset_global The global offset of the data in memory, in number of elements.
+ * @tparam T The type of the data.
+ * @return The number of elements read.
+ */
+template <typename T>
+int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
+
+
+/**
+ * Load a flat array from a file. This version allocates memory for the data.
+ *
+ * @param path The path to the file.
+ * @param e_offset The offset in number of elements into the file to start reading from.
+ * @param e_n_elements The number of elements to read.
+ * @tparam T The type of the data.
+ * @return A pointer to the data.
+ */
+template <typename T>
+T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Load a flat array from a file. This version allocates a vector for containing the data.
+ *
+ * @param path The path to the file.
+ * @param e_offset The offset in number of elements into the file to start reading from.
+ * @param e_n_elements The number of elements to read.
+ * @tparam T The type of the data.
+ * @return A vector with the data.
+ */
+template <typename T>
+std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Load a flat array from a file.
+ *
+ * @param dst The memory pointer to load the data into.
+ * @param path The path to the file.
+ * @param e_offset The offset in number of elements into the file to start reading from.
+ * @param e_n_elements The number of elements to read.
+ * @tparam T The type of the data.
+ */
+template <typename T>
+void load_file_flat(T *__restrict__ dst, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Load a strided array from a file. This version allocates a vector for the data.
+ *
+ * @param path The path to the file.
+ * @param e_disk_shape The shape of the data on disk, in number of elements.
+ * @param e_shape The shape of the data in memory, in number of elements.
+ * @param e_range The range of the data to read, in number of elements.
+ * @param e_offset_global The global offset of the data in memory, in number of elements.
+ * @tparam T The type of the data.
+ * @return A vector with the data.
+ */
+template <typename T>
+std::vector<T> load_file_strided(const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+
+/**
+ * Store a contiguous array to a file.
+ *
+ * @param src The memory pointer to write the data from.
+ * @param fp The file pointer.
+ * @param e_offset The offset in number of elements into the file to start writing to.
+ * @param e_n_elements The number of elements to write.
+ * @tparam T The type of the data.
+ * @return The number of elements written.
+ */
+template <typename T>
+int64_t store_flat(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Store a contiguous array to a file. This version assumes that the memory pointer and number of bytes to write is aligned to the block size of the disk.
+ *
+ * @param src The memory pointer to write the data from.
+ * @param fp The file pointer.
+ * @param e_offset The offset in number of elements into the file to start writing to.
+ * @param e_n_elements The number of elements to write.
+ * @tparam T The type of the data.
+ * @return The number of elements written.
+ */
+template <typename T>
+int64_t store_flat_aligned(const T *__restrict__ src, FILE *fp, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Store a strided array to a file.
+ *
+ * @param src The memory pointer to write the data from.
+ * @param path The path to the file.
+ * @param e_shape_total The total shape of the data in memory, in number of elements.
+ * @param e_shape_global The shape of the data on disk, in number of elements.
+ * @param e_range The range of the data to write, in number of elements.
+ * @param e_offset_global The global offset of the data in memory, in number of elements.
+ * @tparam T The type of the data.
+ * @return The number of elements written.
+ */
+template <typename T>
+int64_t store_strided(const T *__restrict__ src, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global);
+
+/**
+ * Store a flat array to a file.
+ *
+ * @param src The memory pointer to write the data from.
+ * @param path The path to the file.
+ * @param e_offset The offset in number of elements into the file to start writing to.
+ * @param e_n_elements The number of elements to write.
+ * @tparam T The type of the data.
+ */
+template <typename T>
+void store_file_flat(const T *__restrict__ data, const std::string &path, const int64_t e_offset, const int64_t e_n_elements);
+
+/**
+ * Store a flat array to a file.
+ *
+ * @param src The vector to write the data from.
+ * @param path The path to the file.
+ * @param e_offset The offset in number of elements into the file to start writing to.
+ * @param e_n_elements The number of elements to write.
+ * @tparam T The type of the data.
+ */
+template <typename T>
+void store_file_flat(const std::vector<T> &data, const std::string &path, const int64_t e_offset);
+
+/**
+ * Store a strided array to a file.
+ *
+ * @param src The memory pointer to write the data from.
+ * @param path The path to the file.
+ * @param e_disk_shape The shape of the data on disk, in number of elements.
+ * @param e_shape The shape of the data in memory, in number of elements.
+ * @param e_range The range of the data to write, in number of elements.
+ * @param e_offset_global The global offset of the data in memory, in number of elements.
+ * @tparam T The type of the data.
+ */
+template <typename T>
+void store_file_strided(const T *__restrict__ data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
+
+/**
+ * Store a strided array to a file.
+ *
+ * @param src The vector to write the data from.
+ * @param path The path to the file.
+ * @param e_disk_shape The shape of the data on disk, in number of elements.
+ * @param e_shape The shape of the data in memory, in number of elements.
+ * @param e_range The range of the data to write, in number of elements.
+ * @param e_offset_global The global offset of the data in memory, in number of elements.
+ * @tparam T The type of the data.
+ */
+template <typename T>
+void store_file_strided(const std::vector<T> &data, const std::string &path, const idx3d &e_disk_shape, const idx3d &e_shape, const idx3drange &e_range, const idx3d &e_offset_global);
 
 //
 // File open functions
@@ -75,7 +314,6 @@ FILE* open_file_write_direct(const std::string &path) {
 // File load functions
 //
 
-// Assumes that `dst` and `dst + offset` is aligned to `disk_block_size` and that `n_elements` is a multiple of `disk_block_size`.
 template <typename T>
 int64_t load_flat_aligned(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const int64_t e_n_elements) {
     fseek(fp, e_offset*sizeof(T), SEEK_SET);
@@ -142,11 +380,6 @@ int64_t load_flat(T *__restrict__ dst, FILE *fp, const int64_t e_offset, const i
     return e_n_elements;
 }
 
-// Reads the specified index `range` of a file located at `path` on disk which is of the given `shape`, into `dst`.
-// `disk_shape` is the shape of the file on disk, and `shape` is the shape of the allocated memory.
-// This version exists to avoid allocating a vector for each call, and reads directly from disk.
-// The last stride is always assumed to be 1, for both src and dst.
-// It is up to the caller to ensure that 1) `range` doesn't exceed `shape`, 2) `dst` is large enough to hold the data, 3) `dst` is set to 0 in case of a partial read and 0s are desired and 4) `dst` is an aligned allocation (e.g. using `aligned_alloc()`) to maximize performance.
 template <typename T>
 int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &e_shape_total, const idx3d &e_shape_global, const idx3drange &e_range, const idx3d &e_offset_global) {
     // Calculate the strides and sizes
@@ -179,15 +412,15 @@ int64_t load_strided(T *__restrict__ dst, const std::string &path, const idx3d &
     return e_total_n;
 }
 
-//template <typename T>
-//T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
-//    T *data = (T *) malloc(e_n_elements * sizeof(T));
-//    FILE *fp = open_file_read(path);
-//    int64_t e_n = load_flat(data, fp, e_offset, e_n_elements);
-//    assert (e_n == e_n_elements && "Failed to read all elements");
-//    fclose(fp);
-//    return data;
-//}
+template <typename T>
+T* load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
+    T *data = (T *) malloc(e_n_elements * sizeof(T));
+    FILE *fp = open_file_read(path);
+    int64_t e_n = load_flat(data, fp, e_offset, e_n_elements);
+    assert (e_n == e_n_elements && "Failed to read all elements");
+    fclose(fp);
+    return data;
+}
 
 template <typename T>
 std::vector<T> load_file_flat(const std::string &path, const int64_t e_offset, const int64_t e_n_elements) {
