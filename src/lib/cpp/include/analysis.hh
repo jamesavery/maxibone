@@ -1,3 +1,7 @@
+/**
+ * @file analysis.hh
+ * @brief Various bone analysis functions.
+ */
 #ifndef analysis_h
 #define analysis_h
 
