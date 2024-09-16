@@ -1,7 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-using namespace std;
 namespace py = pybind11;
 
 #include "io.cc"
@@ -9,9 +8,9 @@ namespace py = pybind11;
 namespace python_api {
 
 template <typename T>
-void load_slice(py::array_t<T> &np_data, const string filename,
-                const tuple<uint64_t, uint64_t, uint64_t> offset,
-                const tuple<uint64_t, uint64_t, uint64_t> shape) {
+    void load_slice(py::array_t<T> &np_data, const std::string filename,
+                    const std::tuple<uint64_t, uint64_t, uint64_t> offset,
+                    const std::tuple<uint64_t, uint64_t, uint64_t> shape) {
     auto data_info = np_data.request();
     T *data = static_cast<T*>(data_info.ptr);
     auto [Nz, Ny, Nx] = shape;
@@ -25,9 +24,9 @@ void load_slice(py::array_t<T> &np_data, const string filename,
 
 template <typename T>
 void write_slice(const py::array_t<T> &np_data,
-        const string filename,
-        const tuple<uint64_t, uint64_t, uint64_t> offset,
-        const tuple<uint64_t, uint64_t, uint64_t> shape) {
+            const std::string filename,
+            const std::tuple<uint64_t, uint64_t, uint64_t> offset,
+            const std::tuple<uint64_t, uint64_t, uint64_t> shape) {
     auto data_info = np_data.request();
     const T *data = static_cast<const T*>(data_info.ptr);
     auto [Nz, Ny, Nx] = shape;
