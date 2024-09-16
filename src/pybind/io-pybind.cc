@@ -7,36 +7,54 @@ namespace py = pybind11;
 
 namespace python_api {
 
-template <typename T>
+    /**
+     * Load a contiguous slice from a flat binary file into a numpy array.
+     *
+     * @param np_data The numpy array to load the data into.
+     * @param filename The name of the file to load the data from.
+     * @param offset The offset of the slice to load.
+     * @param shape The shape of the slice to load.
+     * @tparam T The type of the data to load.
+     */
+    template <typename T>
     void load_slice(py::array_t<T> &np_data, const std::string filename,
                     const std::tuple<uint64_t, uint64_t, uint64_t> offset,
                     const std::tuple<uint64_t, uint64_t, uint64_t> shape) {
-    auto data_info = np_data.request();
-    T *data = static_cast<T*>(data_info.ptr);
-    auto [Nz, Ny, Nx] = shape;
-    auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
+        auto data_info = np_data.request();
+        T *data = static_cast<T*>(data_info.ptr);
+        auto [Nz, Ny, Nx] = shape;
+        auto [oz, oy, ox] = offset;
+        uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
 
-    assert (data_info.size >= (int64_t) (Nz*Ny*Nx));
+        assert (data_info.size >= (int64_t) (Nz*Ny*Nx));
 
-    NS::load_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
-}
+        NS::load_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
+    }
 
-template <typename T>
-void write_slice(const py::array_t<T> &np_data,
+    /**
+     * Write a contiguous slice from a numpy array to a flat binary file.
+     *
+     * @param np_data The numpy array to write the data from.
+     * @param filename The name of the file to write the data to.
+     * @param offset The offset of the slice to write.
+     * @param shape The shape of the slice to write.
+     * @tparam T The type of the data to write.
+     */
+    template <typename T>
+    void write_slice(const py::array_t<T> &np_data,
             const std::string filename,
             const std::tuple<uint64_t, uint64_t, uint64_t> offset,
             const std::tuple<uint64_t, uint64_t, uint64_t> shape) {
-    auto data_info = np_data.request();
-    const T *data = static_cast<const T*>(data_info.ptr);
-    auto [Nz, Ny, Nx] = shape;
-    auto [oz, oy, ox] = offset;
-    uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
+        auto data_info = np_data.request();
+        const T *data = static_cast<const T*>(data_info.ptr);
+        auto [Nz, Ny, Nx] = shape;
+        auto [oz, oy, ox] = offset;
+        uint64_t flat_offset = oz*Ny*Nx + oy*Nx + ox;
 
-    assert(data_info.size >= (int64_t) (Nz*Ny*Nx));
+        assert(data_info.size >= (int64_t) (Nz*Ny*Nx));
 
-    NS::write_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
-}
+        NS::write_contiguous_slice<T>(data, filename, flat_offset, data_info.size);
+    }
 
 }
 
