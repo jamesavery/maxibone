@@ -342,7 +342,7 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 
 def row_normalize(A, r):
     '''
-    Normalize the rows of a matrix A by the vector r.
+    Normalize the rows of a matrix `A` by the vector `r`.
 
     Parameters
     ----------
