@@ -1,4 +1,8 @@
 
+/**
+ * @file connected_components.cc
+ * Parallel CPU implementation of the connected components merging functions.
+ */
 #include "connected_components.hh"
 
 #include <chrono>

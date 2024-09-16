@@ -1,3 +1,7 @@
+/**
+ * @file analysis.cc
+ * GPU implementation of the BIC functions.
+ */
 #include "../cpu_seq/analysis.cc"
 
 namespace gpu {

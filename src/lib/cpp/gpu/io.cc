@@ -1,7 +1,10 @@
+/**
+ * @file io.cc
+ * GPU implementation of the I/O functions.
+ */
 #include <iostream>
 #include <fstream>
 
-#include "io.hh"
 #include "../cpu_seq/io.cc"
 
 namespace gpu {

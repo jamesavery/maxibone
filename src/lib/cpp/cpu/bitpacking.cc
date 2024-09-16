@@ -1,3 +1,7 @@
+/**
+ * @file bitpacking.cc
+ * Parallel CPU implementation of the bitpacking functions.
+ */
 #include "bitpacking.hh"
 
 #include "../cpu_seq/bitpacking.cc"

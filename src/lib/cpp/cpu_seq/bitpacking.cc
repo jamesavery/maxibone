@@ -1,3 +1,7 @@
+/**
+ * @file bitpacking.cc
+ * Sequential CPU implementation of the bitpacking functions.
+ */
 #include "bitpacking.hh"
 
 namespace cpu_seq {

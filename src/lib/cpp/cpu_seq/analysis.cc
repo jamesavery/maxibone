@@ -1,3 +1,7 @@
+/**
+ * @file analysis.cc
+ * Sequential CPU implementation of the BIC functions.
+ */
 #include "analysis.hh"
 
 namespace cpu_seq {

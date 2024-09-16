@@ -1,3 +1,7 @@
+/**
+ * @file io.cc
+ * Sequential CPU implementation of the I/O functions.
+ */
 #include <iostream>
 #include <fstream>
 

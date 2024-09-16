@@ -1,3 +1,7 @@
+/**
+ * @file analysis-pybind.cc
+ * Python bindings for the analysis functions.
+ */
 #include "analysis.cc"
 
 namespace py = pybind11;

@@ -1,3 +1,7 @@
+/**
+ * @file io.hh
+ * Header file for the I/O functions.
+ */
 #ifndef io_h
 #define io_h
 

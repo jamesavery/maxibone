@@ -1,7 +1,10 @@
+/**
+ * @file bitpacking-pybind.cc
+ * Python bindings for bitpacking C++ functions.
+ */
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-using namespace std;
 namespace py = pybind11;
 
 #include "bitpacking.cc"

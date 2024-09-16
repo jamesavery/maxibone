@@ -1,3 +1,7 @@
+/**
+ * @file connected_components.hh
+ * Header file for the connected components functions.
+ */
 #ifndef connected_components_h
 #define connected_components_h
 

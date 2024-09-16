@@ -1,3 +1,7 @@
+/**
+ * @file analysis.cc
+ * Parallel CPU implementation of the BIC functions.
+ */
 #include "../cpu_seq/analysis.cc"
 
 namespace cpu_par {

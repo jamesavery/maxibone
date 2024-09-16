@@ -1,3 +1,7 @@
+/**
+ * @file io-pybind.cc
+ * Python bindings for the I/O functions.
+ */
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 

@@ -1,3 +1,7 @@
+/**
+ * @file bitpacking.cc
+ * GPU implementation of the bitpacking functions.
+ */
 #include "bitpacking.hh"
 
 namespace gpu {
