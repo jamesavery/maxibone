@@ -87,7 +87,7 @@ namespace NS {
      * @param img The chunk to apply the renaming to.
      * @param to_rename The renaming LUT.
      */
-    void apply_renaming(std::vector<int64_t> &img, const std::vector<int64_t> &to_rename);
+    void apply_renaming(std::vector<int64_t> &img, std::vector<int64_t> &to_rename);
 
     /**
      * Apply the renaming LUT in `renames` to the given chunk `img`.
@@ -110,7 +110,17 @@ namespace NS {
      * @param total_shape The shape of the total volume.
      * @param global_shape The shape of a chunk.
      */
-    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape);
+    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose);
+
+    /**
+     * Count the sizes of each label in the given chunk `img`.
+     *
+     * @param img The chunk to count the sizes from.
+     * @param sizes The output buffer for the sizes.
+     * @param n_labels The number of labels in the chunk.
+     * @param size The number of elements in the chunk.
+     */
+    void count_sizes(int64_t *__restrict__ img, std::vector<int64_t> &sizes, const int64_t n_labels, const int64_t size);
 
     /**
      * Get the mappings between a vector `a` and a vector `b`. A mapping from `a` to `b` describes which labels in `b` that are neighbours to a given label in `a`.
@@ -132,7 +142,7 @@ namespace NS {
      * @param n_labels The number of labels in the chunk.
      * @return A vector containing the sizes of each label.
      */
-    std::vector<int64_t> get_sizes(const std::vector<int64_t> &img, const int64_t n_labels);
+    std::vector<int64_t> get_sizes(std::vector<int64_t> &img, int64_t n_labels);
 
     /**
      * Generate the adjacency tree of the chunks.
@@ -148,13 +158,12 @@ namespace NS {
     /**
      * Ensure that the labels in the renaming LUTs are consecutive.
      *
-     * @param mapping_a The mapping from the first chunk to the second chunk.
-     * @param mapping_b The mapping from the second chunk to the first chunk.
      * @param to_rename_a The renaming LUT for the first chunk.
      * @param to_rename_b The renaming LUT for the second chunk.
+     * @param max_label The maximum label in both chunks.
      * @return The number of labels after applying each LUT to their respective chunk.
      */
-    int64_t recount_labels(const mapping_t &mapping_a, mapping_t &mapping_b, std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b);
+    int64_t recount_labels(std::vector<int64_t> &to_rename_a, std::vector<int64_t> &to_rename_b, int64_t max_label);
 
     /**
      * Build the renaming LUTs for each chunk. The renaming LUTs are built by merging the labels in the chunks so that there exist a global labeling across all chunks.
