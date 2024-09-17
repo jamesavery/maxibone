@@ -26,7 +26,7 @@ void morphology_3d_sphere_wrapper(
     mask_type *result = static_cast<mask_type*>(result_info.ptr);
 
     if (radius == (int64_t) 16) {
-        //NS::morphology_3d_sphere_r16<Op, neutral>(voxels, N, strides, result);
+        NS::morphology_3d_sphere_r16<Op, neutral>(voxels, N, strides, result);
     } else {
         NS::morphology_3d_sphere<Op, neutral>(voxels, radius, N, strides, result);
     }

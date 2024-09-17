@@ -13,6 +13,13 @@ namespace NS {
         const int64_t strides[3],
         mask_type *result);
 
+    template <typename Op, bool neutral>
+    void morphology_3d_sphere_r16(
+        const mask_type *voxels,
+        const int64_t N[3],
+        const int64_t strides[3],
+        mask_type *result);
+
     template <uint32_t op(uint32_t,uint32_t), uint32_t reduce(uint32_t,uint32_t), uint32_t neutral>
     void morphology_3d_sphere_bitpacked(
         const uint32_t *voxels,

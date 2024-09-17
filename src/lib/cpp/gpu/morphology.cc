@@ -56,14 +56,12 @@ void morphology_3d_sphere(
 #endif
 }
 
-// Hardcoded radius 16, as this is the general case, and hardcoding allows for more optimizations.
 template <typename Op, bool neutral>
 void morphology_3d_sphere_r16(
         const mask_type *voxels,
         const int64_t N[3],
         const int64_t strides[3],
         mask_type *result) {
-#ifdef _OPENACC
     Op op;
     constexpr int32_t radius = 16;
     const int32_t sqradius = (int32_t)radius * (int32_t)radius;
@@ -106,9 +104,6 @@ void morphology_3d_sphere_r16(
             }
         }
     }
-#else
-    throw runtime_error("Library wasn't compiled with OpenACC.");
-#endif
 }
 
 template <uint32_t op(uint32_t,uint32_t), uint32_t reduce(uint32_t,uint32_t), uint32_t neutral>
