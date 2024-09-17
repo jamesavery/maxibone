@@ -5,56 +5,20 @@ sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
 from lib.cpp.cpu.geometry import compute_front_back_masks
-from lib.cpp.gpu.morphology import erode_3d_sphere as erode_3d, dilate_3d_sphere as dilate_3d, erode_3d_sphere_bitpacked as erode_3d_bitpacked, dilate_3d_sphere_bitpacked as dilate_3d_bitpacked
+from lib.cpp.gpu.morphology import dilate_3d_sphere as dilate_3d, dilate_3d_sphere_bitpacked as dilate_3d_bitpacked
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 from lib.cpp.cpu.connected_components import largest_connected_component
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scipy.signal as signal
 import vedo, vedo.pointcloud as pc
-from lib.py.helpers import update_hdf5, update_hdf5_mask, commandline_args
+from lib.py.helpers import commandline_args, close_3d, open_3d, update_hdf5_mask
 from numpy import array, newaxis as NA
 from scipy.ndimage import gaussian_filter1d
 import datetime
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
 from functools import partial
-
-# close = dilate then erode
-# open = erode then dilate
-def morph_3d(image, r, fa, fb):
-    I1 = image.copy().astype(image.dtype)
-    I2 = np.empty(image.shape, dtype=image.dtype)
-    rmin = 16
-    rmins = r // rmin
-    rrest = r % rmin
-    for _ in range(rmins):
-        fa(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fa(I1, rrest, I2)
-        I1, I2 = I2, I1
-
-    for i in range(rmins):
-        fb(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fb(I1, rrest, I2)
-        I1, I2 = I2, I1
-
-    return I1
-
-def close_3d(image, r):
-    if image.dtype == np.uint32:
-        return morph_3d(image, r, dilate_3d_bitpacked, erode_3d_bitpacked)
-    else:
-        return morph_3d(image, r, dilate_3d, erode_3d)
-
-def open_3d(image, r):
-    if image.dtype == np.uint32:
-        return morph_3d(image, r, erode_3d_bitpacked, dilate_3d_bitpacked)
-    else:
-        return morph_3d(image, r, erode_3d, dilate_3d)
 
 def label_chunk(i, chunk, chunk_prefix):
     label, n_features = ndi.label(chunk, output=np.int64)

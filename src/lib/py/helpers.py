@@ -9,6 +9,7 @@ from config.paths import binary_root, hdf5_root
 import h5py
 from lib.cpp.cpu.io import load_slice
 from lib.cpp.cpu.general import normalized_convert
+from lib.cpp.gpu.morphology import dilate_3d, erode_3d, dilate_3d_bitpacked, erode_3d_bitpacked
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -107,6 +108,12 @@ def circle_center(p0, p1, p2):
     assert(np.allclose(c1, c2))
 
     return c1
+
+def close_3d(image, r):
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, dilate_3d_bitpacked, erode_3d_bitpacked)
+    else:
+        return morph_3d(image, r, dilate_3d, erode_3d)
 
 def commandline_args(defaults):
     '''
@@ -449,6 +456,28 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 
     return voxels, fields
 
+def morph_3d(image, r, fa, fb):
+    I1 = image.copy().astype(image.dtype)
+    I2 = np.empty(image.shape, dtype=image.dtype)
+    rmin = 16
+    rmins = r // rmin
+    rrest = r % rmin
+    for _ in range(rmins):
+        fa(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        fa(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    for i in range(rmins):
+        fb(I1, rmin, I2)
+        I1, I2 = I2, I1
+    if rrest > 0:
+        fb(I1, rrest, I2)
+        I1, I2 = I2, I1
+
+    return I1
+
 def normalize(A, value_range, nbits=16, dtype=np.uint16):
     '''
     Normalize an array `A` to the range `value_range` and convert to `dtype` with `nbits` bits.
@@ -472,6 +501,12 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
     '''
     vmin, vmax = value_range
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
+
+def open_3d(image, r):
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, erode_3d_bitpacked, dilate_3d_bitpacked)
+    else:
+        return morph_3d(image, r, erode_3d, dilate_3d)
 
 def plot_middle_planes(tomo, output_dir, prefix):
     '''
