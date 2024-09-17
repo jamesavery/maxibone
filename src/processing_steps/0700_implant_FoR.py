@@ -16,7 +16,7 @@ from config.constants import *
 from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.gpu.geometry import center_of_mass, inertia_matrix, sample_plane
-from lib.py.helpers import commandline_args, update_hdf5, plot_middle_planes
+from lib.py.helpers import circle_center, commandline_args, coordinate_image, gramschmidt, homogeneous_transform, update_hdf5, plot_middle_planes, zyx_to_UVWp_transform
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import numpy as np
@@ -27,81 +27,9 @@ import tqdm
 import vedo
 import vedo.pointcloud as pc
 
-# Hvor skal disse hen?
-def circle_center(p0, p1, p2):
-    m1, m2 = (p0+p1) / 2, (p0+p2) / 2 # Midpoints
-    (dx1,dy1), (dx2,dy2) = (p1-p0), (p2-p0) # Slopes of connecting lines
-    n1, n2 = np.array([dy1,-dx1]).T, np.array([dy2,-dx2]).T # Normals perpendicular to connecting lines
-
-    A = np.array([n1,-n2]).T # Solve m1 + t1*n1 == m2 + t2*n2   <=> t1*n1 - t2*n2 = m2-m1
-    (t1, t2) = la.solve(A, m2-m1)
-    c1, c2 = m1 + t1*n1, m2 + t2*n2  # Center of circle
-
-    assert(np.allclose(c1, c2))
-
-    return c1
-
-def sphere(n):
-    NA = np.newaxis
-    xs = np.linspace(-1, 1, n)
-    return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
-
-def coordinate_image(shape):
-    NA = np.newaxis
-    Nz, Ny, Nx = shape
-    if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
-    zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
-                 np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
-                 np.broadcast_to(np.arange(Nx)[NA,NA,:],shape)
-    zyxs = np.stack([zs, ys, xs], axis=-1)
-    if verbose >= 1: print(f"Done")
-    return zyxs
-
-def proj(u, v):                  # Project u onto v
-    return (np.dot(u,v) / np.dot(v,v)) * v
-
-def gramschmidt(u, v, w):
-    vp = v - proj(v, u)
-    wp = w - proj(w, u) - proj(w, vp)
-
-    return np.array([u / la.norm(u), vp / la.norm(v), wp / la.norm(w)])
-
-def highest_peaks(data, n, height=0.7):
-    peaks, info = signal.find_peaks(data, height=height*data.max())
-    return peaks[np.argsort(info['peak_heights'])][:n]
-
-def hom_translate(x):
-    T = np.eye(4, dtype=float)
-    T[0:3,3] = x
-    return T
-
-def hom_linear(A):
-    M = np.eye(4, dtype=float)
-    M[:3,:3] = A
-    return M
-
-def homogeneous_transform(xs, M):
-    shape = np.array(xs.shape)
-    assert(shape[-1] == 3)
-    shape[-1] = 4
-    hxs = np.empty(shape, dtype=xs.dtype)
-    hxs[...,:3] = xs
-    hxs[..., 3]  = 1
-
-    if verbose >= 1: print(hxs.shape, M.shape)
-    return hxs @ M.T
-
-def zyx_to_UVWp_transform():
-    Tcm   = hom_translate(-cm * voxel_size)
-    Muvw  = hom_linear(UVW)
-    TW0   = hom_translate((0, 0, -w0 * voxel_size))
-    Tcp   = hom_translate(-cp)
-    Muvwp = hom_linear(UVWp)
-
-    return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
-
-vaxis = { 'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.)) }
-daxis = { 'z':np.array([-1,1,0]), 'y':np.array([0,0,1]),   'z2':np.array([-1.5,0,0]) }
+# Axes used by the vedo plotting functions.
+vaxis = { 'z' : np.array((0,0,1.)), 'y' : np.array((0,-1.,0)), 'z2' : np.array((0,0,1.)) }
+daxis = { 'z' : np.array([-1,1,0]), 'y' : np.array([0,0,1]),   'z2' : np.array([-1.5,0,0]) }
 
 def figure_FoR_UVW(debug=2):
     '''
@@ -580,7 +508,7 @@ if __name__ == "__main__":
     #figure_FoR_profiles(verbose)
     #figure_FoR_voxels("solid_implant",solid_implant,verbose)
 
-    Muvwp = zyx_to_UVWp_transform()
+    Muvwp = zyx_to_UVWp_transform(cm, voxel_size, UVW, w0, cp, UVWp)
     if verbose >= 1:
         print(f"MUvpw = {np.round(Muvwp, 2)}")
         print(f"UVW  = {np.round(UVW, 2)}")

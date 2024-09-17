@@ -13,8 +13,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.linalg as la
 import os
 import pathlib
+import scipy.signal as signal
 import tqdm
 
 def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
@@ -74,6 +76,37 @@ def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
             'subvolume_nzs' : subvolume_nzs,
             'subvolume_starts' : np.concatenate([[0],np.cumsum(subvolume_nzs)[:-1]])
         }
+
+def circle_center(p0, p1, p2):
+    '''
+    Calculate the center of a circle given three points.
+
+    Parameters
+    ----------
+    `p0` : numpy.array[float]
+        The first point.
+    `p1` : numpy.array[float]
+        The second point.
+    `p2` : numpy.array[float]
+        The third point.
+
+    Returns
+    -------
+    `c` : numpy.array[float]
+        The center of the circle.
+    '''
+
+    m1, m2 = (p0+p1) / 2, (p0+p2) / 2 # Midpoints
+    (dx1,dy1), (dx2,dy2) = (p1-p0), (p2-p0) # Slopes of connecting lines
+    n1, n2 = np.array([dy1,-dx1]).T, np.array([dy2,-dx2]).T # Normals perpendicular to connecting lines
+
+    A = np.array([n1,-n2]).T # Solve m1 + t1*n1 == m2 + t2*n2   <=> t1*n1 - t2*n2 = m2-m1
+    (t1, t2) = la.solve(A, m2-m1)
+    c1, c2 = m1 + t1*n1, m2 + t2*n2  # Center of circle
+
+    assert(np.allclose(c1, c2))
+
+    return c1
 
 def commandline_args(defaults):
     '''
@@ -136,6 +169,35 @@ def commandline_args(defaults):
 
     return args
 
+def coordinate_image(shape, verbose=0):
+    '''
+    Generate a 3D image of the coordinates of each voxel in the image.
+    The shape of the image is `(Nz,Ny,Nx)`, and the coordinates are `(z,y,x)`.
+    The coordinates are broadcasted to the shape of the image.
+
+    Parameters
+    ----------
+    `shape` : tuple(int,int,int)
+        The shape of the image.
+    `verbose` : int
+        The verbosity level. Default is 0.
+
+    Returns
+    -------
+    `zyxs` : numpy.array[int]
+        A 3D image of the coordinates of each voxel in the image.
+    '''
+
+    NA = np.newaxis
+    Nz, Ny, Nx = shape
+    if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
+    zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
+                 np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
+                 np.broadcast_to(np.arange(Nx)[NA,NA,:],shape)
+    zyxs = np.stack([zs, ys, xs], axis=-1)
+    if verbose >= 1: print(f"Done")
+    return zyxs
+
 def generate_cylinder_mask(nx):
     '''
     Generate a 2D mask of a cylinder with diameter `nx` pixels.
@@ -175,6 +237,119 @@ def generate_cylinder_mask(ny, nx):
     ys = np.linspace(-1, 1, ny)
     xs = np.linspace(-1, 1, nx)
     return (xs[np.newaxis,:]**2 + ys[:,np.newaxis]**2) < 1
+
+def gramschmidt(u, v, w):
+    '''
+    Apply the Gram-Schmidt process to the vectors `u`, `v`, and `w`.
+
+    Parameters
+    ----------
+    `u` : numpy.array[float]
+        The first vector.
+    `v` : numpy.array[float]
+        The second vector.
+    `w` : numpy.array[float]
+        The third vector.
+
+    Returns
+    -------
+    `Q` : numpy.array[float]
+        The orthonormal basis of the vectors `u`, `v`, and `w`.
+    '''
+
+    vp = v - proj(v, u)
+    wp = w - proj(w, u) - proj(w, vp)
+
+    return np.array([u / la.norm(u), vp / la.norm(v), wp / la.norm(w)])
+
+def highest_peaks(data, n, height=0.7):
+    '''
+    Find the `n` highest peaks in the data.
+
+    Parameters
+    ----------
+    `data` : numpy.array[float]
+        The data to find the peaks in.
+    `n` : int
+        The number of peaks to find.
+    `height` : float
+        The height of the peaks to find. Default is 0.7.
+
+    Returns
+    -------
+    `peaks` : numpy.array[int]
+        The indices of the `n` highest peaks in the data.
+    '''
+
+    peaks, info = signal.find_peaks(data, height=height*data.max())
+    return peaks[np.argsort(info['peak_heights'])][:n]
+
+def homogeneous_transform(xs, M, verbose=0):
+    '''
+    Apply a homogeneous transformation matrix `M` to the homogeneous coordinates `xs`.
+
+    Parameters
+    ----------
+    `xs` : numpy.array[float]
+        The homogeneous coordinates to transform.
+    `M` : numpy.array[float]
+        The homogeneous transformation matrix to apply.
+    `verbose` : int
+        The verbosity level. Default is 0.
+
+    Returns
+    -------
+    `hxs` : numpy.array[float]
+        The transformed homogeneous coordinates.
+    '''
+
+    shape = np.array(xs.shape)
+    assert(shape[-1] == 3)
+    shape[-1] = 4
+    hxs = np.empty(shape, dtype=xs.dtype)
+    hxs[...,:3] = xs
+    hxs[..., 3]  = 1
+
+    if verbose >= 1: print(hxs.shape, M.shape)
+    return hxs @ M.T
+
+def hom_linear(A):
+    '''
+    Generate a homogeneous linear transformation matrix for the matrix `A`.
+
+    Parameters
+    ----------
+    `A` : numpy.array[float]
+        The matrix to generate the transformation matrix for.
+
+    Returns
+    -------
+    `M` : numpy.array[float]
+        The homogeneous linear transformation matrix for the matrix `A`.
+    '''
+
+    M = np.eye(4, dtype=float)
+    M[:3,:3] = A
+    return M
+
+def hom_translate(x):
+    '''
+    Generate a homogeneous translation matrix for the vector `x`.
+
+    Parameters
+    ----------
+    `x` : numpy.array[float]
+        The vector to generate the translation matrix for.
+
+    Returns
+    -------
+    `T` : numpy.array[float]
+        The homogeneous translation matrix for the vector `x`.
+    '''
+
+    T = np.eye(4, dtype=float)
+    T[0:3,3] = x
+    return T
 
 def h5meta_info_volume_matched(sample):
     '''
@@ -327,6 +502,25 @@ def plot_middle_planes(tomo, output_dir, prefix):
         plt.savefig(f"{output_dir}/{prefix}_{name}.pdf", bbox_inches='tight')
         plt.close()
 
+def proj(u, v):
+    '''
+    Project the vector `u` onto the vector `v`.
+
+    Parameters
+    ----------
+    `u` : numpy.array[float]
+        The vector to project.
+    `v` : numpy.array[float]
+        The vector to project onto.
+
+    Returns
+    -------
+    `proj` : numpy.array[float]
+        The projection of `u` onto `v`.
+    '''
+
+    return (np.dot(u,v) / np.dot(v,v)) * v
+
 def row_normalize(A, r):
     '''
     Normalize the rows of a matrix `A` by the vector `r`.
@@ -346,6 +540,25 @@ def row_normalize(A, r):
 
     na = np.newaxis
     return A / (r[:,na] + (r==0)[:,na])
+
+def sphere(n):
+    '''
+    Generate a 3D boolean mask of a sphere with diameter `n` pixels.
+
+    Parameters
+    ----------
+    `n` : int
+        The diameter of the sphere in pixels.
+
+    Returns
+    -------
+    `mask` : numpy.array[bool]
+        A 3D boolean mask of the sphere.
+    '''
+
+    NA = np.newaxis
+    xs = np.linspace(-1, 1, n)
+    return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
 def to_int(x, dtype):
     '''
@@ -496,3 +709,36 @@ def update_hdf5_mask(filename, group_name, datasets={}, attributes={}, dimension
     '''
 
     update_hdf5(filename, group_name, datasets, attributes, dimensions, compression, chunk_shape)
+
+def zyx_to_UVWp_transform(cm, voxel_size, UVW, w0, cp, UVWp):
+    '''
+    Generate the transformation matrix from zyx to UVWp coordinates.
+
+    Parameters
+    ----------
+    `cm` : numpy.array[float]
+        The center of mass of the volume.
+    `voxel_size` : float
+        The size of the voxels in micrometers.
+    `UVW` : numpy.array[float]
+        The orientation of the volume.
+    `w0` : float
+        The width of the volume.
+    `cp` : numpy.array[float]
+        The center of the volume.
+    `UVWp` : numpy.array[float]
+        The orientation of the volume.
+
+    Returns
+    -------
+    `M` : numpy.array[float]
+        The transformation matrix from zyx to UVWp coordinates.
+    '''
+
+    Tcm   = hom_translate(-cm * voxel_size)
+    Muvw  = hom_linear(UVW)
+    TW0   = hom_translate((0, 0, -w0 * voxel_size))
+    Tcp   = hom_translate(-cp)
+    Muvwp = hom_linear(UVWp)
+
+    return Muvwp @ Tcp @ TW0 @ Muvw @ Tcm
