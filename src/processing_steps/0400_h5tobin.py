@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-import sys, pathlib, h5py, numpy as np
+#! /usr/bin/python3
+'''
+Converts a 16-bit HDF5 file to a 16-bit binary file. The binary file can be read faster than the HDF5 file, if it is stored on a fast disk.
+'''
 sys.path.append(sys.path[0]+"/../")
 from config.paths import hdf5_root, binary_root
 from tqdm import tqdm
@@ -15,10 +17,23 @@ def slice_length(s,n):
     step  = s.step  if s.step  is not None else 1
     return (stop - start)//step
 
-def h5tobin(sample,region=(slice_all,slice_all,slice_all),shift_volume_match=1):
-    # Generate 16 bit flat binary blob for full sample tomogram
-    # Read/write a full subbvolume at a time.x
-    # For each subvolume, correct for subvolume_matching_shifts
+    '''
+    Convert a 16-bit HDF5 file to a 16-bit binary file.
+    Read/write a full subvolume at a time.
+    For each subvolume, correct for subvolume_matching_shifts.
+
+    Parameters
+    ----------
+    `sample` : str
+        The sample name.
+    `region` : Tuple[slice, slice, slice]
+        The region to extract from the HDF5 file. Default is to extract the full volume.
+
+    Returns
+    -------
+    None
+    '''
+
     msb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
     lsb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
     dmsb, dlsb  = msb_file['voxels'], lsb_file['voxels']
