@@ -36,8 +36,7 @@ namespace python_api {
 
         output_ndarray<real_t> cms = {cms_info.ptr, cms_info.shape};
 
-        NS::center_of_masses({voxels_info.ptr, voxels_info.shape},
-                cms);
+        NS::center_of_masses({voxels_info.ptr, voxels_info.shape}, cms);
     }
 
     /**
@@ -68,8 +67,8 @@ namespace python_api {
         output_ndarray<real_t> inertia_matrices = {inertia_matrices_info.ptr, inertia_matrices_info.shape};
 
         NS::inertia_matrices({voxels_info.ptr, voxels_info.shape},
-                {cms_info.ptr, cms_info.shape},
-                inertia_matrices);
+            {cms_info.ptr, cms_info.shape},
+            inertia_matrices);
     }
 
     /**
@@ -89,9 +88,9 @@ namespace python_api {
         output_ndarray<uint64_t> errors_out = {errors_info.ptr, errors_info.shape};
 
         NS::outside_ellipsoid({voxels_info.ptr, voxels_info.shape},
-                {cms_info.ptr, cms_info.shape},
-                {abc_info.ptr, abc_info.shape},
-                errors_out);
+            {cms_info.ptr, cms_info.shape},
+            {abc_info.ptr, abc_info.shape},
+            errors_out);
     }
 
     /**
@@ -108,11 +107,11 @@ namespace python_api {
      */
     template <typename T>
     void sample_plane(const np_array<T> &np_voxels,
-            const real_t voxel_size, // In micrometers
-            const std::array<real_t,3> cm,
-            const std::array<real_t,3> u_axis,
-            const std::array<real_t,3> v_axis,
-            const std::array<real_t,4>  bbox,    // [umin,umax,vmin,vmax] in micrometers
+            const real_t voxel_size,
+            const std::array<real_t, 3> cm,
+            const std::array<real_t, 3> u_axis,
+            const std::array<real_t, 3> v_axis,
+            const std::array<real_t,4> bbox,
             np_array<real_t> &np_plane_samples) {
         auto voxels_info = np_voxels.request();
         auto plane_samples_info  = np_plane_samples.request();
@@ -135,18 +134,18 @@ namespace python_api {
      * @param output The output array of integrated values.
      */
     void integrate_axes(const np_maskarray &np_voxels,
-                const std::array<real_t,3> &x0,
-                const std::array<real_t,3> &v_axis,
-                const std::array<real_t,3> &w_axis,
-                const real_t v_min, const real_t w_min,
-                np_array<uint64_t> &output) {
+            const std::array<real_t, 3> &x0,
+            const std::array<real_t, 3> &v_axis,
+            const std::array<real_t, 3> &w_axis,
+            const real_t v_min, const real_t w_min,
+            np_array<uint64_t> &output) {
         auto voxels_info = np_voxels.request();
         auto output_info = output.request();
 
         NS::integrate_axes({voxels_info.ptr, voxels_info.shape},
-                x0,v_axis,w_axis,
-                v_min, w_min,
-                {output_info.ptr, output_info.shape});
+            x0,v_axis,w_axis,
+            v_min, w_min,
+            {output_info.ptr, output_info.shape});
     }
 
     /**
@@ -159,16 +158,16 @@ namespace python_api {
      * @param cm The center of mass of the mask.
      * @param np_voxels The mask to zero outside the bounding box.
      */
-    void zero_outside_bbox(const std::array<real_t,9> &principal_axes,
-                const std::array<real_t,6> &parameter_ranges,
-                const std::array<real_t,3> &cm, // TOOD: Med eller uden voxelsize?
-                np_maskarray &np_voxels) {
+    void zero_outside_bbox(const std::array<real_t, 9> &principal_axes,
+            const std::array<real_t, 6> &parameter_ranges,
+            const std::array<real_t, 3> &cm,
+            np_maskarray &np_voxels) {
         auto voxels_info = np_voxels.request();
 
         NS::zero_outside_bbox(principal_axes,
-                parameter_ranges,
-                cm,
-                {voxels_info.ptr, voxels_info.shape});
+            parameter_ranges,
+            cm,
+            {voxels_info.ptr, voxels_info.shape});
     }
 
     /**
@@ -185,21 +184,21 @@ namespace python_api {
      * @param rsqr_maxs The output array of maximum squared radii.
      */
     void fill_implant_mask_pre(const np_array<mask_type> mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                const matrix4x4 &Muvw,
-                np_array<real_t> thetas,
-                np_array<float> rsqr_maxs) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            const matrix4x4 &Muvw,
+            np_array<real_t> thetas,
+            np_array<float> rsqr_maxs) {
         auto
-            mask_info    = mask.request(),
-            thetas_info  = thetas.request(),
-            rsqr_info    = rsqr_maxs.request();
+            mask_info   = mask.request(),
+            thetas_info = thetas.request(),
+            rsqr_info   = rsqr_maxs.request();
 
         return NS::fill_implant_mask_pre({mask_info.ptr, mask_info.shape},
-                    offset, voxel_size, bbox, Muvw,
-                    {thetas_info.ptr, thetas_info.shape},
-                    {rsqr_info.ptr, rsqr_info.shape});
+            offset, voxel_size, bbox, Muvw,
+            {thetas_info.ptr, thetas_info.shape},
+            {rsqr_info.ptr, rsqr_info.shape});
     }
 
     /**
@@ -217,29 +216,27 @@ namespace python_api {
      * @param profile The output array of the profile.
      */
     void fill_implant_mask(const np_maskarray implant_mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                float r_fraction,
-                const matrix4x4 &Muvw,
-                const np_array<real_t> thetas,
-                const np_array<float> rsqr_maxs,
-                np_maskarray solid_implant_mask,
-                np_array<float> profile
-                ) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            float r_fraction,
+            const matrix4x4 &Muvw,
+            const np_array<real_t> thetas,
+            const np_array<float> rsqr_maxs,
+            np_maskarray solid_implant_mask,
+            np_array<float> profile) {
         auto implant_info      = implant_mask.request(),
             thetas_info        = thetas.request(),
             rsqr_info          = rsqr_maxs.request(),
             solid_implant_info = solid_implant_mask.request(),
             profile_info       =  profile.request();
 
-        return NS::fill_implant_mask({implant_info.ptr,       implant_info.shape},
-                    offset, voxel_size, bbox, r_fraction, Muvw,
-                    {thetas_info.ptr,        thetas_info.shape},
-                    {rsqr_info.ptr,          rsqr_info.shape},
-                    {solid_implant_info.ptr, solid_implant_info.shape},
-                    {profile_info.ptr,       profile_info.shape}
-                    );
+        return NS::fill_implant_mask({implant_info.ptr, implant_info.shape},
+            offset, voxel_size, bbox, r_fraction, Muvw,
+            {thetas_info.ptr, thetas_info.shape},
+            {rsqr_info.ptr, rsqr_info.shape},
+            {solid_implant_info.ptr, solid_implant_info.shape},
+            {profile_info.ptr, profile_info.shape});
     }
 
     /**
@@ -255,14 +252,14 @@ namespace python_api {
     void compute_front_mask(const np_array<uint8_t> &np_solid_implant,
             const float voxel_size,
             const matrix4x4 &Muvw,
-            std::array<float,6> bbox,
+            std::array<float, 6> bbox,
             np_array<mask_type> &np_front_mask) {
         auto solid_implant_info = np_solid_implant.request();
         auto front_mask_info    = np_front_mask.request();
 
         return NS::compute_front_mask({solid_implant_info.ptr, solid_implant_info.shape},
-                voxel_size, Muvw, bbox,
-                {front_mask_info.ptr, front_mask_info.shape});
+            voxel_size, Muvw, bbox,
+            {front_mask_info.ptr, front_mask_info.shape});
     }
 
     /**
@@ -323,26 +320,25 @@ namespace python_api {
      * @param np_images The output probability-weighted volume of (class,theta,U)-voxels.
      * @param np_counts N
      */
-    void cylinder_projection(const np_array<float>  &np_edt,
-                const np_bytearray     &np_Cs,
-                float Cs_voxel_size,
-                float d_min, float d_max,
-                float theta_min, float theta_max,
-                const std::array<float,6> &bbox,
-                const matrix4x4 &Muvw,
-                np_array<float> &np_images,
-                np_array<uint64_t> &np_counts
-                ) {
+    void cylinder_projection(const np_array<float> &np_edt,
+            const np_bytearray &np_Cs,
+            float Cs_voxel_size,
+            float d_min, float d_max,
+            float theta_min, float theta_max,
+            const std::array<float, 6> &bbox,
+            const matrix4x4 &Muvw,
+            np_array<float> &np_images,
+            np_array<uint64_t> &np_counts) {
         auto edt_info    = np_edt.request();
         auto Cs_info     = np_Cs.request();
         auto images_info = np_images.request();
         auto counts_info = np_counts.request();
 
         NS::cylinder_projection({edt_info.ptr,edt_info.shape},
-                {Cs_info.ptr, Cs_info.shape},
-                Cs_voxel_size,d_min,d_max,theta_min,theta_max,bbox,Muvw,
-                {images_info.ptr, images_info.shape},
-                {counts_info.ptr, counts_info.shape});
+            {Cs_info.ptr, Cs_info.shape},
+            Cs_voxel_size,d_min,d_max,theta_min,theta_max,bbox,Muvw,
+            {images_info.ptr, images_info.shape},
+            {counts_info.ptr, counts_info.shape});
     }
 
 }

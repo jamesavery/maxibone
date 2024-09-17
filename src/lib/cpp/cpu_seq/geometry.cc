@@ -53,6 +53,7 @@ namespace cpu_seq {
                 for (int64_t x = 0; x < mask_Nx; x++) {
                     int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
                     uint64_t m = mask_data[flat_index];
+
                     if (m) { // We don't need to compute the background.
                         #pragma omp atomic
                         total_masses[m] += 1;
@@ -83,7 +84,7 @@ namespace cpu_seq {
     void compute_front_mask(const input_ndarray<mask_type> solid_implant,
             const float voxel_size,
             const matrix4x4 &Muvw,
-            std::array<float,6> bbox,
+            std::array<float, 6> bbox,
             output_ndarray<mask_type> front_mask) {
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
         UNPACK_NUMPY(solid_implant)
@@ -112,10 +113,10 @@ namespace cpu_seq {
         auto [nz, ny, nx] = shape;
 
         // Python code:
-        // implant_zyxs = np.std::array(np.nonzero(implant)).T - cm   //  Implant points in z,y,x-coordinates (relative to upper-left-left corner, in {scale}x voxel units)
-        // implant_uvws = implant_zyxs @ E                       //  Implant points in u,v,w-coordinates (relative to origin cm, in {scale}x voxel units)
-        // w0  = implant_uvws[:,2].min();  //  In {scale}x voxel units
-        // w0v = np.std::array([0,0,w0])        //  w-shift to get to center of implant back-plane
+        // implant_zyxs = np.std::array(np.nonzero(implant)).T - cm // Implant points in z,y,x-coordinates (relative to upper-left-left corner, in {scale}x voxel units)
+        // implant_uvws = implant_zyxs @ E                          // Implant points in u,v,w-coordinates (relative to origin cm, in {scale}x voxel units)
+        // w0  = implant_uvws[:,2].min()                            // In {scale}x voxel units
+        // w0v = np.std::array([0,0,w0])                            // w-shift to get to center of implant back-plane
         float w0v[3] = {0, 0, 0};
         #pragma omp parallel for collapse(3) reduction(min:w0v[:3])
         for (int64_t z = 0; z < nz; z++) {
@@ -141,18 +142,18 @@ namespace cpu_seq {
 
         // Python code:
         // shapes:  E: (3, 3), cm: (3,), w0v: (3,), cp: (3,), UVWp: (3, 3)
-        //zyxs = coordinate_image(implant.shape)
-        //uvws = (zyxs - cm) @ E
-        //UVWs = (uvws - w0v) * voxel_size
-        //UVWps = (UVWs - cp) @ UVWp
-        //Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]
-        //Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]
-        //thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)
-        //rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
-        //implant_shell_mask = implant&(rs >= 0.7*rmaxs)
-        //solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
-        //back_mask  = (Ws<0)
-        //front_mask = largest_cc_of((Ws>50)&(~solid_implant))
+        // zyxs = coordinate_image(implant.shape)
+        // uvws = (zyxs - cm) @ E
+        // UVWs = (uvws - w0v) * voxel_size
+        // UVWps = (UVWs - cp) @ UVWp
+        // Us,Vs,Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]
+        // Ups,Vps,Wps = UVWps[...,0], UVWps[...,1], UVWps[...,2]
+        // thetas, rs = np.arctan2(Vps,Wps), np.sqrt(Vps**2+Wps**2)
+        // rmaxs = (rs*(implant==True)).reshape(nz,-1).max(axis=1)[:,NA,NA]
+        // implant_shell_mask = implant&(rs >= 0.7*rmaxs)
+        // solid_implant = (implant | (rs < 0.7*rmaxs) & (Ws >= 0))
+        // back_mask  = (Ws<0)
+        // front_mask = largest_cc_of((Ws>50)&(~solid_implant))
         float *rs, *Ws;
         #pragma omp parallel private(rs, Ws) shared(mask, front_mask, back_mask, implant_shell_mask, solid_implant)
         {
@@ -187,7 +188,7 @@ namespace cpu_seq {
                             //Up = UVWps[0],
                             Vp = UVWps[1],
                             Wp = UVWps[2],
-                            //theta = atan2(Vp, Wp),
+                            //theta = std::atan2(Vp, Wp),
                             r = std::sqrt(Vp*Vp + Wp*Wp);
 
                         rmax = std::max(rmax, r * mask[flat_index]);
@@ -213,16 +214,15 @@ namespace cpu_seq {
         }
     }
 
-    void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
-                const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
-                float voxel_size,           // Voxel size for Cs
-                float d_min, float d_max,       // Distance shell to map to cylinder
-                float theta_min, float theta_max, // Angle range (wrt cylinder center)
-                std::array<float,6> bbox,
-                const matrix4x4 &Muvw,           // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
-                output_ndarray<float>    image,  // Probability-weighted volume of (class,theta,U)-voxels
-                output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
-                ){
+    void cylinder_projection(const input_ndarray<float> edt,
+            const input_ndarray<uint8_t> C,
+            float voxel_size,
+            float d_min, float d_max,
+            float theta_min, float theta_max,
+            std::array<float, 6> bbox,
+            const matrix4x4 &Muvw,
+            output_ndarray<float> image,
+            output_ndarray<int64_t> count){
         UNPACK_NUMPY(C);
         UNPACK_NUMPY(edt);
 
@@ -235,6 +235,7 @@ namespace cpu_seq {
             edy = real_t(edt_Ny) / real_t(C_Ny),
             edx = real_t(edt_Nx) / real_t(C_Nx);
 
+        // TODO DEBUG macro
         //printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
         //printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
         //    U_min,U_max,V_min,V_max,W_min,W_max);
@@ -246,12 +247,6 @@ namespace cpu_seq {
 
         ssize_t block_height = 64;
 
-        //TODO: new acc/openmp macro in parallel.hh
-        // TODO postponed, to get a working edition first
-        //typedef uint8_t C_type;
-        //BLOCK_BEGIN(C, "reduction(+:n_shell,n_shell_bbox)") {
-        //BLOCK_END()
-
         {
             float   *image_d = image.data;
             int64_t *count_d = count.data;
@@ -260,18 +255,29 @@ namespace cpu_seq {
                 const uint8_t *C_buffer = C.data + block_start;
                 const float  *edt_block = edt.data + std::max(block_start - edt_Ny*edt_Nz, 0L);
 
-                ssize_t  this_block_length = std::min(block_height*C_Ny*C_Nz,C_length-block_start);
-                ssize_t  this_edt_length   = std::min((block_height+2)*edt_Ny*edt_Nz,edt_length-block_start);
+                ssize_t  this_block_length = std::min(block_height*C_Ny*C_Nz, C_length-block_start);
+                ssize_t  this_edt_length   = std::min((block_height+2)*edt_Ny*edt_Nz, edt_length-block_start);
 
                 //#pragma acc parallel loop copy(C_buffer[:this_block_length], image_d[:n_theta*n_U], count_d[:n_theta*n_U], bbox[:6], Muvw[:16], edt_block[:this_edt_length]) reduction(+:n_shell,n_shell_bbox)
                 //#pragma omp parallel for reduction(+:n_shell,n_shell_bbox)
                 for (int64_t k = 0; k < this_block_length; k++) {
                     const int64_t flat_idx = block_start + k;
-                    const int64_t X = (flat_idx  / (C_Ny*C_Nz)), Y = (flat_idx / C_Nz) % C_Ny, Z = flat_idx  % C_Nz; // Integer indices: Cs[c,X,Y,Z]
+                    const int64_t
+                        X = (flat_idx / (C_Ny*C_Nz)),
+                        Y = (flat_idx / C_Nz) % C_Ny,
+                        Z = flat_idx  % C_Nz; // Integer indices: Cs[c,X,Y,Z]
+
                     // Index into local block
-                    const int64_t Xl = (k  / (C_Ny*C_Nz)), Yl = (k / C_Nz) % C_Ny, Zl = k  % C_Nz;
+                    const int64_t
+                        Xl = (k  / (C_Ny*C_Nz)),
+                        Yl = (k / C_Nz) % C_Ny,
+                        Zl = k  % C_Nz;
+
                     // Index into local edt block. Note EDT has 1-slice padding top+bottom
-                    const float  x = float(Xl+1)*edx, y = float(Yl)*edy, z = float(Zl)*edy;
+                    const float
+                        x = float(Xl+1)*edx,
+                        y = float(Yl)*edy,
+                        z = float(Zl)*edy;
 
                     if (x > float(block_height)) {
                         printf("Block number k=%ld.\nX,Y,Z=%ld,%ld,%ld\nXl,Yl,Zl=%ld,%ld,%ld\nx,y,z=%.2f, %.2f, %.2f\n",k,X,Y,Z,Xl,Yl,Zl,x,y,z);
@@ -279,16 +285,16 @@ namespace cpu_seq {
                     }
 
                     // ****** MEAT OF THE IMPLEMENTATION IS HERE ******
-                    real_t distance = resample2x2x2<float>(edt_block, {this_edt_length/(edt_Ny*edt_Nz),edt_Ny,edt_Nz}, {x,y,z});
+                    real_t distance = resample2x2x2<float>(edt_block, { this_edt_length/(edt_Ny*edt_Nz), edt_Ny, edt_Nz }, {x,y,z});
 
                     if (distance > d_min && distance <= d_max) { // TODO: and W>w_min
-                        std::array<real_t,4> Xs = {real_t(X)*voxel_size, real_t(Y)*voxel_size, real_t(Z)*voxel_size, 1};
-                        auto [U,V,W,c] = hom_transform(Xs,Muvw);
-                        n_shell ++;
+                        std::array<real_t,4> Xs = { real_t(X)*voxel_size, real_t(Y)*voxel_size, real_t(Z)*voxel_size, 1 };
+                        auto [U,V,W,c] = hom_transform(Xs, Muvw);
+                        n_shell++;
 
-                        //        printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n",distance,U,V,W);
-                        if (in_bbox({{U,V,W}},bbox)) {
-                            real_t theta    = atan2(V,W);
+                        // printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n",distance,U,V,W);
+                        if (in_bbox({ {U,V,W} }, bbox)) {
+                            real_t theta = std::atan2(V, W);
 
                             if (theta >= theta_min && theta <= theta_max) {
                                 n_shell_bbox++;
@@ -296,7 +302,7 @@ namespace cpu_seq {
                                 ssize_t theta_i = ssize_t(std::floor( (theta-theta_min) * real_t(n_theta-1)/(theta_max-theta_min) ));
                                 ssize_t U_i     = ssize_t(std::floor( (U    -    U_min) * real_t(n_U    -1)/(    U_max-    U_min) ));
 
-                                real_t p = real_t(C_buffer[k])/255.f;
+                                real_t p = real_t(C_buffer[k]) / 255.f;
 
                                 assert(theta >= theta_min);
                                 assert(theta <= theta_max);
@@ -308,8 +314,8 @@ namespace cpu_seq {
                                 assert(U_i < n_U);
 
                                 if (p > 0) {
-                                    th_min = std::min(theta,th_min);
-                                    th_max = std::max(theta,th_max);
+                                    th_min = std::min(theta, th_min);
+                                    th_max = std::max(theta, th_max);
 
                                     //atomic_statement()
                                     image_d[theta_i*n_U + U_i] += p;
@@ -329,15 +335,15 @@ namespace cpu_seq {
     }
 
     void fill_implant_mask(const input_ndarray<mask_type> mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                float r_fraction,
-                const matrix4x4 &Muvw,
-                const input_ndarray<real_t> thetas,
-                const input_ndarray<float> rsqr_maxs,
-                output_ndarray<mask_type> solid_implant_mask,
-                output_ndarray<float> profile) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            float r_fraction,
+            const matrix4x4 &Muvw,
+            const input_ndarray<real_t> thetas,
+            const input_ndarray<float> rsqr_maxs,
+            output_ndarray<mask_type> solid_implant_mask,
+            output_ndarray<float> profile) {
         UNPACK_NUMPY(mask)
 
         const real_t
@@ -347,8 +353,8 @@ namespace cpu_seq {
             theta_center = (theta_max + theta_min) / 2;
         ssize_t n_segments = rsqr_maxs.shape[0];
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
-        const float     *rsqr_maxs_d     = rsqr_maxs.data;
-        float     *profile_d       = profile.data;
+        const float *rsqr_maxs_d = rsqr_maxs.data;
+        float *profile_d = profile.data;
 
         #pragma omp parallel for collapse(3) reduction(+:profile_d[:n_segments])
         for (int64_t z = 0; z < mask_Nz; z++) {
@@ -385,15 +391,16 @@ namespace cpu_seq {
     }
 
     void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                const matrix4x4 &Muvw,
-                output_ndarray<real_t> thetas,
-                output_ndarray<float> rsqr_maxs) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            const matrix4x4 &Muvw,
+            output_ndarray<real_t> thetas,
+            output_ndarray<float> rsqr_maxs) {
         UNPACK_NUMPY(mask);
 
-        real_t *thetas_d = thetas.data,
+        real_t
+            *thetas_d = thetas.data,
             theta_min = thetas_d[0],
             theta_max = thetas_d[1];
 
@@ -403,7 +410,7 @@ namespace cpu_seq {
         }
         ssize_t n_segments = rsqr_maxs.shape[0];
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
-        float     *rsqr_maxs_d     = rsqr_maxs.data;
+        float *rsqr_maxs_d = rsqr_maxs.data;
 
         #pragma omp parallel for collapse(3) reduction(max:rsqr_maxs_d[:n_segments], theta_max) reduction(min:theta_min)
         for (int64_t z = 0; z < mask_Nz; z++) {
@@ -425,7 +432,7 @@ namespace cpu_seq {
 
                         int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-                    //    if (U_i >= 0 && U_i < n_segments) {
+                        // if (U_i >= 0 && U_i < n_segments) {
                         if ( in_bbox({{U, V, W}}, bbox) ) {
                             rsqr_maxs_d[U_i] = std::max(rsqr_maxs_d[U_i], float(r_sqr));
                             theta_min = std::min(theta_min, theta);
@@ -439,13 +446,13 @@ namespace cpu_seq {
         }
     }
 
-    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t,3> &cm) {
+    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm) {
         UNPACK_NUMPY(mask);
 
         real_t
             Izz = 0, Izy = 0, Izx = 0,
-                    Iyy = 0, Iyx = 0,
-                            Ixx = 0;
+                     Iyy = 0, Iyx = 0,
+                              Ixx = 0;
 
         print_timestamp("inertia_matrix_serial start");
 
@@ -548,11 +555,11 @@ namespace cpu_seq {
 
 
     void integrate_axes(const input_ndarray<mask_type> &mask,
-                const std::array<real_t,3> &x0,
-                const std::array<real_t,3> &v_axis,
-                const std::array<real_t,3> &w_axis,
-                const real_t v_min, const real_t w_min,
-                output_ndarray<uint64_t> output) {
+            const std::array<real_t, 3> &x0,
+            const std::array<real_t, 3> &v_axis,
+            const std::array<real_t, 3> &w_axis,
+            const real_t v_min, const real_t w_min,
+            output_ndarray<uint64_t> output) {
         UNPACK_NUMPY(mask);
         ssize_t Nv = output.shape[0], Nw = output.shape[1];
         uint64_t *output_data = output.data;
@@ -629,12 +636,12 @@ namespace cpu_seq {
 
     template <typename T>
     void sample_plane(const input_ndarray<T> &voxels,
-                    const real_t voxel_size, // In micrometers
-                    const std::array<real_t, 3> cm,
-                    const std::array<real_t, 3> u_axis,
-                    const std::array<real_t, 3> v_axis,
-                    const std::array<real_t, 4> bbox,    // [umin,umax,vmin,vmax] in micrometers
-                    output_ndarray<real_t> plane_samples) {
+            const real_t voxel_size,
+            const std::array<real_t, 3> cm,
+            const std::array<real_t, 3> u_axis,
+            const std::array<real_t, 3> v_axis,
+            const std::array<real_t, 4> bbox,
+            output_ndarray<real_t> plane_samples) {
         const auto& [umin,umax,vmin,vmax] = bbox; // In micrometers
         UNPACK_NUMPY(voxels);
         ssize_t
@@ -666,7 +673,7 @@ namespace cpu_seq {
                     x = X / voxel_size,
                     y = Y / voxel_size;
 
-                //      printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
+                // printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
 
                 T value = 0;
                 std::array<float, 6> local_bbox = {0.5f, float(voxels_Nz)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nx)-0.5f};
@@ -683,9 +690,9 @@ namespace cpu_seq {
 
     // NB: xyz are in indices, not micrometers
     void zero_outside_bbox(const std::array<real_t,9> &principal_axes,
-                const std::array<real_t,6> &parameter_ranges,
-                const std::array<real_t,3> &cm,
-                output_ndarray<mask_type> mask) {
+            const std::array<real_t,6> &parameter_ranges,
+            const std::array<real_t, 3> &cm,
+            output_ndarray<mask_type> mask) {
 
         UNPACK_NUMPY(mask)
 
@@ -699,9 +706,11 @@ namespace cpu_seq {
                     real_t(z) - cm[2]};
                 real_t params[3] = { 0, 0, 0 };
 
-                for (int uvw = 0; uvw < 3; uvw++)
-                    for (int xyz = 0; xyz < 3; xyz++)
+                for (int uvw = 0; uvw < 3; uvw++) {
+                    for (int xyz = 0; xyz < 3; xyz++) {
                         params[uvw] += xs[xyz] * principal_axes[uvw*3 + xyz]; // u = dot(xs,u_axis), v = dot(xs,v_axis), w = dot(xs,w_axis)
+                    }
+                }
 
                 bool p = false;
 
@@ -712,8 +721,9 @@ namespace cpu_seq {
                     p |= (params[uvw] < param_min) | (params[uvw] > param_max);
                 }
 
-                if (p)
+                if (p) {
                     mask_buffer[flat_index] = 0;
+                }
 
             BLOCK_END() }
         }

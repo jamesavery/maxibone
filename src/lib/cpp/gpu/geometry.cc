@@ -12,7 +12,7 @@
 
 namespace gpu {
 
-    std::array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
+    std::array<real_t, 3> center_of_mass(const input_ndarray<mask_type> &mask) {
         return cpu_seq::center_of_mass(mask);
     }
 
@@ -23,7 +23,7 @@ namespace gpu {
     void compute_front_mask(const input_ndarray<mask_type> solid_implant,
             const float voxel_size,
             const matrix4x4 &Muvw,
-            std::array<float,6> bbox,
+            std::array<float, 6> bbox,
             output_ndarray<mask_type> front_mask) {
         return cpu_seq::compute_front_mask(solid_implant, voxel_size, Muvw, bbox, front_mask);
     }
@@ -32,37 +32,36 @@ namespace gpu {
         return cpu_seq::compute_front_back_masks(mask, shape, voxel_size, E, cm, cp, UVWp, front_mask, back_mask, implant_shell_mask, solid_implant);
     }
 
-    void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance Transform in um, should be low-resolution (will be interpolated)
-                const input_ndarray<uint8_t> C,  // Material classification images (probability per voxel, 0..1 -> 0..255)
-                float voxel_size,           // Voxel size for Cs
-                float d_min, float d_max,       // Distance shell to map to cylinder
-                float theta_min, float theta_max, // Angle range (wrt cylinder center)
-                std::array<float,6> bbox,
-                const matrix4x4 &Muvw,           // Transform from zyx (in um) to U'V'W' cylinder FoR (in um)
-                output_ndarray<float>    image,  // Probability-weighted volume of (class,theta,U)-voxels
-                output_ndarray<int64_t>  count   // Number of (class,theta,U)-voxels
-                ){
+    void cylinder_projection(const input_ndarray<float> edt,
+            const input_ndarray<uint8_t> C,
+            float voxel_size,
+            float d_min, float d_max,
+            float theta_min, float theta_max,
+            std::array<float, 6> bbox,
+            const matrix4x4 &Muvw,
+            output_ndarray<float> image,
+            output_ndarray<int64_t> count) {
         return cpu_seq::cylinder_projection(edt, C, voxel_size, d_min, d_max, theta_min, theta_max, bbox, Muvw, image, count);
     }
 
     void fill_implant_mask(const input_ndarray<mask_type> mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                float r_fraction,
-                const matrix4x4 &Muvw,
-                const input_ndarray<real_t> thetas,
-                const input_ndarray<float> rsqr_maxs,
-                output_ndarray<mask_type> solid_implant_mask,
-                output_ndarray<float> profile) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            float r_fraction,
+            const matrix4x4 &Muvw,
+            const input_ndarray<real_t> thetas,
+            const input_ndarray<float> rsqr_maxs,
+            output_ndarray<mask_type> solid_implant_mask,
+            output_ndarray<float> profile) {
         UNPACK_NUMPY(mask)
 
         const real_t *thetas_d = thetas.data;
         real_t theta_center = (thetas_d[1] + thetas_d[0]) / 2;
         ssize_t n_segments = rsqr_maxs.shape[0];
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
-        const float     *rsqr_maxs_d     = rsqr_maxs.data;
-        float     *profile_d       = profile.data;
+        const float *rsqr_maxs_d = rsqr_maxs.data;
+        float *profile_d = profile.data;
 
         #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox, theta_center, thetas_d[:2], rsqr_maxs_d[:n_segments]) copy(profile_d[:n_segments])
         {
@@ -110,23 +109,23 @@ namespace gpu {
     }
 
     void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
-                int64_t offset,
-                float voxel_size,
-                const std::array<float,6> &bbox,
-                const matrix4x4 &Muvw,
-                output_ndarray<real_t> thetas,
-                output_ndarray<float> rsqr_maxs) {
+            int64_t offset,
+            float voxel_size,
+            const std::array<float, 6> &bbox,
+            const matrix4x4 &Muvw,
+            output_ndarray<real_t> thetas,
+            output_ndarray<float> rsqr_maxs) {
         UNPACK_NUMPY(mask)
 
         real_t *thetas_d = thetas.data;
 
         if (offset == 0) {
-            thetas_d[0] = real_t(M_PI);
+            thetas_d[0] = real_t( M_PI);
             thetas_d[1] = real_t(-M_PI);
         }
         ssize_t n_segments = rsqr_maxs.shape[0];
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
-        float     *rsqr_maxs_d     = rsqr_maxs.data;
+        float *rsqr_maxs_d = rsqr_maxs.data;
 
         #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox) copy(rsqr_maxs_d[:n_segments])
         {
@@ -134,7 +133,9 @@ namespace gpu {
                 ssize_t mask_buffer_length = std::min(acc_block_size<mask_type>, mask_length-(ssize_t)mask_buffer_start);
                 ssize_t num_threads = std::min(mask_buffer_length, gpu_threads);
                 const mask_type *mask_buffer = mask.data + mask_buffer_start;
-                real_t thetas_min = thetas_d[0], thetas_max = thetas_d[1];
+                real_t
+                    thetas_min = thetas_d[0],
+                    thetas_max = thetas_d[1];
                 #pragma acc data copyin(mask_buffer_start, mask_buffer[:mask_buffer_length]) copy(thetas_min, thetas_max)
                 {
                     #pragma acc parallel loop reduction(max:thetas_max) reduction(min:thetas_min) reduction(max:rsqr_maxs_d[:n_segments])
@@ -151,7 +152,8 @@ namespace gpu {
                                 real_t(z) * voxel_size,
                                 real_t(y) * voxel_size,
                                 real_t(x) * voxel_size,
-                                1 };
+                                1
+                            };
 
                             if (mask_value) {
                                 auto [U,V,W,c] = hom_transform(Xs, Muvw);
@@ -161,7 +163,7 @@ namespace gpu {
 
                                 int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-                                if ( in_bbox({{U,V,W}},bbox) ) {
+                                if (in_bbox({{U,V,W}}, bbox)) {
                                     rsqr_maxs_d[U_i] = std::max(rsqr_maxs_d[U_i], float(r_sqr));
                                     thetas_min = std::min(thetas_min, theta);
                                     thetas_max = std::max(thetas_max, theta);
@@ -178,7 +180,7 @@ namespace gpu {
         }
     }
 
-    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t,3> &cm) {
+    std::array<real_t, 9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm) {
         return cpu_seq::inertia_matrix(mask, cm);
     }
 
@@ -187,9 +189,9 @@ namespace gpu {
     }
 
     void integrate_axes(const input_ndarray<mask_type> &mask,
-                const std::array<real_t,3> &x0,
-                const std::array<real_t,3> &v_axis,
-                const std::array<real_t,3> &w_axis,
+                const std::array<real_t, 3> &x0,
+                const std::array<real_t, 3> &v_axis,
+                const std::array<real_t, 3> &w_axis,
                 const real_t v_min, const real_t w_min,
                 output_ndarray<uint64_t> output) {
         return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
@@ -201,18 +203,18 @@ namespace gpu {
 
     template <typename T>
     void sample_plane(const input_ndarray<T> &voxels,
-                    const real_t voxel_size, // In micrometers
+                    const real_t voxel_size,
                     const std::array<real_t, 3> cm,
                     const std::array<real_t, 3> u_axis,
                     const std::array<real_t, 3> v_axis,
-                    const std::array<real_t, 4> bbox,    // [umin,umax,vmin,vmax] in micrometers
+                    const std::array<real_t, 4> bbox,
                     output_ndarray<real_t> plane_samples) {
         return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples);
     }
 
-    void zero_outside_bbox(const std::array<real_t,9> &principal_axes,
-                        const std::array<real_t,6> &parameter_ranges,
-                        const std::array<real_t,3> &cm,
+    void zero_outside_bbox(const std::array<real_t, 9> &principal_axes,
+                        const std::array<real_t, 6> &parameter_ranges,
+                        const std::array<real_t, 3> &cm,
                         output_ndarray<mask_type> voxels) {
         return cpu_seq::zero_outside_bbox(principal_axes, parameter_ranges, cm, voxels);
     }

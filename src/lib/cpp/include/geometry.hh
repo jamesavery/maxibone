@@ -28,7 +28,7 @@
 inline void print_timestamp(std::string message) {
     auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     tm local_tm = *localtime(&now);
-    fprintf(stderr,"%s at %02d:%02d:%02d\n", message.c_str(), local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
+    fprintf(stderr, "%s at %02d:%02d:%02d\n", message.c_str(), local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
 }
 
 /**
@@ -111,6 +111,7 @@ float resample2x2x2(const T                      *voxels,
         }
 
         auto [I,J,K] = IJK;
+        // TODO DEBUG macro
         // if (I<0 || J<0 || K<0) {
         //   printf("(I,J,K) = (%ld,%ld,%ld)\n",I,J,K);
         //   abort();
