@@ -1,3 +1,10 @@
+#! /usr/bin/python3
+'''
+This script computes the bone region of the implant.
+
+The bone region is defined as the region of the implant that is not the implant shell, and is not the solid implant.
+Or in other words, the bone region covers bone and soft tissue.
+'''
 import matplotlib
 matplotlib.use('Agg')
 import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
@@ -21,12 +28,47 @@ from multiprocessing.pool import ThreadPool
 from functools import partial
 
 def label_chunk(i, chunk, chunk_prefix):
+    '''
+    Label a chunk and write it to disk.
+
+    Parameters
+    ----------
+    `i` : int
+        The index of the chunk.
+    `chunk` : np.ndarray[uint16]
+        The chunk to label.
+    `chunk_prefix` : str
+        The prefix to use for the filename.
+
+    Returns
+    -------
+    `n_features` : int
+        The number of features found in the chunk.
+    '''
+
     label, n_features = ndi.label(chunk, output=np.int64)
     label.tofile(f'{chunk_prefix}{i}.int64')
     del label
     return n_features
 
 def largest_cc_of(mask, mask_name):
+    '''
+    Find the largest connected component of a mask.
+    The output is a binary mask with only the largest connected component.
+
+    Parameters
+    ----------
+    `mask` : np.ndarray[bool]
+        The mask to find the largest connected component of.
+    `mask_name` : str
+        The name of the mask.
+
+    Returns
+    -------
+    `largest_component` : np.ndarray[bool]
+        The filtered largest connected component of the mask.
+    '''
+
     nz, ny, nx = mask.shape
     flat_size = nz*ny*nx
     layer_size = ny*nx
