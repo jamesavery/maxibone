@@ -1,5 +1,13 @@
+/**
+ * @file morphology.hh
+ * @author Carl-Johannes Johnsen (carl-johannes@di.ku.dk)
+ * @brief GPU implementation of the morphology operations on 3D masks.
+ * @version 0.1
+ * @date 2024-09-17
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "morphology.hh"
-#include "datatypes.hh"
 
 namespace gpu {
 
