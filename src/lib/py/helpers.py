@@ -244,6 +244,21 @@ def generate_cylinder_mask(nx):
     return rs <= 1
 
 def gauss_kernel(sigma):
+    '''
+    Create a 1D Gaussian kernel with a given sigma.
+    It mimics the kernel created in `scipy.ndimage.gaussian_filter1d`.
+
+    Parameters
+    ----------
+    `sigma` : float
+        The standard deviation of the Gaussian.
+
+    Returns
+    -------
+    `kernel` : numpy.array[float]
+        The 1D Gaussian kernel.
+    '''
+
     radius = round(4.0 * sigma) # stolen from the default scipy parameters
     # Deprecated:
     #kernel = ndi.filters._gaussian_kernel1d(sigma_voxels, 0, radius).astype(internal_type)
