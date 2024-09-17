@@ -110,6 +110,23 @@ def circle_center(p0, p1, p2):
     return c1
 
 def close_3d(image, r):
+    '''
+    Apply an closing operation to a 3D image with a spherical structuring element of radius `r`.
+    If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the closing operation to.
+    `r` : int
+        The radius of the structuring element.
+
+    Returns
+    -------
+    `image` : numpy.array[Any]
+        The image after applying the closing operation.
+    '''
+
     if image.dtype == np.uint32:
         return morph_3d(image, r, dilate_3d_bitpacked, erode_3d_bitpacked)
     else:
@@ -457,6 +474,31 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
     return voxels, fields
 
 def morph_3d(image, r, fa, fb):
+    '''
+    Applies two 3D spherical morphology operation (`fa` and `fb`) of radius `r` to the image `img`.
+    It is a generic function used to build `open_3d` and `close_3d`.
+    Each function is applied with spheres of max radius `rmin` (currently 16), and the remainder is applied with a sphere of radius `rrest`.
+    This is due to the fact that `r//rmin` applications with radius `rmin` are faster than a single application with radius `r`.
+
+    See `open_3d` and `close_3d` for examples of usage.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the morphological operation to.
+    `r` : int
+        The radius of the morphological operation.
+    `fa` : function
+        The first morphological operation to apply.
+    `fb` : function
+        The second morphological operation to apply.
+
+    Returns
+    -------
+    `I1` : numpy.array[Any]
+        The image after applying the morphological operation.
+    '''
+
     I1 = image.copy().astype(image.dtype)
     I2 = np.empty(image.shape, dtype=image.dtype)
     rmin = 16
@@ -503,6 +545,23 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
 
 def open_3d(image, r):
+    '''
+    Apply an opening operation to a 3D image with a spherical structuring element of radius `r`.
+    If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the opening operation to.
+    `r` : int
+        The radius of the structuring element.
+
+    Returns
+    -------
+    `image` : numpy.array[Any]
+        The image after applying the opening operation.
+    '''
+
     if image.dtype == np.uint32:
         return morph_3d(image, r, erode_3d_bitpacked, dilate_3d_bitpacked)
     else:
