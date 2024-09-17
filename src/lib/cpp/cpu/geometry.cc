@@ -1,8 +1,12 @@
-#include <assert.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <math.h>
-
+/**
+ * @file geometry.cc
+ * @author Carl-Johannes Johnsen (carl-johannes@di.ku.dk)
+ * @brief Geometry-related functions for the CPU parallel implementation.
+ * @version 0.1
+ * @date 2024-09-17
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "geometry.hh"
 #include "../cpu_seq/geometry.cc"
 
