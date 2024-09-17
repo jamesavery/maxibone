@@ -268,7 +268,7 @@ namespace NS {
     void outside_ellipsoid(const input_ndarray<uint64_t> &voxels, const input_ndarray<real_t> &cms, const input_ndarray<real_t> &abc, output_ndarray<uint64_t> &errors);
 
     /**
-     * Ssamples a plane from a 3D voxel array along specified axes. The function calculates the positions on the plane in voxel index space and samples the voxel values using trilinear interpolation. The sampled values are stored in the `plane_samples`.
+     * Samples a plane from a 3D voxel array along specified axes. The function calculates the positions on the plane in voxel index space and samples the voxel values using trilinear interpolation. The sampled values are stored in the `plane_samples`.
      *
      * @param voxels The 3D array of voxels.
      * @param voxel_size The size of the voxels in micrometers.
