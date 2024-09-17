@@ -14,6 +14,64 @@ import numpy as np
 import pathlib
 import tqdm
 
+def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
+    '''
+    Returns information about the blocks in a volume-matched dataset. It is used for loading blocks in the `load_block` function.
+
+    Parameters
+    ----------
+    `h5meta_filename` : str
+        The path to the HDF5 file containing the metadata.
+    `scale` : int
+        The scale of the data.
+    `block_size` : int
+        The size of the blocks to load. If 0, the block size is the size of a subvolume.
+    `n_blocks` : int
+        The number of blocks to load. If 0, all blocks are loaded.
+    `z_offset` : int
+        The offset in the z-dimension to start loading blocks.
+
+    Returns
+    -------
+    `info` : dict(str, Any)
+        A dictionary containing the dimensions, voxel size, number of blocks, block size, whether blocks are subvolumes, subvolume dimensions, subvolume nzs, and subvolume starts.
+
+    '''
+
+    print(f"Opening {h5meta_filename}")
+    with h5py.File(h5meta_filename, 'r') as h5meta:
+        vm_shifts  = h5meta["volume_matching_shifts"][:]
+        Nz, Ny, Nx = h5meta['voxels'].shape
+        Nz -= np.sum(vm_shifts)
+        Nz, Ny, Nx = Nz//scale, Ny//scale, Nx//scale
+        Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
+
+        subvolume_dimensions =  h5meta['subvolume_dimensions'][:]
+        subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
+
+        if block_size == 0:
+            # If block_size is 0, let each block be exactly a full subvolume
+            blocks_are_subvolumes = True
+
+            # Do either n_blocks subvolumes, or if n_blocks == 0: all remaining after offset
+            if n_blocks == 0:
+                n_blocks = len(subvolume_nzs)-z_offset
+        else:
+            blocks_are_subvolumes = False
+            if n_blocks == 0:
+                n_blocks = Nz // block_size + (Nz % block_size > 0)
+
+        return {
+            'dimensions' : (Nz, Ny, Nx, Nr),
+            'voxel_size' :  h5meta["voxels"].attrs["voxelsize"],
+            'n_blocks' : n_blocks,
+            'block_size' : block_size,
+            'blocks_are_subvolumes' : blocks_are_subvolumes,
+            'subvolume_dimensions' : subvolume_dimensions,
+            'subvolume_nzs' : subvolume_nzs,
+            'subvolume_starts' : np.concatenate([[0],np.cumsum(subvolume_nzs)[:-1]])
+        }
+
 def commandline_args(defaults):
     '''
     Parse commandline arguments, and return them in the order of the keys in the defaults dictionary.
@@ -115,6 +173,102 @@ def generate_cylinder_mask(ny, nx):
     xs = np.linspace(-1, 1, nx)
     return (xs[np.newaxis,:]**2 + ys[:,np.newaxis]**2) < 1
 
+def h5meta_info_volume_matched(sample):
+    '''
+    Returns the volume-matched dimensions, subvolume dimensions, and voxel size for a sample.
+
+    Parameters
+    ----------
+    `sample` : str
+        The name of the sample to get the information for.
+
+    Returns
+    -------
+    `((Nz,Ny,Nx), subvolume_nzs, voxel_size)` : tuple(tuple(int,int,int), numpy.array[int], numpy.array[float])
+        A tuple containing the volume-matched dimensions, subvolume dimensions, and voxel size for the sample.
+    '''
+
+    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5", "r") as h5meta:
+        vm_shifts  = h5meta["volume_matching_shifts"][:]
+        Nz, Ny, Nx = h5meta['voxels'].shape
+        Nz -= np.sum(vm_shifts)
+
+        subvolume_dimensions = h5meta['subvolume_dimensions'][:]
+        subvolume_nzs        = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
+        voxel_size           = h5meta["voxels"].attrs["voxelsize"]
+
+        return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
+
+def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_names, field_scale):
+    '''
+    Load a block of voxels and fields from the binary and HDF5 files.
+    The block is loaded at the given offset and has the given size.
+    The data itself is loaded from the binary files, and the mask and metadata are loaded from the HDF5 files.
+    If a mask is provided, it is applied to the voxels.
+    If the field and/or mask scales are different from the voxel scale, they are upscaled to the voxel scale.
+
+    Parameters
+    ----------
+    `sample` : str
+        The name of the sample to load the block from.
+    `scale` : int
+        The scale of the voxels.
+    `offset` : int
+        The offset in the z-dimension to start loading the block.
+    `block_size` : int
+        The size of the block to load.
+    `mask_name` : str
+        The name of the mask to apply to the voxels. If None, no mask is applied.
+    `mask_scale` : int
+        The scale of the mask.
+    `field_names` : list[str]
+        The names of the fields to load.
+    `field_scale` : int
+        The scale of the fields.
+
+    Returns
+    -------
+    `voxels, fields` : tuple(numpy.array[uint16], numpy.array[uint16])
+        A tuple containing the voxels and fields loaded from the binary files. Note that the fields have an additional dimension for the number of fields.
+    '''
+
+    NA = np.newaxis
+    Nfields = len(field_names)
+    h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    Nz1x, Ny1x, Nx1x = h5meta['voxels'].shape
+    Nz1x -= np.sum(h5meta["volume_matching_shifts"][:])
+    fNz, fNy, fNx = Nz1x // field_scale, Ny1x // field_scale, Nx1x // field_scale
+    Nz, Ny, Nx = Nz1x // scale, Ny1x // scale, Nx1x // scale
+    mNz, mNy, mNx = Nz1x // mask_scale, Ny1x // mask_scale, Nx1x // mask_scale
+    mask_scale_relative = mask_scale // scale
+    h5meta.close()
+    block_size = min(block_size, Nz-offset)
+
+    voxels = np.zeros((block_size, Ny, Nx), dtype=np.uint16)
+    fields = np.zeros((Nfields, block_size//field_scale, fNy, fNx), dtype=np.uint16)
+
+    if mask_name is not None:
+        for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5"):
+            with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
+                mask = h5mask[mask_name]["mask"][offset//mask_scale_relative:offset//mask_scale_relative + block_size//mask_scale_relative]
+
+    for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
+        # TODO: Don't use 3 different methods for load/store
+        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx))
+
+    for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True):
+        fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/{field_scale}x/{sample}.npy", mmap_mode='r')
+        fields[i,:] = fi[offset//field_scale:offset//field_scale + block_size//field_scale]
+
+    if mask_name is not None:
+        nz, ny, nx = (block_size//mask_scale_relative), Ny//mask_scale_relative, Nx//mask_scale_relative
+        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz, mask_scale_relative, ny, mask_scale_relative, nx, mask_scale_relative))
+        mask_1x = mask_1x.reshape(nz*mask_scale_relative, ny*mask_scale_relative, nx*mask_scale_relative)
+        voxels[:nz*mask_scale_relative] *= mask_1x             # block_size may not be divisible by mask_scale_relative
+        voxels[nz*mask_scale_relative:] *= mask_1x[-1][NA,...] # Remainder gets last line of mask
+
+    return voxels, fields
+
 def normalize(A, value_range, nbits=16, dtype=np.uint16):
     '''
     Normalize an array `A` to the range `value_range` and convert to `dtype` with `nbits` bits.
@@ -138,6 +292,84 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
     '''
     vmin, vmax = value_range
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
+
+def row_normalize(A, r):
+    '''
+    Normalize the rows of a matrix `A` by the vector `r`.
+
+    Parameters
+    ----------
+    `A` : numpy.array[float]
+        The matrix to normalize.
+    `r` : numpy.array[float]
+        The vector to normalize the rows by.
+
+    Returns
+    -------
+    `A_normed` : numpy.array[float]
+        The normalized matrix.
+    '''
+
+    na = np.newaxis
+    return A / (r[:,na] + (r==0)[:,na])
+
+def to_int(x, dtype):
+    '''
+    Convert a numpy array to an integer type.
+    This is a wrapper around the C++ implementation in `lib/cpp/*/general.cc`.
+    If the dimensions of the array are 3, the C++ implementation is used, otherwise the pure Python implementation is used.
+
+    Parameters
+    ----------
+    `x` : numpy.array[Any]
+        The array to convert.
+    `dtype` : numpy.dtype
+        The integer type to convert the array to.
+
+    Returns
+    -------
+    `result` : numpy.array[dtype]
+        The converted array.
+    '''
+
+    if len(x.shape) != 3:
+        return to_int_py(x,dtype)
+
+    result = np.empty(x.shape, dtype=dtype)
+    normalized_convert(x, result)
+    return result
+
+def to_int_py(x, dtype):
+    '''
+    Convert a numpy array to an integer type.
+    This is a pure Python implementation, which is slower than the C++ implementation in `to_int`.
+    It is used as a fallback when the dimensions of the array are not 3.
+
+    Parameters
+    ----------
+    `x` : numpy.array[Any]
+        The array to convert.
+    `dtype` : numpy.dtype
+        The integer type to convert the array to.
+
+    Returns
+    -------
+    `result` : numpy.array[dtype]
+        The converted array.
+    '''
+
+    vmin, vmax = x.min(), x.max()
+    # Ensure everything is float32, to ensure float32 computations
+    int_max = np.float32(np.iinfo(dtype).max - 1)
+    factor = np.float32(vmax - vmin + (vmin==vmax))
+    vmin, vmax = np.float32(vmin), np.float32(vmax)
+    result = x.astype(np.float32)
+    result -= vmin
+    result /= factor
+    result *= int_max
+    result = np.floor(result).astype(dtype)
+    result += 1
+    return result
 
 def update_hdf5(filename, group_name, datasets={}, attributes={}, dimensions=None,
                 compression=None, chunk_shape=None):
@@ -230,235 +462,3 @@ def update_hdf5_mask(filename, group_name, datasets={}, attributes={}, dimension
     '''
 
     update_hdf5(filename, group_name, datasets, attributes, dimensions, compression, chunk_shape)
-
-def h5meta_info_volume_matched(sample):
-    '''
-    Returns the volume-matched dimensions, subvolume dimensions, and voxel size for a sample.
-
-    Parameters
-    ----------
-    `sample` : str
-        The name of the sample to get the information for.
-
-    Returns
-    -------
-    `((Nz,Ny,Nx), subvolume_nzs, voxel_size)` : tuple(tuple(int,int,int), numpy.array[int], numpy.array[float])
-        A tuple containing the volume-matched dimensions, subvolume dimensions, and voxel size for the sample.
-    '''
-
-    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5", "r") as h5meta:
-        vm_shifts  = h5meta["volume_matching_shifts"][:]
-        Nz, Ny, Nx = h5meta['voxels'].shape
-        Nz -= np.sum(vm_shifts)
-
-        subvolume_dimensions = h5meta['subvolume_dimensions'][:]
-        subvolume_nzs        = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
-        voxel_size           = h5meta["voxels"].attrs["voxelsize"]
-
-        return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
-
-def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
-    '''
-    Returns information about the blocks in a volume-matched dataset. It is used for loading blocks in the `load_block` function.
-
-    Parameters
-    ----------
-    `h5meta_filename` : str
-        The path to the HDF5 file containing the metadata.
-    `scale` : int
-        The scale of the data.
-    `block_size` : int
-        The size of the blocks to load. If 0, the block size is the size of a subvolume.
-    `n_blocks` : int
-        The number of blocks to load. If 0, all blocks are loaded.
-    `z_offset` : int
-        The offset in the z-dimension to start loading blocks.
-
-    Returns
-    -------
-    `info` : dict(str, Any)
-        A dictionary containing the dimensions, voxel size, number of blocks, block size, whether blocks are subvolumes, subvolume dimensions, subvolume nzs, and subvolume starts.
-
-    '''
-
-    print(f"Opening {h5meta_filename}")
-    with h5py.File(h5meta_filename, 'r') as h5meta:
-        vm_shifts  = h5meta["volume_matching_shifts"][:]
-        Nz, Ny, Nx = h5meta['voxels'].shape
-        Nz -= np.sum(vm_shifts)
-        Nz, Ny, Nx = Nz//scale, Ny//scale, Nx//scale
-        Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
-
-        subvolume_dimensions =  h5meta['subvolume_dimensions'][:]
-        subvolume_nzs = subvolume_dimensions[:,0] - np.append(vm_shifts,0)
-
-        if block_size == 0:
-            # If block_size is 0, let each block be exactly a full subvolume
-            blocks_are_subvolumes = True
-
-            # Do either n_blocks subvolumes, or if n_blocks == 0: all remaining after offset
-            if n_blocks == 0:
-                n_blocks = len(subvolume_nzs)-z_offset
-        else:
-            blocks_are_subvolumes = False
-            if n_blocks == 0:
-                n_blocks = Nz // block_size + (Nz % block_size > 0)
-
-        return {
-            'dimensions' : (Nz, Ny, Nx, Nr),
-            'voxel_size' :  h5meta["voxels"].attrs["voxelsize"],
-            'n_blocks' : n_blocks,
-            'block_size' : block_size,
-            'blocks_are_subvolumes' : blocks_are_subvolumes,
-            'subvolume_dimensions' : subvolume_dimensions,
-            'subvolume_nzs' : subvolume_nzs,
-            'subvolume_starts' : np.concatenate([[0],np.cumsum(subvolume_nzs)[:-1]])
-        }
-
-def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_names, field_scale):
-    '''
-    Load a block of voxels and fields from the binary and HDF5 files.
-    The block is loaded at the given offset and has the given size.
-    The data itself is loaded from the binary files, and the mask and metadata are loaded from the HDF5 files.
-    If a mask is provided, it is applied to the voxels.
-    If the field and/or mask scales are different from the voxel scale, they are upscaled to the voxel scale.
-
-    Parameters
-    ----------
-    `sample` : str
-        The name of the sample to load the block from.
-    `scale` : int
-        The scale of the voxels.
-    `offset` : int
-        The offset in the z-dimension to start loading the block.
-    `block_size` : int
-        The size of the block to load.
-    `mask_name` : str
-        The name of the mask to apply to the voxels. If None, no mask is applied.
-    `mask_scale` : int
-        The scale of the mask.
-    `field_names` : list[str]
-        The names of the fields to load.
-    `field_scale` : int
-        The scale of the fields.
-
-    Returns
-    -------
-    `voxels, fields` : tuple(numpy.array[uint16], numpy.array[uint16])
-        A tuple containing the voxels and fields loaded from the binary files. Note that the fields have an additional dimension for the number of fields.
-    '''
-
-    NA = np.newaxis
-    Nfields = len(field_names)
-    h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    Nz1x, Ny1x, Nx1x = h5meta['voxels'].shape
-    Nz1x -= np.sum(h5meta["volume_matching_shifts"][:])
-    fNz, fNy, fNx = Nz1x // field_scale, Ny1x // field_scale, Nx1x // field_scale
-    Nz, Ny, Nx = Nz1x // scale, Ny1x // scale, Nx1x // scale
-    mNz, mNy, mNx = Nz1x // mask_scale, Ny1x // mask_scale, Nx1x // mask_scale
-    mask_scale_relative = mask_scale // scale
-    h5meta.close()
-    block_size = min(block_size, Nz-offset)
-
-    voxels = np.zeros((block_size, Ny, Nx), dtype=np.uint16)
-    fields = np.zeros((Nfields, block_size//field_scale, fNy, fNx), dtype=np.uint16)
-
-    if mask_name is not None:
-        for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5"):
-            with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
-                mask = h5mask[mask_name]["mask"][offset//mask_scale_relative:offset//mask_scale_relative + block_size//mask_scale_relative]
-
-    for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
-        # TODO: Don't use 3 different methods for load/store
-        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx))
-
-    for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True):
-        fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/{field_scale}x/{sample}.npy", mmap_mode='r')
-        fields[i,:] = fi[offset//field_scale:offset//field_scale + block_size//field_scale]
-
-    if mask_name is not None:
-        nz, ny, nx = (block_size//mask_scale_relative), Ny//mask_scale_relative, Nx//mask_scale_relative
-        mask_1x = np.broadcast_to(mask[:,NA,:,NA,:,NA],(nz, mask_scale_relative, ny, mask_scale_relative, nx, mask_scale_relative))
-        mask_1x = mask_1x.reshape(nz*mask_scale_relative, ny*mask_scale_relative, nx*mask_scale_relative)
-        voxels[:nz*mask_scale_relative] *= mask_1x             # block_size may not be divisible by mask_scale_relative
-        voxels[nz*mask_scale_relative:] *= mask_1x[-1][NA,...] # Remainder gets last line of mask
-
-    return voxels, fields
-
-def row_normalize(A, r):
-    '''
-    Normalize the rows of a matrix `A` by the vector `r`.
-
-    Parameters
-    ----------
-    `A` : numpy.array[float]
-        The matrix to normalize.
-    `r` : numpy.array[float]
-        The vector to normalize the rows by.
-
-    Returns
-    -------
-    `A_normed` : numpy.array[float]
-        The normalized matrix.
-    '''
-
-    na = np.newaxis
-    return A / (r[:,na] + (r==0)[:,na])
-
-def to_int_py(x, dtype):
-    '''
-    Convert a numpy array to an integer type.
-    This is a pure Python implementation, which is slower than the C++ implementation in `to_int`.
-    It is used as a fallback when the dimensions of the array are not 3.
-
-    Parameters
-    ----------
-    `x` : numpy.array[Any]
-        The array to convert.
-    `dtype` : numpy.dtype
-        The integer type to convert the array to.
-
-    Returns
-    -------
-    `result` : numpy.array[dtype]
-        The converted array.
-    '''
-
-    vmin, vmax = x.min(), x.max()
-    # Ensure everything is float32, to ensure float32 computations
-    int_max = np.float32(np.iinfo(dtype).max - 1)
-    factor = np.float32(vmax - vmin + (vmin==vmax))
-    vmin, vmax = np.float32(vmin), np.float32(vmax)
-    result = x.astype(np.float32)
-    result -= vmin
-    result /= factor
-    result *= int_max
-    result = np.floor(result).astype(dtype)
-    result += 1
-    return result
-
-def to_int(x, dtype):
-    '''
-    Convert a numpy array to an integer type.
-    This is a wrapper around the C++ implementation in `lib/cpp/*/general.cc`.
-    If the dimensions of the array are 3, the C++ implementation is used, otherwise the pure Python implementation is used.
-
-    Parameters
-    ----------
-    `x` : numpy.array[Any]
-        The array to convert.
-    `dtype` : numpy.dtype
-        The integer type to convert the array to.
-
-    Returns
-    -------
-    `result` : numpy.array[dtype]
-        The converted array.
-    '''
-
-    if len(x.shape) != 3:
-        return to_int_py(x,dtype)
-
-    result = np.empty(x.shape, dtype=dtype)
-    normalized_convert(x, result)
-    return result
