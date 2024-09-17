@@ -1,3 +1,13 @@
+#! /usr/bin/python3
+'''
+This script computes the Frame of Reference (FoR) for the implant, and writes it to the HDF5 file.
+The FoR is defined by the principal axes of the implant, and the screw head direction.
+The FoR is defined in two coordinate systems:
+- UVW: The principal axes of the implant
+- UVWp: The principal axes of the implant, with U pointing towards the screw head
+
+It is used for later analysis of the implant geometry to generate the masks.
+'''
 import matplotlib
 matplotlib.use('Agg')
 import h5py, sys, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
@@ -92,6 +102,19 @@ vaxis = {'z':np.array((0,0,1.)), 'y':np.array((0,-1.,0)), 'z2':np.array((0,0,1.)
 daxis = {'z':np.array([-1,1,0]), 'y':np.array([0,0,1]), 'z2':np.array([-1.5,0,0])}
 
 def figure_FoR_UVW(debug=2):
+    '''
+    This function plots the implant in the UVW frame of reference.
+
+    Parameters
+    ----------
+    `debug` : int
+        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+
+    Returns
+    -------
+    `None`
+    '''
+
     if debug >= 2:
         vol = vedo.Volume(implant)
         vol.alpha([0,0,0.05,0.2])
@@ -119,6 +142,19 @@ def figure_FoR_UVW(debug=2):
 
 # TODO: Fix lengths (voxel_size times...)
 def figure_FoR_UVWp(debug=2):
+    '''
+    This function plots the implant in the UVWp frame of reference.
+
+    Parameters
+    ----------
+    `debug` : int
+        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+
+    Returns
+    -------
+    `None`
+    '''
+
     if debug >= 2:
         implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
         pts = pc.Points(implant_uvwps[:,:3])
@@ -141,6 +177,31 @@ def figure_FoR_UVWp(debug=2):
             vedo.show([pts,u_arrow,v_arrow,w_arrow],interactive=True)
 
 def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
+    '''
+    This function plots the circle that best fits the implant in the UVWp frame of reference.
+
+    Parameters
+    ----------
+    `name` : str
+        Name of the output image.
+    `center` : numpy.array[float32]
+        Center of the circle.
+    `v_vec` : numpy.array[float32]
+        V-vector of the circle.
+    `w_vec` : numpy.array[float32]
+        W-vector of the circle.
+    `radius` : float
+        Radius of the circle.
+    `implant_bbox` : list[float]
+        Bounding box of the implant.
+    `debug` : bool
+        Whether to print debug information.
+
+    Returns
+    -------
+    `None`
+    '''
+
     from matplotlib.patches import Circle
     from matplotlib.lines import Line2D
 
@@ -189,6 +250,19 @@ def figure_FoR_circle(name,center,v_vec,w_vec,radius,implant_bbox,debug=True):
         plt.show()
 
 def figure_FoR_profiles(debug):
+    '''
+    This function plots the profiles of the implant in the UVWp frame of reference.
+
+    Parameters
+    ----------
+    `debug` : bool
+        Whether to print debug information.
+
+    Returns
+    -------
+    `None`
+    '''
+
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
     ax1.plot((Up_bins[1:]+Up_bins[:-1])/2, Up_integrals);
@@ -203,6 +277,19 @@ def figure_FoR_profiles(debug):
         plt.show()
 
 def figure_FoR_cylinder(debug=2):
+    '''
+    This function plots the cylinder that best fits the implant in the UVWp frame of reference.
+
+    Parameters
+    ----------
+    `debug` : int
+        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+
+    Returns
+    -------
+    `None`
+    '''
+
     if debug >= 2:
     #    center_line = vedo.Arrow(C1,C2)
         center_line = vedo.Cylinder((C1+C2)/2,r=implant_radius_voxels/20,height=implant_length_voxels, axis=(C2-C1),alpha=1,c='r')
@@ -229,6 +316,23 @@ def figure_FoR_cylinder(debug=2):
             vedo.show([vol,cylinder,Up_arrow,Vp_arrow,Wp_arrow],interactive=True)
 
 def figure_FoR_voxels(name, voxels, debug=2):
+    '''
+    This function plots the voxels in the UVWp frame of reference.
+
+    Parameters
+    ----------
+    `name` : str
+        Name of the output image.
+    `voxels` : numpy.array[uint8]
+        Voxels to plot.
+    `debug` : int
+        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+
+    Returns
+    -------
+    `None`
+    '''
+
     if debug >= 2:
         vol = vedo.Volume(voxels)
         vol.alpha([0,0,0.05,0.1])
