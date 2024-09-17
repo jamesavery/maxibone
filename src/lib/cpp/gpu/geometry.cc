@@ -2,14 +2,13 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <math.h>
-using namespace std;
 
 #include "geometry.hh"
 #include "../cpu_seq/geometry.cc"
 
 namespace gpu {
 
-array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
+    std::array<real_t,3> center_of_mass(const input_ndarray<mask_type> &mask) {
     return cpu_seq::center_of_mass(mask);
 }
 
@@ -45,7 +44,7 @@ void cylinder_projection(const input_ndarray<float>  edt,  // Euclidean Distance
 void fill_implant_mask(const input_ndarray<mask_type> mask,
                int64_t offset,
                float voxel_size,
-               const array<float,6> &bbox,
+                const std::array<float,6> &bbox,
                float r_fraction,
                const matrix4x4 &Muvw,
                const input_ndarray<real_t> thetas,
@@ -65,7 +64,7 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
     {
         for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
             const mask_type *mask_buffer = mask.data + mask_buffer_start;
-            ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
+                ssize_t mask_buffer_length = std::min(acc_block_size<mask_type>, mask_length-(ssize_t)mask_buffer_start);
             mask_type *solid_mask_buffer = solid_implant_mask.data + offset + mask_buffer_start;
             #pragma acc data copy(mask_buffer[:mask_buffer_length]) create(solid_mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
             {
@@ -86,8 +85,8 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
                     // Second pass does the actual work
                     auto [U,V,W,c] = hom_transform(Xs, Muvw);
                     float r_sqr = V*V + W*W;
-                    float theta = atan2(V, W);
-                    int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+                        float theta = std::atan2(V, W);
+                        int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                     bool solid_mask_value = false;
                     if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
@@ -109,7 +108,7 @@ void fill_implant_mask(const input_ndarray<mask_type> mask,
 void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                int64_t offset,
                float voxel_size,
-               const array<float,6> &bbox,
+                const std::array<float,6> &bbox,
                const matrix4x4 &Muvw,
                output_ndarray<real_t> thetas,
                output_ndarray<float> rsqr_maxs) {
@@ -128,8 +127,8 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
     #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox) copy(rsqr_maxs_d[:n_segments])
     {
         for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
-            ssize_t mask_buffer_length = min(acc_block_size<mask_type>, mask_length-mask_buffer_start);
-            ssize_t num_threads = min(mask_buffer_length, gpu_threads);
+                ssize_t mask_buffer_length = std::min(acc_block_size<mask_type>, mask_length-(ssize_t)mask_buffer_start);
+                ssize_t num_threads = std::min(mask_buffer_length, gpu_threads);
             const mask_type *mask_buffer = mask.data + mask_buffer_start;
             real_t thetas_min = thetas_d[0], thetas_max = thetas_d[1];
             #pragma acc data copyin(mask_buffer_start, mask_buffer[:mask_buffer_length]) copy(thetas_min, thetas_max)
@@ -154,14 +153,14 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
                             auto [U,V,W,c] = hom_transform(Xs, Muvw);
 
                             real_t r_sqr = V*V + W*W;
-                            real_t theta = atan2(V,W);
+                                real_t theta = std::atan2(V,W);
 
-                            int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+                                int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                             if ( in_bbox({{U,V,W}},bbox) ) {
-                                rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-                                thetas_min = min(thetas_min, theta);
-                                thetas_max = max(thetas_max, theta);
+                                    rsqr_maxs_d[U_i] = std::max(rsqr_maxs_d[U_i], float(r_sqr));
+                                    thetas_min = std::min(thetas_min, theta);
+                                    thetas_max = std::max(thetas_max, theta);
                             } else {
                                 // Otherwise we've calculated it wrong!
                             }
@@ -175,7 +174,7 @@ void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
     }
 }
 
-array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const array<real_t,3> &cm) {
+    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t,3> &cm) {
     return cpu_seq::inertia_matrix(mask, cm);
 }
 
@@ -184,9 +183,9 @@ void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<r
 }
 
 void integrate_axes(const input_ndarray<mask_type> &mask,
-		    const array<real_t,3> &x0,
-		    const array<real_t,3> &v_axis,
-		    const array<real_t,3> &w_axis,
+                const std::array<real_t,3> &x0,
+                const std::array<real_t,3> &v_axis,
+                const std::array<real_t,3> &w_axis,
 		    const real_t v_min, const real_t w_min,
 		    output_ndarray<uint64_t> output) {
     return cpu_seq::integrate_axes(mask, x0, v_axis, w_axis, v_min, w_min, output);
@@ -199,17 +198,17 @@ void outside_ellipsoid(const input_ndarray<uint64_t> &voxels, const input_ndarra
 template <typename T>
 void sample_plane(const input_ndarray<T> &voxels,
                   const real_t voxel_size, // In micrometers
-                  const array<real_t, 3> cm,
-                  const array<real_t, 3> u_axis,
-                  const array<real_t, 3> v_axis,
-                  const array<real_t, 4> bbox,    // [umin,umax,vmin,vmax] in micrometers
+                    const std::array<real_t, 3> cm,
+                    const std::array<real_t, 3> u_axis,
+                    const std::array<real_t, 3> v_axis,
+                    const std::array<real_t, 4> bbox,    // [umin,umax,vmin,vmax] in micrometers
                   output_ndarray<real_t> plane_samples) {
     return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples);
 }
 
-void zero_outside_bbox(const array<real_t,9> &principal_axes,
-                       const array<real_t,6> &parameter_ranges,
-                       const array<real_t,3> &cm,
+    void zero_outside_bbox(const std::array<real_t,9> &principal_axes,
+                        const std::array<real_t,6> &parameter_ranges,
+                        const std::array<real_t,3> &cm,
                        output_ndarray<mask_type> voxels) {
     return cpu_seq::zero_outside_bbox(principal_axes, parameter_ranges, cm, voxels);
 }
