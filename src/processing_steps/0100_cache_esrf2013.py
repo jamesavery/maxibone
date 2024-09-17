@@ -1,3 +1,8 @@
+#! /usr/bin/python3
+'''
+This script downloads the contents of a volume from the ESRF 2013 dataset stored
+on ERDA.
+'''
 import os, sys, pathlib, tqdm, fabric
 sys.path.append(sys.path[0]+"/../")
 from lib.py.helpers import commandline_args
