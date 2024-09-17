@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+Rescale a 16-bit binary file to 2x, 4x, 8x, 16x, and 32x. Each rescaling is performed on all dimensions.
+'''
 import h5py, sys, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 import numpy as np
