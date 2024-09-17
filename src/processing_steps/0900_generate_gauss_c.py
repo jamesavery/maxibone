@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#! /usr/bin/python3
+'''
+Diffusion approximation by repeated Gaussian blurs.
+This provides an estimate to counter the "glow" of the implant in the tomogram.
+'''
 import matplotlib
 matplotlib.use('Agg')
 import sys, pathlib, datetime, numpy as np, h5py, timeit, matplotlib.pyplot as plt, edt
