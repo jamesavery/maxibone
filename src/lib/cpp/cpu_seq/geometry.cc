@@ -685,13 +685,13 @@ namespace cpu_seq {
     void zero_outside_bbox(const std::array<real_t,9> &principal_axes,
                 const std::array<real_t,6> &parameter_ranges,
                 const std::array<real_t,3> &cm,
-                output_ndarray<mask_type> voxels) {
+                output_ndarray<mask_type> mask) {
 
-        UNPACK_NUMPY(voxels)
+        UNPACK_NUMPY(mask)
 
         #pragma acc data copyin(principal_axes, parameter_ranges, cm)
         {
-            BLOCK_BEGIN(voxels, ) {
+            BLOCK_BEGIN(mask, ) {
 
                 real_t xs[3] = {
                     real_t(x) - cm[0],
@@ -713,7 +713,7 @@ namespace cpu_seq {
                 }
 
                 if (p)
-                    voxels_buffer[flat_index] = 0;
+                    mask_buffer[flat_index] = 0;
 
             BLOCK_END() }
         }
