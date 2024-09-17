@@ -9,8 +9,11 @@ from config.paths import binary_root, hdf5_root
 import h5py
 from lib.cpp.cpu.io import load_slice
 from lib.cpp.cpu.general import normalized_convert
-import os
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pathlib
 import tqdm
 
@@ -292,6 +295,37 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
     '''
     vmin, vmax = value_range
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
+
+def plot_middle_planes(tomo, output_dir, prefix):
+    '''
+    Plot the middle planes of a 3D volume and save them to the output directory.
+    For a 3D volume of shape `(nz,ny,nx)`, the middle planes are `(nz//2,:,:), (:,ny//2,:), (:,:,nx//2)`.
+    The images are saved as PDF files with `interpolation='none'` to ensure the pixels are not interpolated.
+
+    Parameters
+    ----------
+    `tomo` : numpy.array[Any]
+        The 3D volume to plot the middle planes of.
+    `output_dir` : str
+        The directory to save the images to.
+    `prefix` : str
+        The prefix to add to the image filenames.
+
+    Returns
+    -------
+    None
+    '''
+    assert len(tomo.shape) == 3
+    nz, ny, nx = tomo.shape
+    names = ['yx', 'zx', 'zy']
+    planes = [tomo[nz//2,:,:], tomo[:,ny//2,:], tomo[:,:,nx//2]]
+
+    for name, plane in zip(names, planes):
+        plt.figure(figsize=(10,10))
+        plt.imshow(plane, interpolation='none')
+        plt.colorbar()
+        plt.savefig(f"{output_dir}/{prefix}_{name}.pdf", bbox_inches='tight')
+        plt.close()
 
 def row_normalize(A, r):
     '''
