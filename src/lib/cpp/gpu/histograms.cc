@@ -2,7 +2,6 @@
 
 namespace gpu {
 
-    // On entry, np_*_bins are assumed to be pre allocated and zeroed.
     void axis_histogram(const voxel_type __restrict__* voxels,
                         const shape_t &global_shape,
                         const shape_t &offset,
@@ -28,7 +27,7 @@ namespace gpu {
         auto [vmin, vmax] = vrange;
         auto [z_start, y_start, x_start] = offset;
 
-        uint64_t memory_needed = ((Nx*voxel_bins)+(Ny*voxel_bins)+(Nz*voxel_bins)+(Nr*voxel_bins))*sizeof(uint64_t);
+        uint64_t memory_needed = ((Nx*voxel_bins) + (Ny*voxel_bins) + (Nz*voxel_bins) + (Nr*voxel_bins)) * sizeof(uint64_t);
 
         uint64_t
             z_end   = (uint64_t) std::min(z_start+block_size.z, Nz),
@@ -43,7 +42,7 @@ namespace gpu {
         uint64_t initial_block = std::min(image_length, gpu_block_size);
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n", voxels, vmin, vmax, Nx, Ny, Nz, Nr);
             printf("Offset is (%ld,%ld,%ld)\n", z_start, y_start, x_start);
             printf("Allocating result memory (%ld bytes (%.02f Mbytes))\n", memory_needed, memory_needed/1024./1024.);
             printf("Starting calculation\n");
@@ -64,7 +63,7 @@ namespace gpu {
                 // Compute the block indices
                 uint64_t this_block_start = i*gpu_block_size;
                 uint64_t this_block_end = std::min(image_length, this_block_start + gpu_block_size);
-                uint64_t this_block_size = this_block_end-this_block_start;
+                uint64_t this_block_size = this_block_end - this_block_start;
                 const voxel_type *buffer = voxels + this_block_start;
 
                 // Copy the block to the GPU
@@ -81,9 +80,9 @@ namespace gpu {
                             uint64_t x = flat_idx % Nx;
                             uint64_t y = (flat_idx / Nx) % Ny;
                             uint64_t z = (flat_idx / (Nx*Ny)) + z_start;
-                            uint64_t r = floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+                            uint64_t r = std::floor(std::sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
-                            int64_t voxel_index = round(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                            int64_t voxel_index = std::round(static_cast<double>(voxel_bins-1) * ((voxel - vmin) / (vmax - vmin)) );
 
                             #pragma acc atomic
                             ++x_bins[x*voxel_bins + voxel_index];
@@ -141,9 +140,9 @@ namespace gpu {
         }
 
         double
-            dz = (double)nz/((double)nZ),
-            dy = (double)ny/((double)nY),
-            dx = (double)nx/((double)nX);
+            dz = (double)nz / ((double)nZ),
+            dy = (double)ny / ((double)nY),
+            dx = (double)nx / ((double)nX);
 
         auto [f_min, f_max] = frange;
         auto [v_min, v_max] = vrange;
@@ -200,7 +199,7 @@ namespace gpu {
                             X = flat_index % nX;
                         voxel_type voxel = voxels_buffer[j];
                         voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * (((double)voxel - v_min)/(v_max - v_min)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * (((double)voxel - v_min) / (v_max - v_min)) );
 
                         // What are the X,Y,Z indices corresponding to voxel basearray index I?
                         //uint64_t X = flat_index % nX, Y = (flat_index / nX) % nY, Z = (flat_index / (nX*nY)) + z_start;
@@ -208,16 +207,16 @@ namespace gpu {
                         // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
                         // TODO: Sample 2x2x2 volume?
                         uint64_t
-                            z = (uint64_t) floor((double)Z*dz),
-                            y = (uint64_t) floor((double)Y*dy),
-                            x = (uint64_t) floor((double)X*dx);
+                            z = (uint64_t) std::floor((double)Z * dz),
+                            y = (uint64_t) std::floor((double)Y * dy),
+                            x = (uint64_t) std::floor((double)X * dx);
                         z = std::min((uint64_t)(nz-1), z); // Clamp when nZ % 2 != 0
                         uint64_t flat_index_field = z*ny*nx + y*nx + x;
                         field_type field_value = field[flat_index_field];
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                         if ((voxel != 0) && (field_value > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                            int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+                            int64_t field_index = (int64_t) std::floor(static_cast<double>(field_bins-1) * ((field_value - f_min) / (f_max - f_min)) );
 
                             #pragma acc atomic
                             bins[field_index*voxel_bins + voxel_index]++;

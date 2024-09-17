@@ -1,8 +1,7 @@
-#include <histograms.hh>
+#include "histograms.hh"
 
 namespace cpu_par {
 
-    // On entry, np_*_bins are assumed to be pre allocated and zeroed.
     void axis_histogram(const voxel_type __restrict__* voxels,
                         const shape_t &global_shape,
                         const shape_t &offset,
@@ -29,9 +28,9 @@ namespace cpu_par {
         auto [z_start, y_start, x_start] = offset;
 
         uint64_t
-            z_end  = (uint64_t) std::min(z_start+block_size.z, Nz),
-            y_end  = Ny,
-            x_end  = Nx;
+            z_end = (uint64_t) std::min(z_start+block_size.z, Nz),
+            y_end = Ny,
+            x_end = Nx;
 
         if (verbose) {
             printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
@@ -47,11 +46,11 @@ namespace cpu_par {
             for (uint64_t y = y_start; y < y_end; y++) {
                 for (uint64_t x = x_start; x < x_end; x++) {
                     uint64_t flat_idx = (z-z_start)*Ny*Nx + y*Nx + x;
-                    uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+                    uint64_t r = (uint64_t) std::floor(std::sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
                     auto voxel = voxels[flat_idx];
                     voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                    int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -90,7 +89,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -121,7 +120,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -152,7 +151,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -178,7 +177,7 @@ namespace cpu_par {
                     for (uint64_t i = 0; i < voxel_bins; i++)
                         tmp[i] = 0;
 
-                    uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+                    uint64_t r = (uint64_t) std::floor(std::sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
                     // Read and compute
                     #pragma omp simd
@@ -186,7 +185,7 @@ namespace cpu_par {
                         uint64_t flat_idx = z*Ny*Nx + y*Nx + x;
                         auto voxel = voxels[flat_idx];
                         voxel = (voxel >= vmin && voxel <= vmax) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
 
                         if (voxel_index >= (int64_t) voxel_bins) {
                             fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -236,9 +235,9 @@ namespace cpu_par {
         auto [nz, ny, nx] = field_shape;
 
         double
-            dz = (double)nz/((double)nZ),
-            dy = (double)ny/((double)nY),
-            dx = (double)nx/((double)nX);
+            dz = (double)nz / ((double)nZ),
+            dy = (double)ny / ((double)nY),
+            dx = (double)nx / ((double)nX);
 
         auto [f_min, f_max] = frange;
         auto [v_min, v_max] = vrange;
@@ -268,20 +267,20 @@ namespace cpu_par {
                         uint64_t flat_index = (Z*nY*nX) + (Y*nX) + X;
                         auto voxel = voxels[flat_index];
                         voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min) / (v_max - v_min)) );
 
                         // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
                         // TODO: Sample 2x2x2 volume?
                         uint64_t
-                            z = (uint64_t) floor((double)Z*dz),
-                            y = (uint64_t) floor((double)Y*dy),
-                            x = (uint64_t) floor((double)X*dx);
+                            z = (uint64_t) std::floor((double)Z * dz),
+                            y = (uint64_t) std::floor((double)Y * dy),
+                            x = (uint64_t) std::floor((double)X * dx);
                         z = std::min((uint64_t)(nz-1), z); // Clamp when nZ % 2 != 0
                         uint64_t i = z*ny*nx + y*nx + x;
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                         if((voxel != 0) && (field[i] > 0)) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                            int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
+                            int64_t field_index = (int64_t) std::floor(static_cast<double>(field_bins-1) * ((field[i] - f_min) / (f_max - f_min)) );
 
                             tmp_bins[field_index*voxel_bins + voxel_index]++;
                         }
@@ -348,7 +347,7 @@ namespace cpu_par {
                         uint64_t flat_index = (X*nY*nZ) + (Y*nZ) + Z;
                         auto voxel = voxels[flat_index];
                         voxel = (voxel >= v_min && voxel <= v_max) ? voxel: 0; // Mask away voxels that are not in specified range
-                        int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                        int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min) / (v_max - v_min)) );
 
                         // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
                         // TODO: Sample 2x2x2 volume?
@@ -356,24 +355,24 @@ namespace cpu_par {
                             x = (float) X * (float) dx,
                             y = (float) Y * (float) dy,
                             z = (float) Z * (float) dz;
-                        uint64_t i = (uint64_t) floor(x)*ny*nz + (uint64_t) floor(y)*nz + (uint64_t) floor(z);
+                        uint64_t i = (uint64_t) std::floor(x)*ny*nz + (uint64_t) std::floor(y)*nz + (uint64_t) std::floor(z);
 
                         // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                         //if ((voxel >= 0) && field[i] > 0) { // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                            field_type field_value = (field_type) (resample2x2x2(field,field_shape,{z,y,x}));
-                            int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field_value - f_min)/(f_max - f_min)) );
+                            field_type field_value = (field_type) (resample2x2x2(field, field_shape, {z,y,x}));
+                            int64_t field_index = (int64_t) std::floor(static_cast<double>(field_bins-1) * ((field_value - f_min) / (f_max - f_min)) );
 
 
                             if (field_index < 0 || (uint64_t) field_index >= field_bins) {
                                 fprintf(stderr,"field value out of bounds at X,Y,Z = %ld,%ld,%ld, x,y,z = %.1f,%.1f,%.1f:\n"
                                 "\t field_value = %d (%.3f), field_index = %ld, voxel_value = %d, field[%ld] = %d\n",
                                 X,Y,Z,x,y,z,
-                                field_value, floor(resample2x2x2(field,{nx,ny,nz},{x,y,z})), field_index, voxel,i,field[i]);
+                                field_value, std::floor(resample2x2x2(field, {nx,ny,nz}, {x,y,z})), field_index, voxel, i, field[i]);
                                 printf("nx,ny,nz = %ld,%ld,%ld. %ld*%ld + %ld*%ld + %ld = %ld\n",
                                     nx,ny,nz,
-                                    (uint64_t) floor(x),ny*nz,
-                                    (uint64_t) floor(y),nz,
-                                    (uint64_t) floor(z),
+                                    (uint64_t) std::floor(x), ny*nz,
+                                    (uint64_t) std::floor(y), nz,
+                                    (uint64_t) std::floor(z),
                                     i
                                 );
 

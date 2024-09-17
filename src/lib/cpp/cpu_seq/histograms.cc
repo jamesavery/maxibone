@@ -1,9 +1,9 @@
-#include <histograms.hh>
+#include "histograms.hh"
+
+// These are the original implementations, which are kept for verification purposes.
 
 namespace cpu_seq {
 
-    // On entry, np_*_bins are assumed to be pre allocated and zeroed.
-    // This function is kept for verification
     void axis_histogram(const voxel_type __restrict__* voxels,
                         const shape_t &global_shape,
                         const shape_t &offset,
@@ -36,7 +36,7 @@ namespace cpu_seq {
             x_end   = Nx;
 
         if (verbose) {
-            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n",voxels,vmin, vmax, Nx,Ny,Nz,Nr);
+            printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n", voxels, vmin, vmax, Nx, Ny, Nz, Nr);
             printf("Starting calculation\n");
             fflush(stdout);
         }
@@ -47,11 +47,11 @@ namespace cpu_seq {
         for (uint64_t z = z_start; z < z_end; z++) {
             for (uint64_t y = y_start; y < y_end; y++) {
                 for (uint64_t x = x_start; x < x_end; x++) {
-                    uint64_t r = (uint64_t) floor(sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+                    uint64_t r = (uint64_t) std::floor(std::sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
 
                     auto voxel = voxels[flat_idx];
                     voxel = (voxel >= vmin && voxel <= vmax) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin)/(vmax - vmin)) );
+                    int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - vmin) / (vmax - vmin)) );
 
                     if (voxel_index >= (int64_t)voxel_bins) {
                         fprintf(stderr,"Out-of-bounds error for index %ld: %ld > %ld:\n", flat_idx, voxel_index, voxel_bins);
@@ -122,7 +122,7 @@ namespace cpu_seq {
                 for (uint64_t X = x_start; X < x_end; X++) {
                     auto voxel = voxels[flat_index];
                     voxel = (voxel >= v_min && voxel <= v_max) ? voxel : 0; // Mask away voxels that are not in specified range
-                    int64_t voxel_index = (int64_t) floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min)/(v_max - v_min)) );
+                    int64_t voxel_index = (int64_t) std::floor(static_cast<double>(voxel_bins-1) * ((voxel - v_min) / (v_max - v_min)) );
 
                     // What are the X,Y,Z indices corresponding to voxel basearray index I?
                     //uint64_t X = flat_index % nX, Y = (flat_index / nX) % nY, Z = (flat_index / (nX*nY)) + z_start;
@@ -130,14 +130,14 @@ namespace cpu_seq {
                     // And what are the corresponding x,y,z coordinates into the field array, and field basearray index i?
                     // TODO: Sample 2x2x2 volume?
                     uint64_t
-                        z = (uint64_t) floor((double)Z*dz),
-                        y = (uint64_t) floor((double)Y*dy),
-                        x = (uint64_t) floor((double)X*dx);
+                        z = (uint64_t) std::floor((double)Z*dz),
+                        y = (uint64_t) std::floor((double)Y*dy),
+                        x = (uint64_t) std::floor((double)X*dx);
                     uint64_t i = z*ny*nx + y*nx + x;
 
                     // TODO the last row of the histogram does not work, when the mask is "bright". Should be discarded.
                     if((voxel != 0) && (field[i] > 0)){ // Mask zeros in both voxels and field (TODO: should field be masked, or 0 allowed?)
-                        int64_t field_index = (int64_t) floor(static_cast<double>(field_bins-1) * ((field[i] - f_min)/(f_max - f_min)) );
+                        int64_t field_index = (int64_t) std::floor(static_cast<double>(field_bins-1) * ((field[i] - f_min) / (f_max - f_min)) );
 
                         bins[field_index*voxel_bins + voxel_index]++;
                     }

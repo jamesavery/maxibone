@@ -19,6 +19,7 @@ namespace NS {
      * Computes four 2D histograms of the voxels.
      * A 2D histogram is where each row is a histogram of the voxels in a slice of the 3D volume.
      * E.g. for the x-axis, a histogram is computed for each slice in the x-direction.
+     * Assumes that the `*_bins` are pre-allocated and zeroed.
      *
      * @param voxels The 3D volume of voxels.
      * @param global_shape The shape of the 3D volume.
