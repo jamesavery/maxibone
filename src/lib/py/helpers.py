@@ -94,6 +94,51 @@ def generate_cylinder_mask(nx):
     rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
     return rs <= 1
 
+def generate_cylinder_mask(ny, nx):
+    '''
+    Generate a 2D mask of a cylinder with diameter `nx` pixels in the x-dimension and `ny` pixels in the y-dimension.
+
+    Parameters
+    ----------
+    `ny` : int
+        The diameter of the cylinder in pixels in the y-dimension.
+    `nx` : int
+        The diameter of the cylinder in pixels in the x-dimension.
+
+    Returns
+    -------
+    `mask` : numpy.array[bool]
+        A 2D boolean mask of the cylinder.
+    '''
+
+    ys = np.linspace(-1, 1, ny)
+    xs = np.linspace(-1, 1, nx)
+    return (xs[np.newaxis,:]**2 + ys[:,np.newaxis]**2) < 1
+
+def normalize(A, value_range, nbits=16, dtype=np.uint16):
+    '''
+    Normalize an array `A` to the range `value_range` and convert to `dtype` with `nbits` bits.
+    Afterwards, `1,...,2**(nbits)-1` correspond to `vmin,...,vmax` and `0` corresponds to a masked value.
+
+    Parameters
+    ----------
+    `A` : np.ndarray
+        The array to normalize.
+    `value_range` : tuple(Any,Any)
+        The range of values in `A` to normalize to.
+    `nbits` : int
+        The number of bits to use for the output.
+    `dtype` : np.dtype
+        The data type of the output.
+
+    Returns
+    -------
+    `A_normed` : np.ndarray
+        The normalized array.
+    '''
+    vmin, vmax = value_range
+    return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
+
 def update_hdf5(filename, group_name, datasets={}, attributes={}, dimensions=None,
                 compression=None, chunk_shape=None):
     '''

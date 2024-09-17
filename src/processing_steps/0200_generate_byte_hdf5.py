@@ -10,9 +10,7 @@ sys.path.append(sys.path[0]+"/../")
 from lib.py.esrf_read import *
 import numpy   as np, matplotlib.pyplot as plt
 from config.paths import hdf5_root as hdf5_root, esrf_implants_root
-from lib.py.helpers import commandline_args
-from PIL import Image
-
+from lib.py.helpers import commandline_args, generate_cylinder_mask, normalize
 
 NA = np.newaxis
 
@@ -25,17 +23,7 @@ sample, chunk_length, use_bohrium, xml_root, verbose  = commandline_args({"sampl
 
 if verbose >= 1: print(f"data_root={xml_root}")
 
-# Normalize, such that 1,...,2^(nbits)-1 correspond to vmin,...,vmax
-# 0 corresponds to a masked value
-def normalize(A,value_range,nbits=16,dtype=np.uint16):
-    vmin,vmax = value_range
-    return (A!=0)*((((A-vmin)/(vmax-vmin))*(2**nbits-1)).astype(dtype)+1)
-
-subvolume_xmls     = readfile(f"{xml_root}/index/{sample}.txt")
-subvolume_metadata = [esrf_read_xml(f"{xml_root}/{xml.strip()}") for xml in subvolume_xmls];
-
-subvolume_dimensions = np.array([ (int(m['sizez']),  int(m['sizey']), int(m['sizex'])) for m in subvolume_metadata]);
-subvolume_range      = np.array([(float(m['valmin']), float(m['valmax'])) for m in subvolume_metadata]);
+    subvolume_xmls       = readfile(f"{xml_root}/index/{sample}.txt")
 
 global_vmin = np.min(subvolume_range[:,0])
 global_vmax = np.max(subvolume_range[:,1])
@@ -74,38 +62,7 @@ if verbose >= 1: print(f"Writing {msb_filename} and {lsb_filename}")
 h5file_msb = h5py.File(msb_filename,"w");
 h5file_lsb = h5py.File(lsb_filename,"w");
 
-# Store metadata in both files for each subvolume scan
-for h5file in [h5file_msb,h5file_lsb]:
-    grp_meta = h5file.create_group("metadata");
-    for i in range(len(subvolume_metadata)):
-        subvolume_info = subvolume_metadata[i];
-        grp_sub = grp_meta.create_group(f"subvolume{i}");
-        for k in subvolume_info.keys():
-            grp_sub.attrs[k] = np.string_(subvolume_info[k]);
-
-
-    h5file.create_dataset("subvolume_dimensions",subvolume_dimensions.shape,dtype=np.uint16,data=subvolume_dimensions);
-    h5file.create_dataset("subvolume_range",subvolume_range.shape,dtype=np.float32,data=subvolume_range);
-    h5file.create_dataset("global_range",(2,),dtype=np.float32,data=np.array([global_vmin,global_vmax]));
-    h5tomo     = h5file.create_dataset("voxels",(Nz,Ny,Nx),dtype=np.uint8,fletcher32=True, compression="lzf" if h5file==h5file_msb else None);
-
-    h5tomo.dims[0].label = 'z';
-    h5tomo.dims[1].label = 'y';
-    h5tomo.dims[2].label = 'x';
-    h5tomo.attrs['voxelsize'] = float(subvolume_info['voxelsize']);
-
-z_offset = 0;
-#normalize_jit = jax.jit(normalize)
-normalize_jit = normalize
-h5tomo_msb = h5file_msb['voxels']
-h5tomo_lsb = h5file_lsb['voxels']
-
-def cylinder_mask(Ny,Nx):
-    ys = np.linspace(-1,1,Ny)
-    xs = np.linspace(-1,1,Nx)
-    return (xs[NA,:]**2 + ys[:,NA]**2) < 1
-
-mask = np.array(cylinder_mask(Ny,Nx))
+    mask = np.array(generate_cylinder_mask(Ny, Nx))
 
 for i in tqdm.tqdm(range(len(subvolume_metadata))):
     subvolume_info = subvolume_metadata[i];
