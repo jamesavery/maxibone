@@ -1,3 +1,13 @@
+#! /usr/bin/python3
+'''
+This script computes the implant data for a given sample. The implant data is
+computed from the implant mask and the principal axis of the implant. The implant
+data consists of the following:
+1. The quarter profile of the implant.
+2. The maximum radius of the implant in each bin.
+3. The solid implant mask.
+4. The front mask of the implant.
+'''
 import matplotlib
 matplotlib.use('Agg')
 import h5py, sys, os, os.path, pathlib, numpy as np, numpy.linalg as la, tqdm
@@ -10,8 +20,6 @@ import scipy as sp, scipy.ndimage as ndi, scipy.interpolate as interpolate, scip
 import vedo, vedo.pointcloud as pc
 from lib.py.helpers import commandline_args, update_hdf5, update_hdf5_mask
 from numpy import array, newaxis as NA
-
-#vedo.settings.start_xvfb()
 
 sample, scale, block_size, verbose = commandline_args({"sample" : "<required>",
                                            "scale" : 2,
