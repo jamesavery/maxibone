@@ -7,12 +7,16 @@ Format
 /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
 /voxels:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
 '''
-import h5py, sys, os.path, pathlib, tqdm
+import sys
 sys.path.append(sys.path[0]+"/../")
-from lib.py.esrf_read import *
-import numpy as np
 from config.paths import hdf5_root as hdf5_root, esrf_implants_root
+import h5py
+from lib.py.esrf_read import *
 from lib.py.helpers import commandline_args, generate_cylinder_mask, normalize
+import numpy as np
+import os.path
+import pathlib
+import tqdm
 
 NA = np.newaxis
 

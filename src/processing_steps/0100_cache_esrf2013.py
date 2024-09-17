@@ -3,10 +3,14 @@
 This script downloads the contents of a volume from the ESRF 2013 dataset stored
 on ERDA.
 '''
-import os, sys, pathlib, tqdm, fabric
+import sys
 sys.path.append(sys.path[0]+"/../")
-from lib.py.helpers import commandline_args
 from config.paths import esrf_data_sftp, esrf_data_local
+import fabric
+from lib.py.helpers import commandline_args
+import os
+import pathlib
+import tqdm
 
 if __name__ == "__main__":
     sample, experiment, verbose = commandline_args({

@@ -1,4 +1,16 @@
-#/usr/bin/env python3
+import sys
+sys.path.append(sys.path[0]+"/../")
+from config.paths import hdf5_root
+import h5py
+import jax
+import jax.numpy as jp
+from lib.py.helpers import commandline_args
+import numpy as np
+import os.path
+import pathlib
+from PIL import Image
+import tqdm
+
 # TODO:
 # 1] shadow effects could perhaps be removed by histogram matching of final adjacent regions
 #    - should probably be removed by kernel-operation around outer edge, before matching...
