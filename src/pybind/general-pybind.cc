@@ -31,6 +31,26 @@ namespace python_api {
         NS::bincount(src, dst);
     }
 
+
+    /**
+     * Finds the minimum and maximum values in an array.
+     * If the minimum value is 0, it is set to 1, as 0 is reserved for the background.
+     *
+     * @param np_voxels The input array.
+     * @return std::pair<int,int> The minimum and maximum values in the array.
+     */
+    std::pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
+        auto voxels_info = np_voxels.request();
+
+        voxel_type voxel_min, voxel_max;
+
+        NS::min_max({ voxels_info.ptr, voxels_info.shape }, voxel_min, voxel_max);
+
+        voxel_min = voxel_min == 0 ? 1 : voxel_min;
+
+        return std::make_pair(voxel_min, voxel_max);
+    }
+
     /**
      * Normalized conversion between datatypes. The output will be between the minimum and maximum values that the type `U` can represent.
      * This overload differs from the other in that it calculates the minimum and maximum values of the input array.
@@ -76,6 +96,7 @@ PYBIND11_MODULE(general, m) {
     m.doc() = "Generic functions."; // optional module docstring
 
     m.def("bincount", &python_api::bincount, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
+    m.def("masked_minmax", &python_api::masked_minmax, py::arg("np_voxels"));
     m.def("normalized_convert", &python_api::normalized_convert<float, uint8_t>, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
     m.def("normalized_convert", &python_api::normalized_convert<float, uint16_t>, py::arg("np_src").noconvert(), py::arg("np_dst").noconvert());
     m.def("where_in", &python_api::where_in<uint64_t>, py::arg("np_src").noconvert(), py::arg("np_allowed").noconvert());

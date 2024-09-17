@@ -73,27 +73,7 @@ namespace python_api {
         NS::field_histogram(voxels, field, voxels_shape, field_shape, offset, voxels_shape, bins, voxel_bins, field_bins, vrange, frange, verbose);
     }
 
-    std::pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
-        // Extract NumPy array basearray-pointer and length
-        auto voxels_info    = np_voxels.request();
-        size_t image_length = voxels_info.size;
-
-        const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
-
-        voxel_type
-            voxel_min = std::max(voxels[0], voxel_type(1)),
-            voxel_max = voxels[0];
-
-        #pragma omp parallel for reduction(min:voxel_min) reduction(max:voxel_max)
-        for (size_t i = 0; i < image_length; i++) {
-            voxel_min = std::min(voxel_min, voxels[i] > 0 ? voxels[i] : voxel_type(1));
-            voxel_max = std::max(voxel_max, voxels[i]);
-        }
-
-        assert(voxel_min > 0);
-        return std::make_pair(voxel_min,voxel_max);
-    }
-
+    
     void field_histogram_resample(const np_array<voxel_type> np_voxels,
                         const np_array<field_type> np_field,
                         const std::tuple<int64_t,int64_t,int64_t> np_offset,
@@ -156,6 +136,4 @@ PYBIND11_MODULE(histograms, m) {
         py::arg("vrange"),
         py::arg("frange"),
         py::arg("verbose"));
-    m.def("masked_minmax", &python_api::masked_minmax,
-        py::arg("np_voxels"));
 }

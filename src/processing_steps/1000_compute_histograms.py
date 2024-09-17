@@ -5,7 +5,7 @@ sys.path.append(sys.path[0]+"/../")
 from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
 from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu
 from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
-from lib.cpp.cpu_seq.histograms import masked_minmax # TODO is it histogram specific?
+from lib.cpp.cpu_seq.general import masked_minmax # TODO is it histogram specific?
 import numpy as np, h5py, timeit
 from datetime import datetime
 from PIL import Image
@@ -17,9 +17,6 @@ from lib.cpp.cpu_seq.io import load_slice
 
 NA = np.newaxis
 verbose = 1
-
-# TODO: Currently specialized to uint16_t
-#masked_minmax = histograms.masked_minmax
 
 def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
     (Nz, Ny, Nx) = voxels.shape
