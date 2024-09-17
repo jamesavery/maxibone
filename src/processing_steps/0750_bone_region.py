@@ -56,18 +56,6 @@ def open_3d(image, r):
     else:
         return morph_3d(image, r, erode_3d, dilate_3d)
 
-def coordinate_image(shape):
-    Nz,Ny,Nx   = shape
-    if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
-    #zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
-    #             np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
-    #             np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
-    #zyxs = np.stack([zs,ys,xs],axis=-1)
-    #del zs, ys, xs
-    zyxs = np.moveaxis(np.indices(shape, np.uint16),0,-1)
-    if verbose >= 1: print(f"Done")
-    return zyxs
-
 def label_chunk(i, chunk, chunk_prefix):
     label, n_features = ndi.label(chunk, output=np.int64)
     label.tofile(f'{chunk_prefix}{i}.int64')

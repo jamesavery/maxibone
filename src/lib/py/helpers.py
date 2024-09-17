@@ -188,13 +188,15 @@ def coordinate_image(shape, verbose=0):
         A 3D image of the coordinates of each voxel in the image.
     '''
 
-    NA = np.newaxis
-    Nz, Ny, Nx = shape
+    #NA = np.newaxis
+    #Nz,Ny,Nx   = shape
+    #zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
+    #             np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
+    #             np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
+    #zyxs = np.stack([zs,ys,xs],axis=-1)
+    #del zs, ys, xs
     if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
-    zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
-                 np.broadcast_to(np.arange(Ny)[NA,:,NA],shape),\
-                 np.broadcast_to(np.arange(Nx)[NA,NA,:],shape)
-    zyxs = np.stack([zs, ys, xs], axis=-1)
+    zyxs = np.moveaxis(np.indices(shape, np.uint16), 0, -1)
     if verbose >= 1: print(f"Done")
     return zyxs
 
