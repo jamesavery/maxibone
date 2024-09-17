@@ -1,4 +1,7 @@
-import h5py, sys, os.path, pathlib, numpy as np, scipy.ndimage as ndi, tqdm, matplotlib.pyplot as plt
+#! /usr/bin/python3
+'''
+Segment the implant using coarse thresholding followed by connected components.
+'''
 sys.path.append(sys.path[0]+"/../")
 from config.constants import *
 from config.paths import hdf5_root, binary_root
