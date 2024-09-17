@@ -45,6 +45,10 @@ typedef float real_t;
 typedef mask_type solid_implant_type;
 // Type of the front mask (i.e. mask covering the bone region).
 typedef mask_type front_mask_type;
+// Type of the segmentation result.
+typedef uint16_t result_type;
+// Type of the probabilities for segmentation.
+typedef float_t  prob_type;
 
 // Shorthand for the pybind11 namespace.
 namespace py = pybind11;

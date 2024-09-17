@@ -4,9 +4,6 @@
 #include "datatypes.hh"
 #include <chrono>
 
-//typedef uint8_t result_type;
-typedef uint16_t result_type;
-typedef float_t  prob_type;
 
 namespace NS {
 
