@@ -1,10 +1,18 @@
+#! /usr/bin/python3
+'''
+Split a large HDF5 file into smaller subvolumes.
+Processing subvolumes separately can be improve segmentation performance, as there is less variance internally in the subvolumes.
+'''
 import h5py, sys, tqdm
 sys.path.append(sys.path[0]+"/../")
 from config.paths import hdf5_root
 from lib.py.helpers import commandline_args
 
 if __name__ == "__main__":
-    sample, verbose = commandline_args({"sample" : "<required>", "verbose" : 1})
+    sample, verbose = commandline_args({
+        "sample" : "<required>",
+        "verbose" : 1
+    })
 
     # Define the paths
     base_dir = f"{hdf5_root}/hdf5-byte"
