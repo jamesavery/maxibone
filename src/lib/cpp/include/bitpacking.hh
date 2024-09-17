@@ -52,6 +52,6 @@ namespace NS {
     template <typename T>
     void slice(const T *packed, const shape_t &total_shape, const shape_t &slice_shape, const shape_t &offset, T *slice);
 
-}
+} // namespace NS
 
 #endif // bitpacking_h

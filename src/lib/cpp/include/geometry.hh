@@ -295,6 +295,6 @@ namespace NS {
      */
     void zero_outside_bbox(const std::array<real_t,9> &principal_axes, const std::array<real_t,6> &parameter_ranges, const std::array<real_t,3> &cm, output_ndarray<mask_type> voxels);
 
-}
+} // namespace NS
 
-#endif
+#endif // geometry_h

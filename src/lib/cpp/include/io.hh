@@ -46,7 +46,7 @@ namespace NS {
 
     // TODO non-contiguous
 
-}
+} // namespace NS
 
 //
 // Internal Functions (expected to be called by C++)
@@ -626,4 +626,4 @@ void store_file_strided(const std::vector<T> &data, const std::string &path, con
     store_file_strided(data.data(), path, e_disk_shape, e_shape, e_range, e_offset_global);
 }
 
-#endif
+#endif // io_h

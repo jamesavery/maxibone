@@ -7,6 +7,9 @@
  *
  * @copyright Copyright (c) 2024
  */
+#ifndef general_h
+#define general_h
+
 #include "datatypes.hh"
 #include "boilerplate.hh"
 
@@ -122,4 +125,6 @@ namespace NS {
         }
     }
 
-}
+} // namespace NS
+
+#endif // general_h

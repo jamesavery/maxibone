@@ -50,6 +50,6 @@ namespace NS {
         np_array<uint64_t> &np_result,
         const uint64_t step_size);
 
-}
+} // namespace NS
 
 #endif // label_h

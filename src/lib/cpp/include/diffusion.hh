@@ -75,6 +75,6 @@ namespace NS {
     // Internal functions (i.e. assumed to be called internally in C++).
     //
 
-}
+} // namespace NS
 
-#endif
+#endif // diffusion_h

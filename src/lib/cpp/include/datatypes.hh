@@ -246,4 +246,4 @@ constexpr bool DEBUG = false;
 // Variable that enables profiling - aka. internal timing measuring and reporting/printing.
 constexpr bool PROFILE = false;
 
-#endif
+#endif // datatypes_h

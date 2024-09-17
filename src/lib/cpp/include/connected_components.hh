@@ -202,6 +202,6 @@ namespace NS {
      */
     void print_rename(const std::vector<int64_t> &to_rename);
 
-}
+} // namespace NS
 
 #endif // connected_components_h

@@ -111,7 +111,7 @@ namespace NS {
                                   const std::tuple<double, double> &frange,
                                   const bool verbose);
 
-}
+} // namespace NS
 
 /**
  * Checks whether the point `U,V,W` is inside the bounding box `bbox`.
@@ -193,4 +193,4 @@ inline float resample2x2x2(const field_type __restrict__* voxels,
     return value;
 }
 
-#endif
+#endif // histograms_h
