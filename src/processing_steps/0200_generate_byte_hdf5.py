@@ -1,9 +1,12 @@
-# Byte-per-voxel HDF5 files for complete multi-scan tomograms
-# Format
-# /subvolume_dimensions:  int(n,3).      For each of the n component scans, the sub-volume dimensions (nz,ny,nx)
-# /subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
-# /subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
-# /voxels:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
+#! /usr/bin/python3
+'''
+Byte-per-voxel HDF5 files for complete multi-scan tomograms
+Format
+/subvolume_dimensions:  int(n,3).      For each of the n component scans, the sub-volume dimensions (nz,ny,nx)
+/subvolume_range:     float(n,2).      For each of the n component scane, the value range (vmin,vmax)
+/subvolume_metadata:  group            Attributes are info from ESRF XML-file describing original data
+/voxels:              uint8(Nz,Ny,Nx). Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
+'''
 import h5py, sys, os.path, pathlib, tqdm
 sys.path.append(sys.path[0]+"/../")
 #import bohrium as bh # TODO: Get rid of Bohrium dependence without losing too much performance
