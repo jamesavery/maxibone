@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+Script for generating HDF5 files from the raw novisim data.
+'''
 import matplotlib
 matplotlib.use('Agg')
 import sys
