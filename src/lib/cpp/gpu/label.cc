@@ -1,3 +1,12 @@
+/**
+ * @file label.cc
+ * @author Carl-Johannes (carl-johannes@di.ku.dk)
+ * @brief GPU implementations of the functions used in material segmentation.
+ * @version 0.1
+ * @date 2024-09-17
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "label.hh"
 
 namespace gpu {
