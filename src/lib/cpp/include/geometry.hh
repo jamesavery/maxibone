@@ -244,15 +244,16 @@ namespace NS {
     void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<real_t> &cms, output_ndarray<real_t> &output);
 
     /**
-     * Integrates the axes of the given tomography.
+     * Integrates values along specified axes of a 3D tomography mask.
+     * For each non-zero voxel in the mask, it calculates its position relative to the initial position, projects this position onto the specified axes, and increments the corresponding cell in the output array if the projections are within bounds.
      *
      * @param mask The given tomography.
      * @param x0 The initial position.
-     * @param v_axis The axis to integrate along.
-     * @param w_axis
-     * @param v_min
-     * @param w_min
-     * @param output
+     * @param v_axis The first axis to integrate along.
+     * @param w_axis The second axis to integrate along.
+     * @param v_min The minimum value of the first axis.
+     * @param w_min The minimum value of the second axis.
+     * @param output The output 2D array of integrated values.
      */
     void integrate_axes(const input_ndarray<mask_type> &mask, const std::array<real_t,3> &x0, const std::array<real_t,3> &v_axis, const std::array<real_t,3> &w_axis, const real_t v_min, const real_t w_min, output_ndarray<uint64_t> output);
 
