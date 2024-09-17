@@ -137,7 +137,7 @@ namespace NS {
      * @param voxels The given tomography.
      * @return `vector3` The center of mass.
      */
-    array<real_t,3> center_of_mass(const input_ndarray<mask_type> &voxels);
+    std::array<real_t,3> center_of_mass(const input_ndarray<mask_type> &voxels);
 
     /**
      * Computes the center of masses of each material/label in the given tomography.
@@ -207,7 +207,7 @@ namespace NS {
      * @param thetas The output thetas.
      * @param rsqr_maxes The output rsqr_maxes.
      */
-    void fill_implant_mask_pre(const input_ndarray<mask_type> mask, int64_t offset, float voxel_size, const array<float,6> &bbox, const matrix4x4 &Muvw, output_ndarray<real_t> thetas, output_ndarray<float> rsqr_maxes);
+    void fill_implant_mask_pre(const input_ndarray<mask_type> mask, int64_t offset, float voxel_size, const std::array<float,6> &bbox, const matrix4x4 &Muvw, output_ndarray<real_t> thetas, output_ndarray<float> rsqr_maxes);
 
     /**
      * The second step of the implant mask filling.
@@ -223,7 +223,7 @@ namespace NS {
      * @param solid_implant_mask The output solid implant mask.
      * @param profile The output profile of the implant.
      */
-    void fill_implant_mask(const input_ndarray<mask_type> mask, int64_t offset, float voxel_size, const array<float,6> &bbox, float r_fraction, const matrix4x4 &Muvw, const input_ndarray<real_t> thetas, const input_ndarray<float> rsqr_maxs, output_ndarray<mask_type> solid_implant_mask, output_ndarray<float> profile);
+    void fill_implant_mask(const input_ndarray<mask_type> mask, int64_t offset, float voxel_size, const std::array<float,6> &bbox, float r_fraction, const matrix4x4 &Muvw, const input_ndarray<real_t> thetas, const input_ndarray<float> rsqr_maxs, output_ndarray<mask_type> solid_implant_mask, output_ndarray<float> profile);
 
     /**
      * Computes the inertia matrix of the given tomography based of the given center of mass.
@@ -232,7 +232,7 @@ namespace NS {
      * @param cm The given center of mass.
      * @returns `array<real_t,9>` The 3x3 inertia matrix.
      */
-    array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const array<real_t,3> &cm);
+    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const std::array<real_t,3> &cm);
 
     /**
      * Computes the inertia matrices of the given tomography based of the given center of masses.
@@ -254,7 +254,7 @@ namespace NS {
      * @param w_min
      * @param output
      */
-    void integrate_axes(const input_ndarray<mask_type> &mask, const array<real_t,3> &x0, const array<real_t,3> &v_axis, const array<real_t,3> &w_axis, const real_t v_min, const real_t w_min, output_ndarray<uint64_t> output);
+    void integrate_axes(const input_ndarray<mask_type> &mask, const std::array<real_t,3> &x0, const std::array<real_t,3> &v_axis, const std::array<real_t,3> &w_axis, const real_t v_min, const real_t w_min, output_ndarray<uint64_t> output);
 
     /**
      * Checks which voxels in a 3D array are outside specified ellipsoids. For each voxel, it calculates its distance from the center of mass and determines if it lies outside the ellipsoid defined by the parameters. If a voxel is outside, it increments the corresponding error count in the output array.
@@ -279,7 +279,7 @@ namespace NS {
      * @tparam T The element type of the input voxels.
      */
     template <typename T>
-    void sample_plane(const input_ndarray<T> &voxels, const real_t voxel_size, const array<real_t, 3> cm, const array<real_t, 3> u_axis, const array<real_t, 3> v_axis, const array<real_t, 4>  bbox, output_ndarray<real_t> plane_samples);
+    void sample_plane(const input_ndarray<T> &voxels, const real_t voxel_size, const std::array<real_t, 3> cm, const std::array<real_t, 3> u_axis, const std::array<real_t, 3> v_axis, const std::array<real_t, 4>  bbox, output_ndarray<real_t> plane_samples);
 
     /**
      * Sets voxels to zero that are outside a bounding box. For each voxel, it calculates its position relative to the center of mass and projects this position onto the principal axes. It then checks if these projections fall outside the specified parameter ranges. If any projection is outside the range, the corresponding voxel value is set to zero.
@@ -291,7 +291,7 @@ namespace NS {
      * @param cm The center of mass of the voxels.
      * @param voxels The 3D array of voxels.
      */
-    void zero_outside_bbox(const array<real_t,9> &principal_axes, const array<real_t,6> &parameter_ranges, const array<real_t,3> &cm, output_ndarray<mask_type> voxels);
+    void zero_outside_bbox(const std::array<real_t,9> &principal_axes, const std::array<real_t,6> &parameter_ranges, const std::array<real_t,3> &cm, output_ndarray<mask_type> voxels);
 
 }
 

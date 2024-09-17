@@ -133,7 +133,7 @@ namespace cpu_seq {
                             zyxs[0] * E[1] + zyxs[1] * E[4] + zyxs[2] * E[7],
                             zyxs[0] * E[2] + zyxs[1] * E[5] + zyxs[2] * E[8]
                         };
-                        w0v[2] = min(w0v[2], uvws[2]);
+                        w0v[2] = std::min(w0v[2], uvws[2]);
                     }
                 }
             }
@@ -188,9 +188,9 @@ namespace cpu_seq {
                             Vp = UVWps[1],
                             Wp = UVWps[2],
                             //theta = atan2(Vp, Wp),
-                            r = sqrt(Vp*Vp + Wp*Wp);
+                            r = std::sqrt(Vp*Vp + Wp*Wp);
 
-                        rmax = max(rmax, r * mask[flat_index]);
+                        rmax = std::max(rmax, r * mask[flat_index]);
                         rs[y*nx + x] = r;
                         Ws[y*nx + x] = W;
                     }
@@ -258,10 +258,10 @@ namespace cpu_seq {
 
             for (ssize_t block_start = 0, edt_block_start = 0; block_start < C_length; block_start += block_height*C_Ny*C_Nz, edt_block_start += block_height*edt_Ny*edt_Nz) {
                 const uint8_t *C_buffer = C.data + block_start;
-                const float  *edt_block = edt.data + max(block_start - edt_Ny*edt_Nz, 0L);
+                const float  *edt_block = edt.data + std::max(block_start - edt_Ny*edt_Nz, 0L);
 
-                ssize_t  this_block_length = min(block_height*C_Ny*C_Nz,C_length-block_start);
-                ssize_t  this_edt_length   = min((block_height+2)*edt_Ny*edt_Nz,edt_length-block_start);
+                ssize_t  this_block_length = std::min(block_height*C_Ny*C_Nz,C_length-block_start);
+                ssize_t  this_edt_length   = std::min((block_height+2)*edt_Ny*edt_Nz,edt_length-block_start);
 
                 //#pragma acc parallel loop copy(C_buffer[:this_block_length], image_d[:n_theta*n_U], count_d[:n_theta*n_U], bbox[:6], Muvw[:16], edt_block[:this_edt_length]) reduction(+:n_shell,n_shell_bbox)
                 //#pragma omp parallel for reduction(+:n_shell,n_shell_bbox)
@@ -293,8 +293,8 @@ namespace cpu_seq {
                             if (theta >= theta_min && theta <= theta_max) {
                                 n_shell_bbox++;
 
-                                ssize_t theta_i = ssize_t(floor( (theta-theta_min) * real_t(n_theta-1)/(theta_max-theta_min) ));
-                                ssize_t U_i     = ssize_t(floor( (U    -    U_min) * real_t(n_U    -1)/(    U_max-    U_min) ));
+                                ssize_t theta_i = ssize_t(std::floor( (theta-theta_min) * real_t(n_theta-1)/(theta_max-theta_min) ));
+                                ssize_t U_i     = ssize_t(std::floor( (U    -    U_min) * real_t(n_U    -1)/(    U_max-    U_min) ));
 
                                 real_t p = real_t(C_buffer[k])/255.f;
 
@@ -308,8 +308,8 @@ namespace cpu_seq {
                                 assert(U_i < n_U);
 
                                 if (p > 0) {
-                                    th_min = min(theta,th_min);
-                                    th_max = max(theta,th_max);
+                                    th_min = std::min(theta,th_min);
+                                    th_max = std::max(theta,th_max);
 
                                     //atomic_statement()
                                     image_d[theta_i*n_U + U_i] += p;
@@ -366,8 +366,8 @@ namespace cpu_seq {
                     // Second pass does the actual work
                     auto [U,V,W,c] = hom_transform(Xs, Muvw);
                     float r_sqr = V*V + W*W;
-                    float theta = atan2(V, W);
-                    int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+                    float theta = std::atan2(V, W);
+                    int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                     bool solid_mask_value = false;
                     if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
@@ -421,15 +421,15 @@ namespace cpu_seq {
                         auto [U,V,W,c] = hom_transform(Xs, Muvw);
 
                         real_t r_sqr = V*V + W*W;
-                        real_t theta = atan2(V, W);
+                        real_t theta = std::atan2(V, W);
 
-                        int U_i = int(floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+                        int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
                     //    if (U_i >= 0 && U_i < n_segments) {
                         if ( in_bbox({{U, V, W}}, bbox) ) {
-                            rsqr_maxs_d[U_i] = max(rsqr_maxs_d[U_i], float(r_sqr));
-                            theta_min = min(theta_min, theta);
-                            theta_max = max(theta_max, theta);
+                            rsqr_maxs_d[U_i] = std::max(rsqr_maxs_d[U_i], float(r_sqr));
+                            theta_min = std::min(theta_min, theta);
+                            theta_max = std::max(theta_max, theta);
                         } else {
                             // Otherwise we've calculated it wrong!
                         }
@@ -456,9 +456,9 @@ namespace cpu_seq {
             // m guards this, and then branches are removed
             //if (m != 0)
             real_t
-                Z = (real_t) real(z) - cm[0],
-                Y = (real_t) real(y) - cm[1],
-                X = (real_t) real(x) - cm[2];
+                Z = ((real_t) z) - cm[0],
+                Y = ((real_t) y) - cm[1],
+                X = ((real_t) x) - cm[2];
 
             Izz += m * (Y*Y + X*X);
             Iyy += m * (Z*Z + X*X);
@@ -671,7 +671,7 @@ namespace cpu_seq {
                 T value = 0;
                 std::array<float, 6> local_bbox = {0.5f, float(voxels_Nz)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nx)-0.5f};
                 if (in_bbox({{z,y,x}}, local_bbox))
-                    value = (T) round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
+                    value = (T) std::round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
                 // else
                 //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
 
