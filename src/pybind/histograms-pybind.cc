@@ -1,7 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-using namespace std;
 namespace py = pybind11;
 
 #include "histograms.cc"
@@ -9,13 +8,13 @@ namespace py = pybind11;
 namespace python_api {
 
     void axis_histograms(const np_array<voxel_type> np_voxels,
-                         const tuple<int64_t,int64_t,int64_t> np_offset,
+                         const std::tuple<int64_t,int64_t,int64_t> np_offset,
                          np_array<uint64_t> &np_x_bins,
                          np_array<uint64_t> &np_y_bins,
                          np_array<uint64_t> &np_z_bins,
                          np_array<uint64_t> &np_r_bins,
-                         const tuple<uint64_t, uint64_t> center,
-                         const tuple<double, double> vrange,
+                         const std::tuple<uint64_t, uint64_t> center,
+                         const std::tuple<double, double> vrange,
                          const bool verbose) {
 
         py::buffer_info
@@ -28,7 +27,7 @@ namespace python_api {
         shape_t
             global_shape = { z_info.shape[0], y_info.shape[0], x_info.shape[0] },
             voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
-            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) };
+            offset = { std::get<0>(np_offset), std::get<1>(np_offset), std::get<2>(np_offset) };
 
         const uint64_t
             voxel_bins = x_info.shape[1],
@@ -48,10 +47,10 @@ namespace python_api {
 
     void field_histogram(const np_array<voxel_type> &np_voxels,
                          const np_array<field_type> &np_field,
-                         const tuple<int64_t,int64_t,int64_t> np_offset,
+                         const std::tuple<int64_t,int64_t,int64_t> np_offset,
                          np_array<uint64_t> &np_bins,
-                         const tuple<double, double> vrange,
-                         const tuple<double, double> frange,
+                         const std::tuple<double, double> vrange,
+                         const std::tuple<double, double> frange,
                          const bool verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
@@ -61,7 +60,7 @@ namespace python_api {
         shape_t
             voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
             field_shape = { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
-            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) };
+            offset = { std::get<0>(np_offset), std::get<1>(np_offset), std::get<2>(np_offset) };
 
         const uint64_t
             voxel_bins = bins_info.shape[1],
@@ -74,7 +73,7 @@ namespace python_api {
         NS::field_histogram(voxels, field, voxels_shape, field_shape, offset, voxels_shape, bins, voxel_bins, field_bins, vrange, frange, verbose);
     }
 
-    pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
+    std::pair<int,int> masked_minmax(const np_array<voxel_type> np_voxels) {
         // Extract NumPy array basearray-pointer and length
         auto voxels_info    = np_voxels.request();
         size_t image_length = voxels_info.size;
@@ -82,17 +81,17 @@ namespace python_api {
         const voxel_type *voxels = static_cast<const voxel_type*>(voxels_info.ptr);
 
         voxel_type
-            voxel_min = max(voxels[0], voxel_type(1)),
+            voxel_min = std::max(voxels[0], voxel_type(1)),
             voxel_max = voxels[0];
 
         #pragma omp parallel for reduction(min:voxel_min) reduction(max:voxel_max)
         for (size_t i = 0; i < image_length; i++) {
-            voxel_min = min(voxel_min, voxels[i] > 0 ? voxels[i] : voxel_type(1));
-            voxel_max = max(voxel_max, voxels[i]);
+            voxel_min = std::min(voxel_min, voxels[i] > 0 ? voxels[i] : voxel_type(1));
+            voxel_max = std::max(voxel_max, voxels[i]);
         }
 
         assert(voxel_min > 0);
-        return make_pair(voxel_min,voxel_max);
+        return std::make_pair(voxel_min,voxel_max);
     }
 
     void field_histogram_resample(const np_array<voxel_type> np_voxels,
@@ -109,10 +108,10 @@ namespace python_api {
             bins_info = np_bins.request();
 
         shape_t
-            offset = { get<0>(np_offset), get<1>(np_offset), get<2>(np_offset) },
+            offset = { std::get<0>(np_offset), std::get<1>(np_offset), std::get<2>(np_offset) },
             voxels_shape = { voxels_info.shape[0], voxels_info.shape[1], voxels_info.shape[2] },
             field_shape = { field_info.shape[0], field_info.shape[1], field_info.shape[2] },
-            block_size = { get<0>(np_block_size), get<1>(np_block_size), get<2>(np_block_size) };
+            block_size = { std::get<0>(np_block_size), std::get<1>(np_block_size), std::get<2>(np_block_size) };
 
         uint64_t
             voxel_bins = bins_info.shape[1],
