@@ -14,7 +14,7 @@ from math import pi, sqrt, exp
 from scipy import ndimage as ndi
 import multiprocessing as mp
 from config.paths import hdf5_root, binary_root
-from lib.py.helpers import commandline_args, to_int
+from lib.py.helpers import commandline_args, gaussian_kernel, to_int
 from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
 NA = np.newaxis
@@ -22,24 +22,6 @@ import psutil
 
 internal_type = np.float32
 result_type = np.uint16
-
-def gauss_kernel(sigma):
-    radius = round(4.0 * sigma) # stolen from the default scipy parameters
-    # Deprecated:
-    #kernel = ndi.filters._gaussian_kernel1d(sigma_voxels, 0, radius).astype(internal_type)
-
-    if False:
-        # Create a 1D Gaussian
-        x = np.arange(-radius, radius + 1)
-        kernel = 1.0 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-x**2 / (2 * sigma**2))
-        return kernel
-    else:
-        # Stolen from ndimage
-        sigma2 = sigma * sigma
-        x = np.arange(-radius, radius+1)
-        phi_x = np.exp(-0.5 / sigma2 * x ** 2)
-        phi_x = phi_x / phi_x.sum()
-        return phi_x
 
 # sigma is given in physical units, i.e. in micrometers, in order to give scale-invariant results.
 if __name__ == '__main__':

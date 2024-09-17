@@ -243,6 +243,24 @@ def generate_cylinder_mask(nx):
     rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
     return rs <= 1
 
+def gauss_kernel(sigma):
+    radius = round(4.0 * sigma) # stolen from the default scipy parameters
+    # Deprecated:
+    #kernel = ndi.filters._gaussian_kernel1d(sigma_voxels, 0, radius).astype(internal_type)
+
+    if False:
+        # Create a 1D Gaussian
+        x = np.arange(-radius, radius + 1)
+        kernel = 1.0 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-x**2 / (2 * sigma**2))
+        return kernel
+    else:
+        # Stolen from ndimage
+        sigma2 = sigma * sigma
+        x = np.arange(-radius, radius+1)
+        phi_x = np.exp(-0.5 / sigma2 * x ** 2)
+        phi_x = phi_x / phi_x.sum()
+        return phi_x
+
 def generate_cylinder_mask(ny, nx):
     '''
     Generate a 2D mask of a cylinder with diameter `nx` pixels in the x-dimension and `ny` pixels in the y-dimension.
