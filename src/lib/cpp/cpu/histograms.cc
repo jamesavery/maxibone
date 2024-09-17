@@ -1,3 +1,12 @@
+/**
+ * @file histograms.cc
+ * @author Carl-Johannes Johnsen (carl-johannes@di.ku.dk)
+ * @brief CPU parallel implementations of the 2D histogram functions.
+ * @version 0.1
+ * @date 2024-09-17
+ *
+ * @copyright Copyright (c) 2024
+ */
 #include "histograms.hh"
 
 namespace cpu_par {

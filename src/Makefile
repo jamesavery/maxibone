@@ -1,5 +1,5 @@
 # Define constants and collections
-PYTHON = python3.12
+PYTHON = python3.11
 PYBIND_FLAGS = $(shell $(PYTHON) -m pybind11 --include)
 CXXFLAGS += $(subst -I,-isystem ,$(PYBIND_FLAGS)) # We don't care about warnings from the python headers
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
@@ -24,7 +24,7 @@ PIP_INSTALL = pip_generic
 
 # Detect OS for OS specific changes
 ifeq ($(shell uname -s), Darwin) # Mac OSX
-CXX = g++-13 # Use homebrew gcc, as system gcc is an alias for clang
+CXX = g++-14 # Use homebrew gcc, as system gcc is an alias for clang
 CXXFLAGS += -undefined dynamic_lookup # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
 else
 # To allow for valgrind (and the mac doesn't like this):
@@ -47,7 +47,7 @@ else
 $(info OpenACC compiler nvc++ not found. Compiling without.)
 endif
 
-all: $(PIP_INSTALL) $(TARGETS)
+all:  $(TARGETS)
 
 define GEN_RULE
 $(CPP_FOLDER)/$(PLATFORM)/$(LIB)$(PYBIND_SUFFIX): pybind/$(LIB)-pybind.cc $(CPP_FOLDER)/$(PLATFORM)/$(LIB).cc $(CPP_FOLDER)/include/*.hh
