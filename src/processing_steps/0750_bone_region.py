@@ -17,8 +17,7 @@ import h5py
 from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu.geometry import compute_front_back_masks
-from lib.cpp.gpu.morphology import dilate_3d_sphere as dilate_3d, dilate_3d_sphere_bitpacked as dilate_3d_bitpacked
-from lib.py.helpers import commandline_args, close_3d, open_3d, plot_middle_planes, update_hdf5_mask
+from lib.py.helpers import commandline_args, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -253,11 +252,7 @@ if __name__ == "__main__":
             packed_implant = solid_implant
         del solid_implant
 
-        dilated_implant = np.empty_like(packed_implant, dtype=packed_implant.dtype)
-        if bitpacked:
-            dilate_3d_bitpacked(packed_implant, implant_dilate_voxels, dilated_implant)
-        else:
-            dilate_3d(packed_implant, implant_dilate_voxels, dilated_implant)
+        dilated_implant = dilate_3d(packed_implant, implant_dilate_voxels)
         bone_region_tmp &= ~dilated_implant
 
     if bitpacked:

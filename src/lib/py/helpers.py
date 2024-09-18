@@ -224,6 +224,52 @@ def coordinate_image(shape, verbose=0):
     if verbose >= 1: print(f"Done")
     return zyxs
 
+def dilate_3d(image, r):
+    '''
+    Apply an dilation operation to a 3D image with a spherical structuring element of radius `r`.
+    If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the dilation operation to.
+    `r` : int
+        The radius of the structuring element.
+
+    Returns
+    -------
+    `image` : numpy.array[Any]
+        The image after applying the dilation operation.
+    '''
+
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, lib_morphology.dilate_3d_bitpacked)
+    else:
+        return morph_3d(image, r, lib_morphology.dilate_3d)
+
+def erode_3d(image, r):
+    '''
+    Apply an erosion operation to a 3D image with a spherical structuring element of radius `r`.
+    If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the erosion operation to.
+    `r` : int
+        The radius of the structuring element.
+
+    Returns
+    -------
+    `image` : numpy.array[Any]
+        The image after applying the erosion operation.
+    '''
+
+    if image.dtype == np.uint32:
+        return morph_3d(image, r, lib_morphology.erode_3d_bitpacked)
+    else:
+        return morph_3d(image, r, lib_morphology.erode_3d)
+
 def generate_cylinder_mask(nx):
     '''
     Generate a 2D mask of a cylinder with diameter `nx` pixels.
@@ -505,6 +551,49 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
         voxels[nz*mask_scale_relative:] *= mask_1x[-1][NA,...] # Remainder gets last line of mask
 
     return voxels, fields
+
+def morph_3d(image, r, f):
+    '''
+    Apply a 3D spherical morphology operation `f` of radius `r` to the image `img`.
+    The function is applied with spheres of max radius `rmin` (currently 16), and the remainder is applied with a sphere of radius `rrest`.
+    This is due to the fact that `r//rmin` applications with radius `rmin` are faster than a single application with radius `r`.
+
+    Parameters
+    ----------
+    `image` : numpy.array[Any]
+        The image to apply the morphological operation to.
+    `r` : int
+        The radius of the morphological operation.
+    `f` : function
+        The morphological operation to apply.
+
+    Returns
+    -------
+    `I` : numpy.array[Any]
+        The image after applying the morphological operation.
+    '''
+
+    # Allocate temporary arrays
+    I = image.copy().astype(image.dtype)
+    I2 = np.empty(image.shape, dtype=image.dtype)
+
+    # Determine number of applications of f
+    rmin = 16
+    rmins = r // rmin
+    rrest = r % rmin
+
+    # Apply f
+    for _ in range(rmins):
+        f(I, rmin, I2)
+        I, I2 = I2, I
+    if rrest > 0:
+        f(I, rrest, I2)
+        I, I2 = I2, I
+
+    # Ensure temporary array is deallocated
+    del I2
+
+    return I
 
 def morph_3d(image, r, fa, fb):
     '''

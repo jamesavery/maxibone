@@ -8,46 +8,11 @@ import edt
 import h5py
 from lib.cpp.cpu.analysis import bic
 from lib.cpp.gpu.bitpacking import encode as bp_encode, decode as bp_decode
-from lib.cpp.gpu.morphology import erode_3d_sphere_bitpacked as erode, dilate_3d_sphere_bitpacked as dilate
-from lib.cpp.cpu_seq.io import load_slice, write_slice
-from lib.py.helpers import block_info, load_block, commandline_args
+from lib.py.helpers import block_info, close_3d, commandline_args, dilate_3d, open_3d
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 import numpy as np
 import os
-from tqdm import tqdm
-
-# close = dilate then erode
-# open = erode then dilate
-def morph(image, r, fa, fb):
-    if r == 0:
-        return image
-    I1 = image.copy().astype(image.dtype)
-    I2 = np.empty(image.shape, dtype=image.dtype)
-    rmin = 15
-    rmins = r // rmin
-    rrest = r % rmin
-    for _ in range(rmins):
-        fa(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fa(I1, rrest, I2)
-        I1, I2 = I2, I1
-
-    for i in range(rmins):
-        fb(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fb(I1, rrest, I2)
-        I1, I2 = I2, I1
-
-    return I1
-
-def close(image, r):
-    return morph(image, r, dilate, erode)
-
-def open(image, r):
-    return morph(image, r, erode, dilate)
 
 def encode_ooc(src, dst):
     bs = 32
@@ -114,14 +79,14 @@ if __name__ == '__main__':
         print (f'Closing: {closing_voxels}, Opening: {opening_voxels}, Distance: {distance_voxels}')
 
     # Close
-    closed = close(soft_bp, closing_voxels)
+    closed = close_3d(soft_bp, closing_voxels)
 
     # Open
-    opened = open(closed, opening_voxels)
+    opened = open_3d(closed, opening_voxels)
     del closed
 
     # Dilate
-    dilate(opened, distance_voxels, soft_bp)
+    soft_bp = dilate_3d(opened, distance_voxels)
     del opened
 
     if verbose >= 1:
@@ -155,7 +120,7 @@ if __name__ == '__main__':
     bone_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
     encode_ooc(bone_threshed.astype(np.uint8), bone_bp)
 
-    bone_bp_opened = open(bone_bp, opening_voxels)
+    bone_bp_opened = open_3d(bone_bp, opening_voxels)
     bone_opened = np.empty((nz,ny,nx),dtype=np.uint8)
     decode_ooc(bone_bp_opened, bone_opened)
 
