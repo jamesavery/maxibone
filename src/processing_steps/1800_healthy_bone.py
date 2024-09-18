@@ -1,16 +1,12 @@
-import matplotlib
-matplotlib.use('Agg')
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 from config.constants import *
-from config.paths import hdf5_root, hdf5_root_fast, binary_root
-import edt
-import h5py
-from lib.cpp.cpu.analysis import bic
+from config.paths import hdf5_root, binary_root
 from lib.cpp.gpu.bitpacking import encode as bp_encode, decode as bp_decode
 from lib.py.helpers import block_info, close_3d, commandline_args, dilate_3d, open_3d
 import matplotlib.pyplot as plt
-import multiprocessing as mp
 import numpy as np
 import os
 
@@ -62,7 +58,7 @@ if __name__ == '__main__':
     soft_threshed = (soft > threshold_prob)
     del soft
 
-    soft_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
+    soft_bp = np.empty((nz, ny, nx//32), dtype=np.uint32)
     encode_ooc(soft_threshed.astype(np.uint8), soft_bp)
     del soft_threshed
 
@@ -117,11 +113,11 @@ if __name__ == '__main__':
             plt.savefig(f'{image_output_dir}/{sample}_bone_{name}.png', bbox_inches='tight')
             plt.clf()
 
-    bone_bp = np.empty((nz,ny,nx//32),dtype=np.uint32)
+    bone_bp = np.empty((nz, ny, nx//32), dtype=np.uint32)
     encode_ooc(bone_threshed.astype(np.uint8), bone_bp)
 
     bone_bp_opened = open_3d(bone_bp, opening_voxels)
-    bone_opened = np.empty((nz,ny,nx),dtype=np.uint8)
+    bone_opened = np.empty((nz, ny, nx), dtype=np.uint8)
     decode_ooc(bone_bp_opened, bone_opened)
 
     if verbose >= 1:
@@ -135,7 +131,7 @@ if __name__ == '__main__':
             plt.clf()
 
     disted_bp = soft_bp & bone_bp_opened
-    disted = np.empty((nz,ny,nx),dtype=np.uint8)
+    disted = np.empty((nz, ny, nx), dtype=np.uint8)
     decode_ooc(disted_bp, disted)
 
     if verbose >= 1:
