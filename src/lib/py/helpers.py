@@ -600,7 +600,7 @@ def open_3d(image, r):
     else:
         return morph_3d(image, r, erode_3d, dilate_3d)
 
-def plot_middle_planes(tomo, output_dir, prefix):
+def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose=0):
     '''
     Plot the middle planes of a 3D volume and save them to the output directory.
     For a 3D volume of shape `(nz,ny,nx)`, the middle planes are `(nz//2,:,:), (:,ny//2,:), (:,:,nx//2)`.
@@ -614,15 +614,23 @@ def plot_middle_planes(tomo, output_dir, prefix):
         The directory to save the images to.
     `prefix` : str
         The prefix to add to the image filenames.
+    `plane_func` : function
+        The function to apply to the planes before plotting. Default is the identity function.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
     None
     '''
     assert len(tomo.shape) == 3
+
+    if verbose >= 1: print(f"Plotting middle planes {prefix} of {tomo.shape} volume to {output_dir}")
+
     nz, ny, nx = tomo.shape
     names = ['yx', 'zx', 'zy']
     planes = [tomo[nz//2,:,:], tomo[:,ny//2,:], tomo[:,:,nx//2]]
+    planes = [plane_func(plane) for plane in planes]
 
     for name, plane in zip(names, planes):
         plt.figure(figsize=(10,10))
