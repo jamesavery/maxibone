@@ -12,7 +12,7 @@ import datetime
 from functools import partial
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu_seq.io import load_slice
-from lib.py.helpers import block_info, commandline_args, update_hdf5, plot_middle_planes
+from lib.py.helpers import block_info, commandline_args, plot_middle_planes, update_hdf5
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool

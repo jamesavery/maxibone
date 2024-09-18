@@ -8,7 +8,7 @@ from config.paths import hdf5_root, binary_root
 import h5py
 import importlib
 from lib.py.helpers import commandline_args
-from lib.py.resample import downsample2x, downsample3x
+from lib.py.resample import downsample2x
 import numpy as np
 import pathlib
 import tqdm
