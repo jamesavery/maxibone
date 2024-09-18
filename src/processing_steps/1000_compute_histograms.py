@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+#! /usr/bin/python3
+'''
+Computes the axes and field histograms for a given sample.
+'''
 import os, sys, pathlib, copy, scipy.ndimage as ndi
 sys.path.append(sys.path[0]+"/../")
 # TODO Move benchmarking out of this script.
@@ -19,6 +22,33 @@ NA = np.newaxis
 verbose = 1
 
 def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
+    '''
+    Compute the axes histograms for a given volume.
+    This function assumes that the target device has enough memory to compute the histograms.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `func` : function
+        The function to use to compute the histograms.
+    `ranges` : tuple
+        The value ranges for the voxels.
+    `voxel_bins` : int
+        The number of bins to use for the histograms.
+
+    Returns
+    -------
+    `x_bins` : numpy.array[uint64]
+        The histogram for the x-axis.
+    `y_bins` : numpy.array[uint64]
+        The histogram for the y-axis.
+    `z_bins` : numpy.array[uint64]
+        The histogram for the z-axis.
+    `r_bins` : numpy.array[uint64]
+        The histogram for the radius.
+    '''
+
     (Nz, Ny, Nx) = voxels.shape
     center = (Ny//2, Nx//2)
     Nr = int(np.sqrt((Nx//2)**2 + (Ny//2)**2))+1
@@ -38,6 +68,31 @@ def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, v
     return x_bins, y_bins, z_bins, r_bins
 
 def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=None, voxel_bins=256, field_bins=256):
+    '''
+    Compute the field histogram for a given volume.
+    This function assumes that the target device has enough memory to compute the histogram.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histogram for.
+    `field` : numpy.array[uint16]
+        The field to compute the histogram for.
+    `func` : function
+        The function to use to compute the histogram.
+    `ranges` : tuple
+        The value ranges for the voxels and the field.
+    `voxel_bins` : int
+        The number of bins to use for the voxel histogram.
+    `field_bins` : int
+        The number of bins to use for the field histogram.
+
+    Returns
+    -------
+    `bins` : numpy.array[uint64]
+        The histogram for the field.
+    '''
+
     bins = np.zeros((field_bins, voxel_bins), dtype=np.uint64)
     if ranges is None:
         vrange, frange = ( (1e4, 3e4), (1, 2**16-1) )
@@ -51,6 +106,24 @@ def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, range
     return bins
 
 def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
+    '''
+    Verify that the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes histogram produce the same results.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `ranges` : tuple
+        The value ranges for the voxels.
+    `voxel_bins` : int
+        The number of bins to use for the histograms.
+
+    Returns
+    -------
+    `verified` : bool
+        Whether the different implementations of the axes histogram produced the same results.
+    '''
+
     tolerance = 1e-5
     print ('Running sequential CPU version')
     schx, schy, schz, schr = axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
@@ -105,6 +178,28 @@ def verify_axes_histogram(voxels, ranges=(1,4095), voxel_bins=256):
     return verified
 
 def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256):
+    '''
+    Verify that the different implementations (Sequential CPU, Parallel CPU and GPU) of the field histogram produce the same results.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `field` : numpy.array[uint16]
+        The field to compute the histograms for.
+    `ranges` : tuple
+        The value ranges for the voxels and the field.
+    `voxel_bins` : int
+        The number of bins to use for the voxel histogram.
+    `field_bins` : int
+        The number of bins to use for the field histogram.
+
+    Returns
+    -------
+    `verified` : bool
+        Whether the different implementations of the field histogram produced the same results.
+    '''
+
     tolerance = 1e-5
     print ('Running sequential CPU version')
     sch = field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
@@ -148,6 +243,25 @@ def verify_field_histogram(voxels, field, ranges, voxel_bins=256, field_bins=256
     return verified
 
 def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
+    '''
+    Benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes histogram.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `ranges` : tuple
+        The value ranges for the voxels.
+    `voxel_bins` : int
+        The number of bins to use for the histograms.
+    `runs` : int
+        The number of runs to average the benchmark over.
+
+    Returns
+    -------
+    None
+    '''
+
     print()
     print('----- Benchmarking -----')
     print()
@@ -165,6 +279,29 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
 def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins=256, runs=10):
+    '''
+    Benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the field histogram.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `field` : numpy.array[uint16]
+        The field to compute the histograms for.
+    `ranges` : tuple
+        The value ranges for the voxels and the field.
+    `voxel_bins` : int
+        The number of bins to use for the voxel histogram.
+    `field_bins` : int
+        The number of bins to use for the field histogram.
+    `runs` : int
+        The number of runs to average the benchmark over.
+
+    Returns
+    -------
+    None
+    '''
+
     print()
     print('----- Benchmarking -----')
     print()
@@ -182,6 +319,23 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins
     print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
 def verify_and_benchmark(voxels, field, bins=4096):
+    '''
+    Verify and benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes and field histograms.
+
+    Parameters
+    ----------
+    `voxels` : numpy.array[uint16]
+        The volume to compute the histograms for.
+    `field` : numpy.array[uint16]
+        The field to compute the histograms for.
+    `bins` : int
+        The number of bins to use for the histograms.
+
+    Returns
+    -------
+    None
+    '''
+
     vrange, frange = ( (1, 32000), (1, 2**16-1) )
     axes_verified = verify_axes_histogram(voxels, voxel_bins=bins, ranges=vrange)
     assert axes_verified
@@ -197,9 +351,6 @@ def tobyt(arr):
 def row_normalize(A):
     return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
-
-# Edition where the histogram is loaded and processed in chunks
-# If block_size is less than 0, then the whole thing is loaded and processed.
 def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
                     mask=None, mask_scale=8, voxel_bins=4096, field_bins=4096,
                     implant_threshold=32000, field_names=["gauss","edt","gauss+edt"],
@@ -207,7 +358,55 @@ def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
                     value_ranges=((1e4,3e4),(1,2**16-1)),
                     verbose=1
 ):
+    '''
+    Compute the axes and field histograms for a given sample.
+    This function assumes that the target device does not have enough memory to compute the histograms in memory.
+    It loads the volume in chunks from disk and processes them one at a time.
 
+    Parameters
+    ----------
+    `sample` : str
+        The sample to compute the histograms for.
+    `scale` : int
+        The scale of the sample.
+    `block_size` : int
+        The size of the blocks to load from disk. If set to 0, the block size is the size of a subvolume.
+    `z_offset` : int
+        The offset to start loading the volume from.
+    `n_blocks` : int
+        The number of blocks to load from disk. If set to 0, all blocks are loaded.
+    `mask` : str
+        The mask to use for the volume. If set to None, no mask is used.
+    `mask_scale` : int
+        The scale of the mask.
+    `voxel_bins` : int
+        The number of bins to use for the voxel histograms.
+    `field_bins` : int
+        The number of bins to use for the field histograms.
+    `implant_threshold` : int
+        The threshold for the implant.
+    `field_names` : list
+        The names of the fields to compute the histograms for.
+    `field_scale` : int
+        The scale of the fields.
+    `value_ranges` : tuple
+        The value ranges for the voxels and the fields.
+    `verbose` : int
+        The verbosity level.
+
+    Returns
+    -------
+    `x_bins` : numpy.array[uint64]
+        The histogram for the x-axis.
+    `y_bins` : numpy.array[uint64]
+        The histogram for the y-axis.
+    `z_bins` : numpy.array[uint64]
+        The histogram for the z-axis.
+    `r_bins` : numpy.array[uint64]
+        The histogram for the radius.
+    `f_bins` : numpy.array[uint64]
+        The histogram for the fields.
+    '''
 
     bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, block_size, n_blocks, z_offset)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
