@@ -1,26 +1,28 @@
-import matplotlib
-matplotlib.use('Agg')
+#! /usr/bin/python3
+'''
+This script combines the Gaussian and EDT fields into a single field.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 from config.paths import binary_root, hdf5_root
-from lib.py.helpers import commandline_args, generate_cylinder_mask, to_int
-import multiprocessing as mp
+from lib.py.helpers import commandline_args, generate_cylinder_mask, plot_middle_planes, to_int
 import numpy as np
 import os
-from PIL import Image
 
 if __name__ == '__main__':
-    sample, scale, verbose = \
-        commandline_args({
-            "sample" : "<required>",
-            "scale" : 1,
-            "verbose" : 2
-        })
+    sample, scale, verbose = commandline_args({
+        "sample" : "<required>",
+        "scale" : 1,
+        "verbose" : 2
+    })
 
     field_dir = f"{binary_root}/fields"
     edt_path = f"{field_dir}/implant-edt/{scale}x"
     gauss_path = f"{field_dir}/implant-gauss/{scale}x"
     output_dir = f"{field_dir}/implant-gauss+edt/{scale}x"
+    image_output_dir = f"{hdf5_root}/processed/field-gauss+edt/{scale}x/{sample}"
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -48,10 +50,7 @@ if __name__ == '__main__':
     combined *= cylinder_mask
 
     if verbose >= 2:
-        print(f"Debug: Writing PNGs of result slices to {output_dir}")
-        Image.fromarray(to_int(combined[nz//2,:,:], np.uint8)).save(f'{output_dir}/{sample}-gauss+edt-xy.png')
-        Image.fromarray(to_int(combined[:,ny//2,:], np.uint8)).save(f'{output_dir}/{sample}-gauss+edt-xz.png')
-        Image.fromarray(to_int(combined[:,:,nx//2], np.uint8)).save(f'{output_dir}/{sample}-gauss+edt-yz.png')
+        plot_middle_planes(combined, image_output_dir, f'{sample}-gauss+edt')
 
     if verbose >= 1: print(f"Converting to uint16")
     combined = to_int(combined, np.uint16)
