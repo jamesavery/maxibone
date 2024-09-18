@@ -6,6 +6,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import hdf5_root as hdf5_root
 from lib.cpp.cpu.label import otsu
 from lib.py.helpers import commandline_args, update_hdf5

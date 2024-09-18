@@ -5,6 +5,7 @@ on ERDA.
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.paths import esrf_data_sftp, esrf_data_local
 import fabric
 from lib.py.helpers import commandline_args

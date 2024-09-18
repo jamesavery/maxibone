@@ -4,6 +4,7 @@ Script for matching volumes from the top and bottom of a multi-scan tomogram.
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.paths import hdf5_root
 import h5py
 import jax

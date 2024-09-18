@@ -4,6 +4,7 @@ Computes the axes and field histograms for a given sample.
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.constants import implant_threshold_u16
 from config.paths import *
 from datetime import datetime
@@ -65,6 +66,7 @@ def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, v
     if verbose >= 1: print ("Entering call", datetime.now())
     func(voxels, (0,0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
     if verbose >= 1: print ("Exited call", datetime.now())
+
     return x_bins, y_bins, z_bins, r_bins
 
 def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=None, voxel_bins=256, field_bins=256):
@@ -177,6 +179,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
     if verified:
         print ('Both parallel CPU and GPU matched sequential CPU version')
+
     return verified
 
 def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field_bins=256):
@@ -244,6 +247,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
     if verified:
         print ('Field: Both parallel CPU and GPU matched sequential CPU version')
+
     return verified
 
 def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
@@ -516,4 +520,3 @@ if __name__ == '__main__':
                 axis_names=np.array(["x","y","z","r"]),
                 field_names=field_names, suffix=suffix, mask=mask,
                 sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
-

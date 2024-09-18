@@ -6,6 +6,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import binary_root, hdf5_root
 from lib.py.helpers import commandline_args, generate_cylinder_mask, plot_middle_planes, to_int
 import numpy as np

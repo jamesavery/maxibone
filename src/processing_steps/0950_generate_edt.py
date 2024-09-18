@@ -6,16 +6,15 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import binary_root, hdf5_root
 import datetime
 import edt
 import h5py
 from lib.py.helpers import commandline_args, generate_cylinder_mask, plot_middle_planes, to_int
-import matplotlib.pyplot as plt
 import multiprocessing as mp
 import numpy as np
 import os
-from PIL import Image
 
 if __name__ == '__main__':
     sample, scale, verbose = commandline_args({

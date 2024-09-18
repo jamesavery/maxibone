@@ -26,9 +26,8 @@ Eq. (1) and (2) determine A_n (the function value at X_n) and B_n (the derivativ
 So we have 4+2*(N-1) = 2*(N+1) variables to determine: A1, B1, C1, D1, and C2, D2, C3, D3, ..., C_N, D_N
 '''
 
-from numpy import array, linspace, sin, empty, zeros, linalg, random, pad, concatenate
+from numpy import array, linspace, zeros, linalg, concatenate
 import numpy as np
-import numpy.linalg as la
 
 # Each data point (x_i,y_i)  defines a row with the coefficients for A1,B1,C1,D1,C2,D2,...,C_N,D_N in the matrix, and y_i on the RHS.
 def mxrow_f (x, borders, verbose=False):
@@ -305,7 +304,6 @@ def smooth_fun(xs, ys, n_segments, regularization_beta=0, verbose=False):
 
 if __name__ == "__main__":
     # A test:
-    import numpy as np
     verbose = True
 
     # N, m = 100, 50

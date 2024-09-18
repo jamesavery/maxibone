@@ -6,8 +6,9 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.constants import *
-from config.paths import hdf5_root, hdf5_root_fast, binary_root
+from config.paths import hdf5_root
 import h5py
 from lib.cpp.cpu.general import bincount, where_in
 from lib.cpp.cpu.geometry import center_of_masses, inertia_matrices, outside_ellipsoid

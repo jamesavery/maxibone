@@ -9,6 +9,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.constants import *
 from config.paths import hdf5_root, binary_root
 import datetime
@@ -52,6 +53,7 @@ def label_chunk(i, chunk, chunk_prefix):
     label, n_features = ndi.label(chunk, output=np.int64)
     label.tofile(f'{chunk_prefix}{i}.int64')
     del label
+
     return n_features
 
 def largest_cc_of(mask, mask_name):

@@ -9,6 +9,7 @@ Format
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.paths import hdf5_root as hdf5_root, esrf_implants_root
 import h5py
 from lib.py.esrf_read import *

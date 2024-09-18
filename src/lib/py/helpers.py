@@ -105,7 +105,7 @@ def circle_center(p0, p1, p2):
     (t1, t2) = la.solve(A, m2-m1)
     c1, c2 = m1 + t1*n1, m2 + t2*n2  # Center of circle
 
-    assert(np.allclose(c1, c2))
+    assert (np.allclose(c1, c2))
 
     return c1
 
@@ -212,6 +212,7 @@ def coordinate_image(shape, verbose=0):
         A 3D image of the coordinates of each voxel in the image.
     '''
 
+    # Old, slow way:
     #NA = np.newaxis
     #Nz,Ny,Nx   = shape
     #zs, ys, xs = np.broadcast_to(np.arange(Nz)[:,NA,NA],shape),\
@@ -219,9 +220,11 @@ def coordinate_image(shape, verbose=0):
     #             np.broadcast_to(np.arange(Nx)[NA,NA,:],shape);
     #zyxs = np.stack([zs,ys,xs],axis=-1)
     #del zs, ys, xs
+
     if verbose >= 1: print(f"Broadcasting coordinates for {shape} image")
     zyxs = np.moveaxis(np.indices(shape, np.uint16), 0, -1)
     if verbose >= 1: print(f"Done")
+
     return zyxs
 
 def dilate_3d(image, r):
@@ -287,6 +290,7 @@ def generate_cylinder_mask(nx):
 
     xs = np.linspace(-1, 1, nx)
     rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
+
     return rs <= 1
 
 def gauss_kernel(sigma):
@@ -313,6 +317,7 @@ def gauss_kernel(sigma):
         # Create a 1D Gaussian
         x = np.arange(-radius, radius + 1)
         kernel = 1.0 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-x**2 / (2 * sigma**2))
+
         return kernel
     else:
         # Stolen from ndimage
@@ -320,6 +325,7 @@ def gauss_kernel(sigma):
         x = np.arange(-radius, radius+1)
         phi_x = np.exp(-0.5 / sigma2 * x ** 2)
         phi_x = phi_x / phi_x.sum()
+
         return phi_x
 
 def generate_cylinder_mask(ny, nx):
@@ -341,6 +347,7 @@ def generate_cylinder_mask(ny, nx):
 
     ys = np.linspace(-1, 1, ny)
     xs = np.linspace(-1, 1, nx)
+
     return (xs[np.newaxis,:]**2 + ys[:,np.newaxis]**2) < 1
 
 def gramschmidt(u, v, w):
@@ -387,6 +394,7 @@ def highest_peaks(data, n, height=0.7):
     '''
 
     peaks, info = signal.find_peaks(data, height=height*data.max())
+
     return peaks[np.argsort(info['peak_heights'])][:n]
 
 def homogeneous_transform(xs, M, verbose=0):
@@ -416,6 +424,7 @@ def homogeneous_transform(xs, M, verbose=0):
     hxs[..., 3]  = 1
 
     if verbose >= 1: print(hxs.shape, M.shape)
+
     return hxs @ M.T
 
 def hom_linear(A):
@@ -435,6 +444,7 @@ def hom_linear(A):
 
     M = np.eye(4, dtype=float)
     M[:3,:3] = A
+
     return M
 
 def hom_translate(x):
@@ -454,6 +464,7 @@ def hom_translate(x):
 
     T = np.eye(4, dtype=float)
     T[0:3,3] = x
+
     return T
 
 def h5meta_info_volume_matched(sample):
@@ -672,7 +683,9 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
     `A_normed` : np.ndarray
         The normalized array.
     '''
+
     vmin, vmax = value_range
+
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
 
 def open_3d(image, r):
@@ -721,6 +734,7 @@ def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose
     -------
     None
     '''
+
     assert len(tomo.shape) == 3
 
     if verbose >= 1: print(f"Plotting middle planes {prefix} of {tomo.shape} volume to {output_dir}")
@@ -771,7 +785,7 @@ def row_normalize(A):
         The normalized matrix.
     '''
 
-    return A/(1+np.max(A,axis=1))[:,np.newaxis]
+    return A / (1 + np.max(A, axis=1))[:,np.newaxis]
 
 def row_normalize(A, r):
     '''
@@ -791,6 +805,7 @@ def row_normalize(A, r):
     '''
 
     na = np.newaxis
+
     return A / (r[:,na] + (r==0)[:,na])
 
 def sphere(n):
@@ -810,6 +825,7 @@ def sphere(n):
 
     NA = np.newaxis
     xs = np.linspace(-1, 1, n)
+
     return (xs[:,NA,NA]**2 + xs[NA,:,NA]**2 + xs[NA,NA,:]**2) <= 1
 
 def to_int(x, dtype):
@@ -836,6 +852,7 @@ def to_int(x, dtype):
 
     result = np.empty(x.shape, dtype=dtype)
     lib_general.normalized_convert(x, result)
+
     return result
 
 def to_int_py(x, dtype):
@@ -868,6 +885,7 @@ def to_int_py(x, dtype):
     result *= int_max
     result = np.floor(result).astype(dtype)
     result += 1
+
     return result
 
 def update_hdf5(filename, group_name, datasets={}, attributes={}, dimensions=None,

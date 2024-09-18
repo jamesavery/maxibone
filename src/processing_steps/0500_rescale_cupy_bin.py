@@ -4,6 +4,7 @@ Rescale a 16-bit binary file to 2x, 4x, 8x, 16x, and 32x. Each rescaling is perf
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.paths import hdf5_root, binary_root
 import h5py
 import importlib

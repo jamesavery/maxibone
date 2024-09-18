@@ -4,6 +4,7 @@ Converts a 16-bit HDF5 file to a 16-bit binary file. The binary file can be read
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+
 from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.cpu_seq.io import write_slice

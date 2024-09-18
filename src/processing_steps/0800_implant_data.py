@@ -8,10 +8,11 @@ data consists of the following:
 3. The solid implant mask.
 4. The front mask of the implant.
 '''
-import matplotlib
-matplotlib.use('Agg')
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
+
 from config.constants import *
 from config.paths import hdf5_root
 import h5py

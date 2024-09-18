@@ -6,6 +6,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 import argparse
 import cv2
 import json
@@ -253,6 +254,7 @@ python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histogram
         help='Toggles whether debug printing should be enabled.')
 
     args = parser.parse_args()
+
     return args
 
 def plot_line(line, rng: _range):

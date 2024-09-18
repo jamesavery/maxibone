@@ -2,6 +2,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.constants import *
 from config.paths import hdf5_root, binary_root
 from lib.cpp.gpu.bitpacking import encode as bp_encode, decode as bp_decode

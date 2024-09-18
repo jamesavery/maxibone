@@ -6,6 +6,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import hdf5_root
 from lib.py.distributions import powers
 from lib.py.helpers import commandline_args, row_normalize, update_hdf5
@@ -86,6 +87,7 @@ def opt_bds(bds, *args):
     abcd[n:2*n] = bds[:n]
     abcd[3*n:4*n] = bds[n:]
     ax.set_title(f"bs = {bds[:n]}, ds = {bds[n:]}")
+
     return energy1d(abcd, args)
 
 def opt_all(abcd, *args):

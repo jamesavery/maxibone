@@ -6,6 +6,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import binary_root, hdf5_root as hdf5_root
 import h5py
 from lib.cpp.cpu.io import write_slice

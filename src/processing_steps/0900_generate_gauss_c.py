@@ -7,6 +7,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.gpu.diffusion import diffusion

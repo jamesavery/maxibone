@@ -5,14 +5,10 @@ Read metadata and data from raw tomograms from ESRF.
 (C) James Avery for the MAXIBONE project, 2018
 '''
 import numpy as np
-#import bohrium as bh
 import numpy as bh
 import jax.numpy as jp
 import numpy.ma as ma
 import sys,re,os,tqdm
-#from joblib import Parallel, delayed
-
-# TODO: Switch more elegantly between numpy and bohrium
 
 def esrf_edf_metadata(filename):
     '''
@@ -31,7 +27,7 @@ def esrf_edf_metadata(filename):
 
     meta = {}
     header_length = 1024
-    with open(filename,"r",encoding="latin-1") as f:
+    with open(filename, "r", encoding="latin-1") as f:
         header = f.read(header_length)
 
         ls = header.split("\n")
@@ -67,13 +63,14 @@ def esrf_edf_to_npy(filename):
     meta = esrf_edf_metadata(filename)
     header_length = 1024
 
-    with open(filename,"rb") as f:
-        f.seek(header_length,os.SEEK_SET)
+    with open(filename, "rb") as f:
+        f.seek(header_length, os.SEEK_SET)
         data = np.fromfile(file=f, dtype=meta["NumpyType"])
         assert data.shape[0]*2 == int(meta["Size"])
 
     (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]))
-    data    = ma.masked_array(data,mask=(data==0)).reshape((nx,ny))
+    data    = ma.masked_array(data, mask=(data==0)).reshape((nx, ny))
+
     return (meta, data)
 
 # TODO: function that uses seek to only actually read the appropriate region
@@ -97,6 +94,7 @@ def esrf_edf_n_to_npy(info,n):
 
     dirname        = info["dirname"]
     subvolume_name = info["subvolume_name"].format(n)
+
     return esrf_edf_to_npy(f'{dirname}/{subvolume_name}')
 
 def esrf_edfrange_to_npy(info, region):
@@ -116,14 +114,14 @@ def esrf_edfrange_to_npy(info, region):
         Data from the EDF file.
     '''
 
-    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region
+    [[x_start, y_start, z_start], [x_end, y_end, z_end]] = region
     assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"])
 
     shape = (z_end-z_start, y_end-y_start, x_end-x_start)
     image = np.zeros(shape, dtype=np.float32)
     for z in tqdm.tqdm(range(z_start, z_end), leave=False):
         (meta, data) = esrf_edf_n_to_npy(info, z)
-        image[z-z_start] = data[y_start:y_end,x_start:x_end]
+        image[z-z_start] = data[y_start:y_end, x_start:x_end]
 
     return ma.masked_array(image, mask=(image==0))
 
@@ -143,7 +141,8 @@ def esrf_full_tomogram(info):
     '''
 
     (nx,ny,nz) = (int(info['sizex']), int(info['sizey']), int(info['sizez']))
-    return esrf_edfrange_to_npy(info, [[0,0,0],[nx,ny,nz]])
+
+    return esrf_edfrange_to_npy(info, [[0,0,0], [nx,ny,nz]])
 
 def esrf_edf_to_bh(filename):
     '''
@@ -167,7 +166,7 @@ def esrf_edf_to_bh(filename):
     with open(filename, "rb") as f:
         f.seek(header_length, os.SEEK_SET)
         data = bh.fromfile(file=f, dtype=meta["NumpyType"])
-#        assert data.shape[0]*2 == int(meta["Size"])
+
         return (meta, data.reshape(ny,nx))
 
 def esrf_edf_n_to_bh(info, n):
@@ -189,6 +188,7 @@ def esrf_edf_n_to_bh(info, n):
 
     dirname        = info["dirname"]
     subvolume_name = info["subvolume_name"].format(n)
+
     return esrf_edf_to_bh(f'{dirname}/{subvolume_name}')
 
 def esrf_edfrange_to_bh(info, region):
@@ -222,7 +222,7 @@ def esrf_edfrange_to_bh(info, region):
         #     print(z)
         (meta, data) = esrf_edf_n_to_bh(info,z)
 
-        image[z-z_start] = data[y_start:y_end,x_start:x_end]
+        image[z-z_start] = data[y_start:y_end, x_start:x_end]
 
     return image
 
@@ -245,11 +245,12 @@ def esrf_edf_to_jp(filename):
     (nx,ny) = (int(meta["Dim_2"]), int(meta["Dim_1"]))
     header_length = 1024
 
-    with open(filename,"rb") as f:
-        f.seek(header_length,os.SEEK_SET)
+    with open(filename, "rb") as f:
+        f.seek(header_length, os.SEEK_SET)
         data = jp.fromfile(file=f, dtype=meta["NumpyType"])
         assert data.shape[0]*2 == int(meta["Size"])
-        return (meta,data.reshape(ny,nx))
+
+        return (meta, data.reshape(ny,nx))
 
 def esrf_edf_n_to_jp(info, n):
     '''
@@ -270,6 +271,7 @@ def esrf_edf_n_to_jp(info, n):
 
     dirname        = info["dirname"]
     subvolume_name = info["subvolume_name"].format(n)
+
     return esrf_edf_to_jp(dirname+"/"+subvolume_name)
 
 def esrf_edfrange_to_jp(info, region):
@@ -289,12 +291,12 @@ def esrf_edfrange_to_jp(info, region):
         Data from the EDF file.
     '''
 
-    [[x_start,y_start,z_start],[x_end,y_end,z_end]] = region
+    [[x_start, y_start, z_start], [x_end, y_end, z_end]] = region
     assert x_end <= int(info["sizex"]) and y_end <= int(info["sizey"]) and z_end <= int(info["sizez"])
 
-    shape = (z_end-z_start,y_end-y_start,x_end-x_start)
-    image = jp.zeros(shape,dtype=jp.float32)
-    for z in range(z_start,z_end):
+    shape = (z_end-z_start, y_end-y_start, x_end-x_start)
+    image = jp.zeros(shape, dtype=jp.float32)
+    for z in range(z_start, z_end):
         if (z % 100 == 0):
             print(z)
         (meta, data) = esrf_edf_n_to_jp(info, z)
@@ -319,6 +321,7 @@ def esrf_full_tomogram_jp(info):
     '''
 
     (nx,ny,nz) = (int(info['sizex']), int(info['sizey']), int(info['sizez']))
+
     return esrf_edfrange_to_jp(info, [[0,0,0],[nx,ny,nz]])
 
 

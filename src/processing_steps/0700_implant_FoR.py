@@ -12,6 +12,7 @@ import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+
 from config.constants import *
 from config.paths import hdf5_root, binary_root
 import h5py
@@ -22,7 +23,6 @@ from matplotlib.colors import colorConverter
 import numpy as np
 import numpy.linalg as la
 import pathlib
-import scipy.signal as signal
 import tqdm
 import vedo
 import vedo.pointcloud as pc

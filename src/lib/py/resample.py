@@ -8,7 +8,7 @@ if cupy_available:
     import cupy as np
 else:
     import numpy as np
-NA = np.newaxis
+
 import numpy.ma as ma
 
 def downsample2x(V, verbose=False):
@@ -29,6 +29,8 @@ def downsample2x(V, verbose=False):
     `result`: numpy.array[Any]
         The downsampled 3D image.
     '''
+
+    NA = np.newaxis
 
     (Nz, Ny, Nx) = V.shape
     (nz, ny, nx) = (Nz//2, Ny//2, Nx//2)
@@ -58,7 +60,7 @@ def downsample2x(V, verbose=False):
     if verbose:
         print("Storing")
 
-    return (cylinder_mask * (s1+s2)/8).astype(V.dtype)
+    return (cylinder_mask * (s1+s2) / 8).astype(V.dtype)
 
 def downsample3x(V, verbose=False):
     '''
@@ -118,7 +120,7 @@ def downsample3x(V, verbose=False):
          S3[:,1:(3*ny+1):3, 0:3*nx:3] +S3[:,1:(3*ny+1):3, 1:(3*nx+1):3]+ S3[:,1:(3*ny+1):3, 2:(3*nx+2):3] + \
          S3[:,2:(3*ny+2):3, 0:3*nx:3] +S3[:,2:(3*ny+2):3, 1:(3*nx+1):3]+ S3[:,2:(3*ny+2):3, 2:(3*nx+2):3]
 
-    return (cylinder_mask * (s1 + s2 + s3)/27).astype(V.dtype)
+    return (cylinder_mask * (s1 + s2 + s3) / 27).astype(V.dtype)
 
 def sample(image, xs, ys):
     '''
@@ -239,5 +241,3 @@ def polar_to_cart(polar_image, nx, ny, verbose=False):
         print(thetas.min(), thetas.max())
 
     return sample(polar_image, rs, thetas)
-
-
