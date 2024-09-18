@@ -5,7 +5,9 @@ import numpy as np
 
 implant_threshold = 3
 '''The value threshold for finding the implant in the raw float32 data.'''
-implant_threshold_novisim = 40000
+implant_threshold_u16 = 32000
+'''The value threshold for finding the implant in the normalized uint16 data.'''
+implant_threshold_u16_novisim = 40000
 '''The value threshold for finding the implant in the normalized uint16 data for the novisim samples.'''
 global_vmin, global_vmax = -4,12
 '''The value ranges of the raw float32 data.'''

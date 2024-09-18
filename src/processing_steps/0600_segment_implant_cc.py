@@ -47,7 +47,7 @@ if __name__ == "__main__":
     values      = np.linspace(global_vmin,global_vmax,2**16)
     implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
     if 'novisim' in sample:
-        implant_threshold_u16 = implant_threshold_novisim
+        implant_threshold_u16 = implant_threshold_u16_novisim
 
     # Automatic chunk size calculation.
     # Should be that fmod(log2(n_chunks),1.0) == 0 and chunk_size * n_cores < available memory
