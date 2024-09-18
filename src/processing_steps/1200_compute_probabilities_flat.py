@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This script computes the probabilities of the materials in the implant mask.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
@@ -16,6 +20,29 @@ NA = np.newaxis
 
 # TODO: Til fælles fil.
 def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_method):
+    '''
+    Save the probabilities `Ps` to an HDF5 file.
+
+    Parameters
+    ----------
+    `Ps` : list[numpy.array[float32]]
+        List of probabilities for each material.
+    `sample` : str
+        Sample name.
+    `region_mask` : str
+        Region mask name.
+    `field_name` : str
+        Field name.
+    `value_ranges` : numpy.array[float32]
+        Value ranges for the field.
+    `prob_method` : str
+        Method used to compute the probabilities.
+
+    Returns
+    -------
+    `None`
+    '''
+
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
     if verbose >= 1:
         print(f"output_path = {output_path}")
@@ -40,6 +67,24 @@ def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_m
         )
 
 def evaluate_2d(G, xs, vs):
+    '''
+    Evaluate the 2D distribution given by the piecewise cubic functions in `G`.
+
+    Parameters
+    ----------
+    `G` : tuple[int, numpy.array[float32], tuple[numpy.array[float32], numpy.array[float32], numpy.array[float32], numpy.array[float32]]]
+        Tuple containing the piecewise cubic functions.
+    `xs` : numpy.array[int]
+        X-values.
+    `vs` : numpy.array[int]
+        V-values.
+
+    Returns
+    -------
+    `image` : numpy.array[float32]
+        The 2D distribution.
+    '''
+
     m, bins_c, (pca, pcb, pcc, pcd) = G
 
     A, B, C, D = ABCD[m].T
