@@ -1,17 +1,21 @@
-import matplotlib
-matplotlib.use('Agg')
+#! /usr/bin/python3
+'''
+This script computes the Bone Implant Contact (BIC) for each layer along the z-axis.
+The BIC is the ratio of voxels within a distance threshold to the implant surface that are also within the soft tissue mask.
+It is applied to each layer as different z-ranges indicate old and new bone.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 from config.constants import *
-from config.paths import hdf5_root, hdf5_root_fast, binary_root
+from config.paths import hdf5_root, binary_root
 import h5py
-from lib.cpp.cpu_seq.io import load_slice, write_slice
 from lib.cpp.cpu.analysis import bic
-from lib.py.helpers import block_info, load_block, commandline_args
+from lib.py.helpers import commandline_args
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from tqdm import tqdm
 
 if __name__ == '__main__':
     sample, scale, field_scale, threshold,  mask, mask_scale, verbose = commandline_args({
@@ -25,7 +29,6 @@ if __name__ == '__main__':
     })
 
     field_name = "edt"
-
     image_output_dir = f"{hdf5_root}/processed/bic/"
     os.makedirs(image_output_dir, exist_ok=True)
 
@@ -57,12 +60,15 @@ if __name__ == '__main__':
         nz, ny, nx = blood.shape
         names = ['yx', 'zx', 'zy']
         planes = [blood[nz//2,:,:], blood[:,ny//2,:], blood[:,:,nx//2]]
+
         for name, plane in zip(names, planes):
             plt.imshow(plane)
             plt.savefig(f"{image_output_dir}/{sample}_blood_{name}.png", bbox_inches='tight')
             plt.clf()
+
         nz, ny, nx = field.shape
         planes = [field[nz//2,:,:], field[:,ny//2,:], field[:,:,nx//2]]
+
         for name, plane in zip(names, planes):
             plt.imshow((plane < threshold) & (plane > 0))
             plt.savefig(f"{image_output_dir}/{sample}_field_{name}.png", bbox_inches='tight')
