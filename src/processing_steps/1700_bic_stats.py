@@ -1,18 +1,18 @@
-import matplotlib
-matplotlib.use('Agg')
+#! /usr/bin/python3
+'''
+This script computes statistics on the Bone Implant Contact (BIC) metric computed in the previous step.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 from config.constants import *
-from config.paths import hdf5_root, hdf5_root_fast, binary_root
-import h5py
-from lib.cpp.cpu_seq.io import load_slice, write_slice
-from lib.py.helpers import block_info, load_block, commandline_args
-import matplotlib.pyplot as plt
+from config.paths import hdf5_root
+from lib.py.helpers import commandline_args
 import numpy as np
-import os
-from tqdm import tqdm
 
 # sample : [new_start, new_end, old_start, old_end]
+# Determines the z-range of new and old bone for each sample.
 ranges = {
     '770_pag' : np.array([ 0, 1, 0, 150*8 ]),
     '770c_pag' : np.array([ 1000, 2000, 2250, 3000 ]),
