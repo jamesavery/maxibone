@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This script computes the connected components of the segmented blood mask.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
