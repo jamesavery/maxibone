@@ -1,15 +1,16 @@
+import sys
+sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
-import os,sys, pathlib, h5py, numpy as np
-sys.path.append(sys.path[0]+"/../")
+from config.paths import hdf5_root as hdf5_root
 from lib.cpp.cpu.label import otsu
-from config.paths import binary_root, hdf5_root as hdf5_root
-from tqdm import tqdm
-import matplotlib.pyplot as plt, matplotlib.cm as cm
-from lib.py.piecewise_cubic import piecewisecubic, piecewisecubic_matrix, smooth_fun
+from lib.py.helpers import commandline_args, update_hdf5
+from lib.py.piecewise_cubic import piecewisecubic, smooth_fun
+import matplotlib.pyplot as plt
+import numpy as np
+import pathlib
 from PIL import Image
-from numpy import newaxis as NA
-from lib.py.helpers import commandline_args, row_normalize, update_hdf5
+from tqdm import tqdm
 
 def apply_otsu(bins, name=None):
     # Set up buffers
@@ -46,6 +47,8 @@ def apply_otsu(bins, name=None):
 
     # Save control images
     if debug:
+        NA = np.newaxis
+
         # Plot the two extracted probabilities
         plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
         plt.savefig(f'{debug_output}/{name}_P_otsu_P0.png', bbox_inches='tight')
@@ -64,7 +67,7 @@ def apply_otsu(bins, name=None):
             display_cubic[i,int(new_threshes_constant[i])-2:int(new_threshes_constant[i])+2] = (64,128,255) # constant is blue
         Image.fromarray(display_cubic).save(f'{debug_output}/P_otsu_thresholds_{name}.png')
 
-    return name, P0, P1, pc, (start,end), threshes, new_threshes_linear
+    return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
 def extract_probabilities(labeled, axes_names, field_names):
     Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins') for name in tqdm(axes_names, desc='Computing from axes')]
@@ -76,12 +79,14 @@ def extract_probabilities(labeled, axes_names, field_names):
 
 def save_probabilities(Ps, sample, subbins,value_ranges):
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
+
     update_hdf5(
         output_path,
         group_name = f'otsu_separation/{subbins}',
         datasets = { 'value_ranges' : value_ranges },
         attributes = {}
     )
+
     for name, P0, P1, pc, valid_range, threshes, new_threshes in Ps:
         update_hdf5(
             output_path,
@@ -89,7 +94,7 @@ def save_probabilities(Ps, sample, subbins,value_ranges):
             datasets = {
                 f'P0': P0,
                 f'P1': P1,
-                f'pc_coefs':   pc[0],
+                f'pc_coefs': pc[0],
                 f'pc_borders': pc[1],
                 f'threshes': threshes,
                 f'new_threshes': new_threshes
@@ -106,11 +111,10 @@ if __name__ == '__main__':
     debug = True
     debug_output = f'{output_folder}/{sample}' if not debug_output else debug_output
 
-
     pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
     pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
 
-    bins = np.load(f'{hdf5_root}/processed/histograms/{sample}/bins-{subbins}.npz') # TODO: Switch to h5
+    bins = np.load(f'{hdf5_root}/processed/histograms/{sample}/bins-{subbins}.npz')
     axes_names = [name.split('_bins')[0] for name in bins.keys() if '_bins' in name and 'field' not in name]
     field_names = bins['field_names']
     Ps = extract_probabilities(bins, axes_names, field_names)
