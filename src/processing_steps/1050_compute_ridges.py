@@ -1,22 +1,19 @@
+import sys
+sys.path.append(sys.path[0]+"/../")
 import matplotlib
 matplotlib.use('Agg')
+import argparse
 import cv2
+import json
+from lib.py.helpers import row_normalize
+import matplotlib.pyplot as plt
+from moviepy.video.io.bindings import mplfig_to_npimage
 import numpy as np
+import os
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
-from moviepy.video.io.bindings import mplfig_to_npimage
-import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
-import json
-import argparse
-import os
 import time
-NA = np.newaxis
-
-
-def row_normalize(A):
-        return A/(1+np.max(A,axis=1))[:,np.newaxis]
-
 
 def batch():
     global args, config
@@ -37,7 +34,7 @@ def batch():
             px, py = scatter_peaks(bins, config)
             mask = np.zeros(bins.shape, dtype=np.uint8)
             mask[py, px] = 255
-            dilated, eroded = process_closing(mask, config)
+            _, eroded = process_closing(mask, config)
             labeled, _ = process_contours(eroded, rng, config)
             tmp[name] = labeled
 
@@ -47,12 +44,11 @@ def batch():
             px, py = scatter_peaks(bins, config)
             mask = np.zeros(bins.shape, dtype=np.uint8)
             mask[py, px] = 255
-            dilated, eroded = process_closing(mask, config)
+            _, eroded = process_closing(mask, config)
             labeled, _ = process_contours(eroded, rng, config)
             tmp[name] = labeled
 
         np.savez(f'{args.output}/{sample}_labeled', **tmp)
-        #np.save(f'{args.output}/{sample}_{name}_labeled', labeled)
 
         if args.verbose:
             print (f'Processed {sample}')
@@ -80,7 +76,7 @@ def load_hists(filename):
     for name, hist in hists.items():
         hist_sum = np.sum(hist, axis=1)
         hist_sum[hist_sum==0] = 1
-        results[name] = hist / hist_sum[:,NA]
+        results[name] = hist / hist_sum[:,np.newaxis]
     return hists
 
 class _range:
@@ -160,7 +156,6 @@ def plot_line(line, rng: _range):
     return line_plot
 
 def process_closing(mask, config):
-    #close_kernel = np.ones((config['close kernel y'], config['close kernel x']))
     close_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (config['close kernel x'], config['close kernel y']))
     dilated = cv2.dilate(mask, close_kernel, iterations=config['iter dilate'])
     eroded = cv2.erode(dilated, close_kernel, iterations=config['iter erode'])
@@ -274,7 +269,7 @@ def gui():
         height_factor = 1 if disable_matplotlib else 2
         sizex = cv2.getTrackbarPos('size x', 'Histogram lines')
         sizey = cv2.getTrackbarPos('size y', 'Histogram lines')
-        range_updated, rng = _range().update()
+        _, rng = _range().update()
         rwidth = rng.x.stop - rng.x.start
         rheight = rng.y.stop - rng.y.start
         pwidth = sizex // width_factor
@@ -413,10 +408,10 @@ def gui():
             for param in close_params:
                 last[param] = config[param]
             modified = True
-            mask = np.zeros((rng.y.stop-rng.y.start,rng.x.stop-rng.x.start), dtype=np.uint8)
+            mask = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), dtype=np.uint8)
             mask[py, px] = 255
 
-            dilated, eroded = process_closing(mask, config)
+            _, eroded = process_closing(mask, config)
             display_eroded = cv2.resize(eroded, partial_size)
             display_eroded = cv2.cvtColor(display_eroded, cv2.COLOR_GRAY2BGR)
             if selected_line > rng.y.start and selected_line < rng.y.stop:
@@ -447,22 +442,11 @@ def gui():
 
         times.append(('find lines',time.time()))
 
-        # TODO isn't currently used
-        # Find joints
-        #joints = process_joints(eroded)
-        #display_joints = cv2.resize(joints, partial_size)
-        #display_joints = cv2.cvtColor(display_joints, cv2.COLOR_GRAY2BGR)
-        #if selected_line > rng.y.start and selected_line < rng.y.stop:
-        #    display_joints[int((selected_line-rng.y.start)*local_scale_y),:] = (0,0,255)
-
-        times.append(('find joints',time.time()))
-
         if disable_matplotlib:
             cv2.imshow('Histogram lines', np.concatenate((colored, display_eroded, display_contours), axis=1))
         else:
             second_row = np.concatenate((display_eroded, display_contours, np.zeros_like(display_contours)), axis=1)
             cv2.imshow('Histogram lines', np.concatenate((first_row, second_row)))
-
 
         for i in range(1, len(times)):
             label, tim = times[i]
