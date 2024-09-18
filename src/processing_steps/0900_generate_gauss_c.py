@@ -12,7 +12,7 @@ from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
-from lib.py.helpers import commandline_args, gauss_kernel, generate_cylinder_mask, plot_middle_planes, to_int
+from lib.py.helpers import commandline_args, gauss_kernel, generate_cylinder_mask, plot_middle_planes
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib

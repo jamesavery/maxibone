@@ -9,6 +9,7 @@ matplotlib.use('Agg')
 
 from config.paths import binary_root, hdf5_root
 import h5py
+import lib.gpu.bitpacking as lib_bitpacking
 import lib.cpp.cpu.io as lib_io
 import lib.cpp.cpu.general as lib_general
 import lib.cpp.gpu.morphology as lib_morphology
@@ -19,6 +20,103 @@ import os
 import pathlib
 import scipy.signal as signal
 import tqdm
+
+def bitpack_decode(src):
+    '''
+    Decode a 3D image with bitpacking.
+
+    Parameters
+    ----------
+    `src` : numpy.array[uint32]
+        The image to decode.
+
+    Returns
+    -------
+    `dst` : numpy.array[uint8]
+        The decoded image.
+    '''
+
+    assert src.dtype == np.uint32
+
+    nz, ny, nx = src.shape
+    dst = np.empty((nz, ny, nx*32), dtype=np.uint8)
+    bitpack_decode(src, dst)
+
+    return dst
+
+def bitpack_decode(src, dst, block_size=32):
+    '''
+    Decode a 3D image with bitpacking.
+    It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
+
+    Parameters
+    ----------
+    `src` : numpy.array[uint32]
+        The image to decode.
+    `dst` : numpy.array[uint8]
+        The decoded image.
+    `block_size` : int
+        The size of the z dimension of the blocks to decode. Default is 32.
+
+    Returns
+    -------
+    `None`
+    '''
+
+    blocks = (src.shape[0] + block_size - 1) // block_size
+    for i in range(blocks):
+        start, end = i*block_size, (i+1)*block_size
+        end = min(end, src.shape[0])
+        lib_bitpacking.decode(src[start:end], dst[start:end])
+
+def bitpack_encode(src):
+    '''
+    Encode a 3D image with bitpacking.
+
+    Parameters
+    ----------
+    `src` : numpy.array[uint8|bool]
+        The image to encode.
+
+    Returns
+    -------
+    `dst` : numpy.array[uint32]
+        The encoded image.
+    '''
+
+    assert src.dtype == np.uint8 or src.dtype == np.bool
+    assert src.shape[0] % 32 == 0
+
+    nz, ny, nx = src.shape
+    dst = np.empty((nz, ny, nx//32), dtype=np.uint32)
+    bitpack_encode(src.astype(np.uint8), dst)
+
+    return dst
+
+def bitpack_encode(src, dst, block_size=32):
+    '''
+    Encode a 3D image with bitpacking.
+    It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
+
+    Parameters
+    ----------
+    `src` : numpy.array[uint8]
+        The image to encode.
+    `dst` : numpy.array[uint32]
+        The encoded image.
+    `block_size` : int
+        The size of the z dimension of the blocks to encode. Default is 32.
+
+    Returns
+    -------
+    `None`
+    '''
+
+    blocks = (src.shape[0] + block_size - 1) // block_size
+    for i in range(blocks):
+        start, end = i*block_size, (i+1)*block_size
+        end = min(end, src.shape[0])
+        lib_bitpacking.encode(src[start:end], dst[start:end])
 
 def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
     '''

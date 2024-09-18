@@ -15,10 +15,9 @@ from config.paths import hdf5_root, binary_root
 import datetime
 from functools import partial
 import h5py
-from lib.cpp.gpu.bitpacking import encode as bitpacking_encode, decode as bitpacking_decode
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu.geometry import compute_front_back_masks
-from lib.py.helpers import commandline_args, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
+from lib.py.helpers import bitpack_decode, bitpack_encode, commandline_args, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -234,8 +233,7 @@ if __name__ == "__main__":
     implant_dilate_voxels = 2 * int(round(implant_dilate_diameter / (2 * voxel_size))) + 1 # Scale & ensure odd length
     bitpacked = nx % 32 == 0
     if bitpacked:
-        bone_region_tmp = np.empty((nz, ny, nx//32), dtype=np.uint32)
-        bitpacking_encode(bone_mask1.astype(np.uint8), bone_region_tmp)
+        bone_region_tmp = bitpack_encode(bone_mask1)
     else:
         bone_region_tmp = bone_mask1.astype(np.uint8)
     del bone_mask1
@@ -248,8 +246,7 @@ if __name__ == "__main__":
 
     for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
         if bitpacked:
-            packed_implant = np.empty((nz, ny, nx//32), dtype=np.uint32)
-            bitpacking_encode(solid_implant.astype(np.uint8), packed_implant)
+            packed_implant = bitpack_encode(solid_implant)
         else:
             packed_implant = solid_implant
         del solid_implant
@@ -258,20 +255,16 @@ if __name__ == "__main__":
         bone_region_tmp &= ~dilated_implant
 
     if bitpacked:
-        bone_region_mask = np.empty((nz, ny, nx), dtype=np.uint8)
-        bitpacking_decode(bone_region_tmp, bone_region_mask)
-        bone_region_mask = bone_region_mask.astype(bool)
-    else:
-        bone_region_mask = bone_region_tmp.astype(bool)
+        bone_region_mask = bitpack_decode(bone_region_tmp)
+
+    bone_region_mask = bone_region_tmp.astype(bool)
     del bone_region_tmp
 
     bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
 
     if verbose >= 2:
         if bitpacked:
-            dilated_implant_unpacked = np.empty((nz, ny, nx), dtype=np.uint8)
-            print (dilated_implant.shape, dilated_implant_unpacked.shape)
-            bitpacking_decode(dilated_implant, dilated_implant_unpacked)
+            dilated_implant_unpacked = bitpack_decode(dilated_implant)
         else:
             dilated_implant_unpacked = dilated_implant
         voxels_implanted = voxels.copy()

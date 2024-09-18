@@ -5,23 +5,10 @@ matplotlib.use('Agg')
 
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.cpp.gpu.bitpacking import encode as bp_encode, decode as bp_decode
-from lib.py.helpers import block_info, close_3d, commandline_args, dilate_3d, open_3d
+from lib.py.helpers import bitpack_decode, bitpack_encode, block_info, close_3d, commandline_args, dilate_3d, open_3d
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-def encode_ooc(src, dst):
-    bs = 32
-    for i in range(src.shape[0] // bs):
-        start, end = i*bs, (i+1)*bs
-        bp_encode(src[start:end], dst[start:end])
-
-def decode_ooc(src, dst):
-    bs = 32
-    for i in range(src.shape[0] // bs):
-        start, end = i*bs, (i+1)*bs
-        bp_decode(src[start:end], dst[start:end])
 
 if __name__ == '__main__':
     sample, scale, m, scheme, threshold_prob, threshold_distance, verbose = commandline_args({
@@ -59,8 +46,7 @@ if __name__ == '__main__':
     soft_threshed = (soft > threshold_prob)
     del soft
 
-    soft_bp = np.empty((nz, ny, nx//32), dtype=np.uint32)
-    encode_ooc(soft_threshed.astype(np.uint8), soft_bp)
+    soft_bp = bitpack_encode(soft_threshed)
     del soft_threshed
 
     # Close, open, then dilate. The sizes are in micrometers
@@ -88,8 +74,7 @@ if __name__ == '__main__':
 
     if verbose >= 1:
         print (f'Writing soft tissue debug plane images to {image_output_dir}')
-        soft = np.empty((nz,ny,nx),dtype=np.uint8)
-        decode_ooc(soft_bp, soft)
+        soft = bitpack_decode(soft_bp)
         names = ['yx', 'zx', 'zy']
         planes = [soft[nz//2,:,:], soft[:,ny//2,:], soft[:,:,nx//2]]
         for name, plane in zip(names, planes):
@@ -114,12 +99,10 @@ if __name__ == '__main__':
             plt.savefig(f'{image_output_dir}/{sample}_bone_{name}.png', bbox_inches='tight')
             plt.clf()
 
-    bone_bp = np.empty((nz, ny, nx//32), dtype=np.uint32)
-    encode_ooc(bone_threshed.astype(np.uint8), bone_bp)
-
+    bone_bp = bitpack_encode(bone_threshed)
     bone_bp_opened = open_3d(bone_bp, opening_voxels)
-    bone_opened = np.empty((nz, ny, nx), dtype=np.uint8)
-    decode_ooc(bone_bp_opened, bone_opened)
+    bone_opened = bitpack_decode(bone_bp_opened)
+    del bone_bp
 
     if verbose >= 1:
         print (f'Writing opened bone debug plane images to {image_output_dir}')
@@ -132,8 +115,7 @@ if __name__ == '__main__':
             plt.clf()
 
     disted_bp = soft_bp & bone_bp_opened
-    disted = np.empty((nz, ny, nx), dtype=np.uint8)
-    decode_ooc(disted_bp, disted)
+    disted = bitpack_decode(disted_bp)
 
     if verbose >= 1:
         print (f'Writing distance debug plane images to {image_output_dir}')
