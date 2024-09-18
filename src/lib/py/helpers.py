@@ -4,14 +4,14 @@ This file contains helper functions for loading and updating HDF5 files, generat
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import binary_root, hdf5_root
 import h5py
-from lib.cpp.cpu.io import load_slice
-from lib.cpp.cpu.general import normalized_convert
-from lib.cpp.gpu.morphology import dilate_3d, erode_3d, dilate_3d_bitpacked, erode_3d_bitpacked
-import matplotlib
-matplotlib.use('Agg')
+import lib.cpp.cpu.io as lib_io
+import lib.cpp.cpu.general as lib_general
+import lib.cpp.gpu.morphology as lib_morphology
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as la
@@ -128,9 +128,9 @@ def close_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, dilate_3d_bitpacked, erode_3d_bitpacked)
+        return morph_3d(image, r, lib_morphology.dilate_3d_bitpacked, lib_morphology.erode_3d_bitpacked)
     else:
-        return morph_3d(image, r, dilate_3d, erode_3d)
+        return morph_3d(image, r, lib_morphology.dilate_3d, lib_morphology.erode_3d)
 
 def commandline_args(defaults):
     '''
@@ -537,7 +537,7 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 
     for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
         # TODO: Don't use 3 different methods for load/store
-        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx))
+        lib_io.load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (block_size, Ny, Nx))
 
     for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True):
         fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/{field_scale}x/{sample}.npy", mmap_mode='r')
@@ -621,11 +621,16 @@ def morph_3d(image, r, fa, fb):
         The image after applying the morphological operation.
     '''
 
+    # Allocate temporary arrays
     I1 = image.copy().astype(image.dtype)
     I2 = np.empty(image.shape, dtype=image.dtype)
+
+    # Determine number of applications of fa and fb
     rmin = 16
     rmins = r // rmin
     rrest = r % rmin
+
+    # Apply fa
     for _ in range(rmins):
         fa(I1, rmin, I2)
         I1, I2 = I2, I1
@@ -633,12 +638,16 @@ def morph_3d(image, r, fa, fb):
         fa(I1, rrest, I2)
         I1, I2 = I2, I1
 
+    # Apply fb
     for i in range(rmins):
         fb(I1, rmin, I2)
         I1, I2 = I2, I1
     if rrest > 0:
         fb(I1, rrest, I2)
         I1, I2 = I2, I1
+
+    # Ensure temporary array is deallocated
+    del I2
 
     return I1
 
@@ -685,9 +694,9 @@ def open_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, erode_3d_bitpacked, dilate_3d_bitpacked)
+        return morph_3d(image, r, lib_morphology.erode_3d_bitpacked, lib_morphology.dilate_3d_bitpacked)
     else:
-        return morph_3d(image, r, erode_3d, dilate_3d)
+        return morph_3d(image, r, lib_morphology.erode_3d, lib_morphology.dilate_3d)
 
 def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose=0):
     '''
@@ -826,7 +835,7 @@ def to_int(x, dtype):
         return to_int_py(x,dtype)
 
     result = np.empty(x.shape, dtype=dtype)
-    normalized_convert(x, result)
+    lib_general.normalized_convert(x, result)
     return result
 
 def to_int_py(x, dtype):
