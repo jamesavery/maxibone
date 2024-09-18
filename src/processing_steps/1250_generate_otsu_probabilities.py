@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This script computes the probabilities of the two distributions in the bins of the histograms using Otsu's method for each row.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
@@ -13,6 +17,35 @@ from PIL import Image
 from tqdm import tqdm
 
 def apply_otsu(bins, name=None):
+    '''
+    Apply Otsu's method to separate the two distributions in the bins of the histogram.
+    The method is applied to each row of the histogram.
+
+    Parameters
+    ----------
+    `bins` : numpy.array[uint64]
+        The histogram to separate.
+    `name` : str
+        The name of the histogram. Used for prefixing the output files.
+
+    Returns
+    -------
+    `name` : str
+        The name of the histogram.
+    `P0` : numpy.array[float32]
+        The probability of the first distribution.
+    `P1` : numpy.array[float32]
+        The probability of the second distribution.
+    `pc` : tuple
+        The coefficients of the piecewise cubic function.
+    `valid_range` : tuple
+        The range of rows where the cubic fit is valid.
+    `threshes` : numpy.array[uint64]
+        The Otsu thresholds.
+    `new_threshes_linear` : numpy.array[uint64]
+        The new thresholds after applying the piecewise cubic function.
+    '''
+
     # Set up buffers
     P0 = np.zeros(bins.shape, dtype=np.float32)
     P1 = P0.copy()
@@ -70,14 +103,52 @@ def apply_otsu(bins, name=None):
     return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
 def extract_probabilities(labeled, axes_names, field_names):
+    '''
+    Extract the probabilities for each row of the histograms.
+
+    Parameters
+    ----------
+    `labeled` : dict
+        The labeled histograms.
+    `axes_names` : list
+        The names of the axes histograms.
+    `field_names` : list
+        The names of the field histograms.
+
+    Returns
+    -------
+    `Ps` : list
+        A list of the probabilities for each row of the histograms. Each element is a tuple containing the output of `apply_otsu`.
+    '''
+
     Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins') for name in tqdm(axes_names, desc='Computing from axes')]
     for name in tqdm(field_names, desc='Computing from fields'):
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
         Ps.append(apply_otsu(bins, f'field_bins_{name}'))
+
     return Ps
 
-def save_probabilities(Ps, sample, subbins,value_ranges):
+def save_probabilities(Ps, sample, subbins, value_ranges):
+    '''
+    Save the probabilities to an HDF5 file.
+
+    Parameters
+    ----------
+    `Ps` : list
+        The probabilities to save.
+    `sample` : str
+        The name of the sample.
+    `subbins` : str
+        The number of subbins.
+    `value_ranges` : dict
+        The value ranges of the histograms
+
+    Returns
+    -------
+    `None`
+    '''
+
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
 
     update_hdf5(
