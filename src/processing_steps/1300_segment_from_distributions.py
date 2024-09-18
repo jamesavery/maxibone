@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+This script segments the subvolumes using the probabilities computed in the previous step.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
@@ -13,6 +17,30 @@ import pathlib
 from tqdm import tqdm
 
 def load_probabilities(path, group, axes_names, field_names, m):
+    '''
+    Load the probabilities from the HDF5 file.
+
+    Parameters
+    ----------
+    `path` : str
+        The path to the HDF5 file.
+    `group` : str
+        The group in the HDF5 file.
+    `axes_names` : list[str]
+        The names of the axes.
+    `field_names` : list[str]
+        The names of the fields.
+    `m` : int
+        The index of the probability to load. 0 is currently soft tissue, 1 is bone.
+
+    Returns
+    -------
+    `P_axes` : list[numpy.array[float32]]
+        The probabilities of the axes.
+    `P_fields` : list[numpy.array[float32]]
+        The probabilities of the fields.
+    '''
+
     if verbose >= 1: print(f"Reading probabilities from {group} in {path}\n")
 
     try:
@@ -27,6 +55,22 @@ def load_probabilities(path, group, axes_names, field_names, m):
     return P_axes, P_fields
 
 def load_value_ranges(path, group):
+    '''
+    Load the value ranges from the HDF5 file.
+
+    Parameters
+    ----------
+    `path` : str
+        The path to the HDF5 file.
+    `group` : str
+        The group in the HDF5 file.
+
+    Returns
+    -------
+    `value_ranges` : numpy.array[int]
+        The value ranges.
+    '''
+
     if verbose >= 1: print(f"Reading value_ranges from {group} in {path}\n")
 
     try:
@@ -39,7 +83,23 @@ def load_value_ranges(path, group):
 
 
 def nblocks(size, block_size):
-    return (size // block_size) + (1 if size % block_size > 0 else 0)
+    '''
+    Calculate the number of blocks needed to cover a `size`.
+
+    Parameters
+    ----------
+    `size` : int
+        The size to cover.
+    `block_size` : int
+        The size of the blocks.
+
+    Returns
+    -------
+    `n_blocks` : int
+        The number of blocks needed
+    '''
+
+    return (size + block_size - 1) // block_size
 
 if __name__ == '__main__':
     sample, scale, block_start, block_size, region_mask, group, mask_scale, scheme, field_scale, verbose = commandline_args({
