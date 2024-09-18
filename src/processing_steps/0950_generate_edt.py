@@ -1,28 +1,34 @@
-import matplotlib
-matplotlib.use('Agg')
+#! /usr/bin/python3
+'''
+This script computes the Euclidean Distance Transform (EDT) of the implant mask.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
+import matplotlib
+matplotlib.use('Agg')
 from config.paths import binary_root, hdf5_root
 import datetime
 import edt
 import h5py
+from lib.py.helpers import commandline_args, generate_cylinder_mask, plot_middle_planes, to_int
 import matplotlib.pyplot as plt
-from lib.py.helpers import commandline_args, generate_cylinder_mask, to_int
 import multiprocessing as mp
 import numpy as np
 import os
 from PIL import Image
 
 if __name__ == '__main__':
-    sample, scale, verbose = \
-        commandline_args({
-            "sample" : "<required>",
-            "scale" : 1,
-            "verbose" : 2
-        })
+    sample, scale, verbose = commandline_args({
+        "sample" : "<required>",
+        "scale" : 1,
+        "verbose" : 2
+    })
 
     output_dir = f"{binary_root}/fields/implant-edt/{scale}x"
     os.makedirs(output_dir, exist_ok=True)
+    image_output_dir = f"{hdf5_root}/processed/field-edt/{scale}x/{sample}"
+    if verbose >= 2:
+        os.makedirs(image_output_dir, exist_ok=True)
 
     if verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5","r") as f:
@@ -44,16 +50,13 @@ if __name__ == '__main__':
     fedt *= cylinder_mask
 
     if verbose >= 2:
-        print(f"Debug: Writing PNGs of result slices to {output_dir}")
-        Image.fromarray(to_int(fedt[nz//2,:,:], np.uint8)).save(f'{output_dir}/{sample}-edt-xy.png')
-        Image.fromarray(to_int(fedt[:,ny//2,:], np.uint8)).save(f'{output_dir}/{sample}-edt-xz.png')
-        Image.fromarray(to_int(fedt[:,:,nx//2], np.uint8)).save(f'{output_dir}/{sample}-edt-yz.png')
+        plot_middle_planes(fedt, image_output_dir, f'{sample}-edt')
 
     if verbose >= 1: print(f"Converting to uint16")
     start = datetime.datetime.now()
     fedt = to_int(fedt, np.uint16)
     end = datetime.datetime.now()
-    print (f"Conversion took {end-start}")
+    if verbose >= 1: print (f"Conversion took {end-start}")
 
     if verbose >= 1: print(f"Applying cylinder mask")
     fedt *= cylinder_mask
