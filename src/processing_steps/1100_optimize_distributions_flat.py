@@ -1,3 +1,7 @@
+#! /usr/bin/python3
+'''
+Optimize the distributions of the materials in the 2D histogram.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
@@ -23,10 +27,29 @@ f_hist   = np.load(f"{hist_path}/{sample}/bins-{region_mask}.npz")
 f_labels = np.load(f"{hist_path}/{sample}/bins-{region_mask}_labeled.npz")
 
 def material_points(labs, material_id):
+    '''
+    Returns the x and y coordinates of the points in the 2D histogram that are
+    labeled with the given material_id.
+
+    Parameters
+    ----------
+    `labs` : numpy.array[uint64]
+        The 2D histogram with the labels of the materials.
+    `material_id` : int
+        The material id to look for.
+
+    Returns
+    -------
+    `xs` : numpy.array[float]
+        The x coordinates of the points.
+    `ys` : numpy.array[float]
+        The y coordinates of the points.
+    '''
+
     mask = labs == material_id
     xs, ys = np.argwhere(mask).astype(float).T
 
-    return xs,ys
+    return xs, ys
 
 #TODO: Weight importance in piecewise cubic fitting
 
@@ -71,14 +94,47 @@ if (verbose >= 3):
     plt.show()
 
 def opt_bs(bs, *args):
+    '''
+    Optimize the b values for a given set of a, c, and d values.
+
+    Parameters
+    ----------
+    `bs` : numpy.array[float]
+        The b values to optimize.
+    `args` : tuple(numpy.array[float], numpy.array[float])
+        The a, c, and d values and the histogram.
+
+    Returns
+    -------
+    `energy` : float
+        The energy of the distribution.
+    '''
+
     abcd0, vs = args
     n = len(abcd0) // 4
     abcd = abcd0.copy()
     abcd[n:2*n] = bs
     ax.set_title(f"bs = {bs}")
+
     return energy1d(abcd, args)
 
 def opt_bds(bds, *args):
+    '''
+    Optimize the b and d values for a given set of a and c values.
+
+    Parameters
+    ----------
+    `bds` : numpy.array[float]
+        The b and d values to optimize.
+    `args` : tuple(numpy.array[float], numpy.array[float])
+        The a and c values and the histogram.
+
+    Returns
+    -------
+    `energy` : float
+        The energy of the distribution.
+    '''
+
     abcd0, vs = args
     n = len(abcd0) // 4
     abcd = abcd0.copy()
@@ -88,6 +144,22 @@ def opt_bds(bds, *args):
     return energy1d(abcd, args)
 
 def opt_all(abcd, *args):
+    '''
+    Optimize the a, b, c, and d values for a given histogram.
+
+    Parameters
+    ----------
+    `abcd` : numpy.array[float]
+        The a, b, c, and d values to optimize.
+    `args` : tuple[int, float, numpy.array[float], numpy.array[float], numpy.array[float]]
+        The index, x value, the a, b, c, and d values, and the histogram.
+
+    Returns
+    -------
+    `energy` : float
+        The energy of the distribution
+    '''
+
     i, x, abcd0, vs, hist_x = args
     model    = np.sum(powers(vs, abcd), axis=0)
     residual = hist_x - model
