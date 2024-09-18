@@ -8,9 +8,7 @@ sys.path.append(sys.path[0]+"/../")
 from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
 from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, field_histogram as field_histogram_par_cpu
 from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
-from lib.cpp.cpu_seq.general import masked_minmax # TODO is it histogram specific?
-import numpy as np, h5py, timeit
-from datetime import datetime
+from lib.py.helpers import block_info, commandline_args, load_block, row_normalize, to_int
 from PIL import Image
 from tqdm import tqdm
 from config.paths import *
@@ -343,13 +341,6 @@ def verify_and_benchmark(voxels, field, bins=4096):
     assert fields_verified
     benchmark_axes_histograms(voxels, vrange, voxel_bins=bins)
     benchmark_field_histograms(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
-
-def tobyt(arr):
-    mi, ma = arr.min(), arr.max()
-    return (((arr - mi) / (ma - mi + 1)) * 255).astype(np.uint8)
-
-def row_normalize(A):
-    return A/(1+np.max(A,axis=1))[:,np.newaxis]
 
 def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
                     mask=None, mask_scale=8, voxel_bins=4096, field_bins=4096,

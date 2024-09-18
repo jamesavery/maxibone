@@ -658,6 +658,23 @@ def proj(u, v):
 
     return (np.dot(u,v) / np.dot(v,v)) * v
 
+def row_normalize(A):
+    '''
+    Normalize the rows of a matrix `A` by the maximum value in each row.
+
+    Parameters
+    ----------
+    `A` : numpy.array[float]
+        The matrix to normalize.
+
+    Returns
+    -------
+    `A_normed` : numpy.array[float]
+        The normalized matrix.
+    '''
+
+    return A/(1+np.max(A,axis=1))[:,np.newaxis]
+
 def row_normalize(A, r):
     '''
     Normalize the rows of a matrix `A` by the vector `r`.
