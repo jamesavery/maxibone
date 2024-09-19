@@ -16,6 +16,16 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     The caller can then add more arguments to the parser as needed.
     As a result, the caller must call `parser.parse_args()` to get the arguments.
 
+    The default arguments are:
+    1. `sample` : str
+        The sample name to be processed.
+    2. `sample_scale` : int
+        The scale of the image to be processed.
+    3. `chunk_size` : int
+        The size of the z-axis of the chunks to be processed.
+    4. `verbose` : int
+        The verbosity level of the script.
+
     Parameters
     ----------
     `description` : str
