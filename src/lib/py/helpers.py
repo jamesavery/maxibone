@@ -426,9 +426,10 @@ def gauss_kernel(sigma):
 
         return phi_x
 
-def generate_cylinder_mask(ny, nx):
+def generate_cylinder_mask(ny, nx=None):
     '''
     Generate a 2D mask of a cylinder with diameter `nx` pixels in the x-dimension and `ny` pixels in the y-dimension.
+    If `nx` is not provided, it is set to `ny`.
 
     Parameters
     ----------
@@ -442,6 +443,8 @@ def generate_cylinder_mask(ny, nx):
     `mask` : numpy.array[bool]
         A 2D boolean mask of the cylinder.
     '''
+
+    if nx is None: nx = ny
 
     ys = np.linspace(-1, 1, ny)
     xs = np.linspace(-1, 1, nx)
