@@ -36,6 +36,8 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
         help='The sample name to be processed, e.g. "770c_pag".')
     parser.add_argument('sample scale', action='store', type=int, default=default_scale, nargs='?',
         help=f'The scale of the image to be processed. Default is {default_scale}.')
+    parser.add_argument('-c', '--chunk-length', action='store', type=int, default=256,
+        help='The size of the z-axis of the chunks to be processed. Default is 256.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
         help='Set the verbosity level of the script. Default is 0.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
