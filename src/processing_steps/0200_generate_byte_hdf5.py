@@ -96,9 +96,9 @@ if __name__ == "__main__":
         (ey, ex)       = (ny-(ny-Ny)//2, nx-(nx-Nx)//2)
         if args.verbose >= 1: print((sy,ey), (sx,ex))
 
-        chunk = np.zeros((args.chunk_length, Ny, Nx), dtype=np.uint16)
-        for z in range(0, nz, args.chunk_length):
-            chunk_end = min(z+args.chunk_length, nz)
+        chunk = np.zeros((args.chunk_size, Ny, Nx), dtype=np.uint16)
+        for z in range(0, nz, args.chunk_size):
+            chunk_end = min(z+args.chunk_size, nz)
 
             region = [[sx, sy, z], [ex, ey, chunk_end]]
             if args.verbose >= 1: print(f"Reading chunk {z+z_offset}:{chunk_end+z_offset} ({i}-{z}), region={region}")
