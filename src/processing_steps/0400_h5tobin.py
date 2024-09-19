@@ -8,14 +8,15 @@ sys.path.append(sys.path[0]+"/../")
 from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.cpu_seq.io import write_slice
-from lib.py.helpers import commandline_args, update_hdf5
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import update_hdf5
 import numpy as np
 import pathlib
 from tqdm import tqdm
 
 slice_all = slice(None)
 
-def h5tobin(sample, region=(slice_all,slice_all,slice_all)):
+def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
     '''
     Convert a 16-bit HDF5 file to a 16-bit binary file.
     Read/write a full subvolume at a time.
@@ -114,11 +115,10 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all)):
                           "subvolume_ends": output_zends})
 
 if __name__ == "__main__":
-    sample, y_cutoff, verbose = commandline_args({
-        "sample" : "<required>",
-        "y_cutoff" : 0,
-        "verbose" : 1
-    })
+    argparser = default_parser(description=__doc__)
+    argparser.add_argument('y_cutoff', action='store', type=int, default=0, nargs='?',
+        help='The y-coordinate to cut the volume at. Default is 0.')
+    args = argparser.parse_args()
 
-    region = (slice_all, slice(y_cutoff,None), slice_all)
-    h5tobin(sample, region)
+    region = (slice_all, slice(args.y_cutoff, None), slice_all)
+    h5tobin(args.sample, region, args.verbose)
