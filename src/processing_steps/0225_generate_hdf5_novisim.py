@@ -106,7 +106,7 @@ if __name__ == "__main__":
         h5_tomo.dims[0].label = 'z'
         h5_tomo.dims[1].label = 'y'
         h5_tomo.dims[2].label = 'x'
-        h5_tomo.attrs['voxelsize'] = voxelsize
+        h5_tomo.attrs['voxelsize'] = args.voxelsize
         h5.create_dataset('volume_matching_shifts', data=[], dtype=np.int32)
         h5.create_dataset
 
