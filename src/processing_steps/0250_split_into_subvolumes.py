@@ -8,18 +8,15 @@ sys.path.append(sys.path[0]+"/../")
 
 from config.paths import hdf5_root
 import h5py
-from lib.py.helpers import commandline_args
+from lib.py.commandline_args import default_parser
 import tqdm
 
 if __name__ == "__main__":
-    sample, verbose = commandline_args({
-        "sample" : "<required>",
-        "verbose" : 1
-    })
+    args = default_parser(description=__doc__).parse_args()
 
     # Define the paths
     base_dir = f"{hdf5_root}/hdf5-byte"
-    input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
+    input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5"
 
     # Read the subvolume dimensions
     h5file = h5py.File(input_h5name, "r+")
@@ -29,7 +26,7 @@ if __name__ == "__main__":
 
     for byts in ['msb', 'lsb']:
         # Open the input HDF5 file
-        input_h5_name = f"{base_dir}/{byts}/{sample}.h5"
+        input_h5_name = f"{base_dir}/{byts}/{args.sample}.h5"
         input_h5 = h5py.File(input_h5_name, "r")
         voxels = input_h5['voxels']
 
@@ -37,7 +34,7 @@ if __name__ == "__main__":
             # Get the dimensions for this subvolume
             Nz, _, _ = subvolume_dimensions[i]
             z_offset = sum(subvolume_dimensions[:i,0])
-            output_h5_name = f"{base_dir}/{byts}/{sample}_sub{i}.h5"
+            output_h5_name = f"{base_dir}/{byts}/{args.sample}_sub{i}.h5"
             output_h5 = h5py.File(output_h5_name, "w")
 
             # Copy the metadata
