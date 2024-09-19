@@ -30,7 +30,7 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     '''
 
     epilog='For more information, please visit github.com/jamesavery/maxibone'
-    parser = argparse.ArgumentParser(description=description, epilog=epilog)
+    parser = argparse.ArgumentParser(description=description, epilog=epilog, formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('sample', action='store', type=str,
         help='The sample name to be processed, e.g. "770c_pag".')
