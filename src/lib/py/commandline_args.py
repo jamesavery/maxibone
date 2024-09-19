@@ -39,7 +39,7 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     parser.add_argument('-c', '--chunk-length', action='store', type=int, default=256,
         help='The size of the z-axis of the chunks to be processed. Default is 256.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
-        help='Set the verbosity level of the script. Default is 0.')
+        help='Set the verbosity level of the script. Default is 0. Generally, 0 is no output, 1 is some text output, 2 is plotting, and 3 is debugging.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
         help='Print the version of the script and exit.')
 
