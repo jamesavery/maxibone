@@ -9,7 +9,7 @@ from config.paths import hdf5_root
 import h5py
 import jax
 import jax.numpy as jp
-from lib.py.helpers import commandline_args
+from lib.py.commandline_args import default_parser
 import numpy as np
 import os.path
 import pathlib
@@ -20,7 +20,7 @@ import tqdm
 # 1] shadow effects could perhaps be removed by histogram matching of final adjacent regions
 #    - should probably be removed by kernel-operation around outer edge, before matching...
 
-def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose=0):
+def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose):
     '''
     Find shift that minimizes squared differences with `overlap <= shift <= max_shift`.
 
@@ -34,6 +34,8 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose=0):
         The overlap between the regions.
     `max_shift` : int
         The maximum shift to consider.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -44,11 +46,11 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose=0):
     # Shifts smaller than the overlap overlap with shift
     slice_size = voxels_top.shape[1] * voxels_top.shape[2] # Normalize by number of voxels (to make sums_lt and sums_ge comparable)
     sums_lt = jp.array( [ jp.sum(((voxels_top[-shift:] - voxels_bot[0:shift]) / (shift * slice_size))**2)
-                          for shift in tqdm.tqdm(range(2, overlap), f"Mathcings shifted 0 to {overlap}")] )
+                          for shift in tqdm.tqdm(range(2, overlap), f"Matchings shifted 0 to {overlap}")] )
 
     # Shifts larger than the overlap overlap with overlap
     sums_ge = jp.array( [ jp.sum(((voxels_top[-overlap:] - voxels_bot[shift:shift+overlap]) / (overlap * slice_size))**2)
-                          for shift in tqdm.tqdm(range(0, max_shift-overlap), f"Mathcings shifted {overlap} to {max_shift}")] )
+                          for shift in tqdm.tqdm(range(0, max_shift-overlap), f"Matchings shifted {overlap} to {max_shift}")] )
 
     if verbose >= 1:
         print("sums_lt=",sums_lt)
@@ -63,7 +65,7 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose=0):
 
     return result
 
-def match_all_regions(voxels,crossings,write_image_checks=True):
+def match_all_regions(voxels, sample, crossings, overlap, max_shift, verbose):
     '''
     Match all regions in a volume.
 
@@ -71,10 +73,16 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
     ----------
     `voxels` : np.array[Any]
         The volume to match.
+    `sample` : str
+        The sample name. Used for naming output images. Isn't used if verbose < 2.
     `crossings` : np.array[int]
         The crossings between the regions.
-    `write_image_checks` : bool
-        Whether to write images to check correctness.
+    `overlap` : int
+        The overlap between the regions.
+    `max_shift` : int
+        The maximum shift to consider.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -84,7 +92,7 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
 
     shifts = np.zeros(len(crossings), dtype=np.int32)
     errors = np.zeros(len(crossings), dtype=np.float32)
-    match_region_jit = jax.jit(match_region, static_argnums=(2,3))
+    match_region_jit = jax.jit(match_region, static_argnums=(2,3,4))
 
     if verbose >= 1: print(f"Crossings at z-indices: {crossings}")
     for i in range(len(crossings)):
@@ -98,12 +106,12 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
         bot_voxels = jp.array(voxels[crossing:crossing+max_shift]).astype(jp.float32)
         if verbose >= 1: print(f"Matching regions (Shapes: {bot_voxels.shape} {top_voxels.shape})")
 
-        shift, error = match_region_jit(top_voxels,bot_voxels,overlap,max_shift)
+        shift, error = match_region_jit(top_voxels, bot_voxels, overlap, max_shift, verbose)
         shifts[i] = shift
         errors[i] = error
         if verbose >= 1: print(f"Optimal shift is {shift} with error {error} per voxel")
 
-        if write_image_checks:
+        if verbose >= 2:
             image_dir = f"{volume_matched_dir}/verification"
             pathlib.Path(image_dir).mkdir(parents=True, exist_ok=True)
             if verbose >= 1: print(f"Writing images of matched slices to {image_dir} to check correctness.")
@@ -121,7 +129,7 @@ def match_all_regions(voxels,crossings,write_image_checks=True):
 
     return shifts, errors
 
-def write_matched(voxels_in, voxels_out, crossings, shifts):
+def write_matched(voxels_in, voxels_out, crossings, shifts, verbose):
     '''
     Copy through the volume matched volume from the original.
     - general interface that works equally well for anything indexed like numpy arrays - including cupy, HDF5 and netCDF.
@@ -136,6 +144,8 @@ def write_matched(voxels_in, voxels_out, crossings, shifts):
         The crossings between the regions.
     `shifts` : np.array[int]
         The shifts that minimize the squared differences.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -154,7 +164,7 @@ def write_matched(voxels_in, voxels_out, crossings, shifts):
         if verbose >= 1: print(f"Duplicating unmatched part of subvolume {i+1}: voxels_out[{crossings[i]-cum_shifts[i]}:{crossings[i+1]-cum_shifts[i]-shifts[i]}] = voxels_in[{crossings[i]+shifts[i]}:{crossings[i+1]}]")
         voxels_out[crossings[i]-cum_shifts[i]:crossings[i+1]-cum_shifts[i]-shifts[i]] = voxels_in[crossings[i]+shifts[i]:crossings[i+1]]
 
-def write_matched_hdf5(h5_filename_in, h5_filename_out, crossings, shifts, compression='lzf'):
+def write_matched_hdf5(h5_filename_in, h5_filename_out, crossings, shifts, compression='lzf', verbose=0):
     '''
     Create and populate a volume matched HDF5-file from the original.
 
@@ -170,6 +180,8 @@ def write_matched_hdf5(h5_filename_in, h5_filename_out, crossings, shifts, compr
         The shifts that minimize the squared differences.
     `compression` : str
         The compression to use.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -183,22 +195,23 @@ def write_matched_hdf5(h5_filename_in, h5_filename_out, crossings, shifts, compr
     (Nz,Ny,Nx) = voxels_in.shape
     matched_Nz = Nz - np.sum(shifts)
     voxels_out = h5out.create_dataset("voxels", (matched_Nz,Ny,Nx), dtype=voxels_in.dtype, compression=compression)
-    write_matched(voxels_in, voxels_out, crossings, shifts)
+    write_matched(voxels_in, voxels_out, crossings, shifts, verbose)
 
     # TODO: Duplicate all metadata into new HDF5 (Nice to have, but can always be found in original HDF5)
 
 if __name__ == "__main__":
-    sample, overlap, max_shift, generate_h5, verbose = commandline_args({
-        "sample" : "<required>",
-        "overlap" : 10,
-        "max_shift" : 150,
-        "generate_h5" : False,
-        "verbose" : 1
-    })
+    argparser = default_parser(description=__doc__)
+    argparser.add_argument('overlap', action='store', type=int, default=10, nargs='?',
+        help='The overlap between the regions. Default is 10.')
+    argparser.add_argument('max_shift', action='store', type=int, default=150, nargs='?',
+        help='The maximum shift to consider. Default is 150.')
+    argparser.add_argument('--generate_h5', action='store_true',
+        help='Toggles generating the HDF5 file with the matched volumes.')
+    args = argparser.parse_args()
 
     volume_matched_dir = f"{hdf5_root}/processed/volume_matched"
-    input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
-    output_h5name = f"{volume_matched_dir}/1x/{sample}.h5"
+    input_h5name  = f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5"
+    output_h5name = f"{volume_matched_dir}/1x/{args.sample}.h5"
 
     outdir = os.path.dirname(output_h5name)
     pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -209,10 +222,10 @@ if __name__ == "__main__":
     (Nz,Ny,Nx) = h5file['voxels'].shape
 
     crossings = np.cumsum(subvolume_dimensions[:-1,0]).astype(int)
-    if verbose >= 1: print(f"Matching all regions for sample {sample} at crossings {crossings}.")
-    shifts, errors = match_all_regions(voxels, crossings)
+    if args.verbose >= 1: print(f"Matching all regions for sample {args.sample} at crossings {crossings}.")
+    shifts, errors = match_all_regions(voxels, args.sample, crossings, args.overlap, args.max_shift, verbose=args.verbose)
 
-    np.save(f"{volume_matched_dir}/{sample}-shifts.npy", shifts)
+    np.save(f"{volume_matched_dir}/{args.sample}-shifts.npy", shifts)
 
     if ("volume_matching_shifts" not in h5file):
         h5file.create_dataset("volume_matching_shifts", data=shifts)
@@ -221,6 +234,6 @@ if __name__ == "__main__":
 
     h5file.close()
 
-    if (generate_h5):
-        if verbose >= 1: print(f"Copying over volume from {input_h5name} shifted by {shifts} to {output_h5name}")
-        write_matched_hdf5(input_h5name, output_h5name, crossings, shifts)
+    if (args.generate_h5):
+        if args.verbose >= 1: print(f"Copying over volume from {input_h5name} shifted by {shifts} to {output_h5name}")
+        write_matched_hdf5(input_h5name, output_h5name, crossings, shifts, verbose=args.verbose)
