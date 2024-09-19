@@ -34,7 +34,7 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
 
     parser.add_argument('sample', action='store', type=str,
         help='The sample name to be processed, e.g. "770c_pag".')
-    parser.add_argument('scale', action='store', type=int, default=default_scale, nargs='?',
+    parser.add_argument('sample scale', action='store', type=int, default=default_scale, nargs='?',
         help=f'The scale of the image to be processed. Default is {default_scale}.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
         help='Set the verbosity level of the script. Default is 0.')
