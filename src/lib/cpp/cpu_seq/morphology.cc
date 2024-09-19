@@ -76,7 +76,6 @@ namespace cpu_seq {
                     // Apply the spherical kernel
                     bool value = neutral;
 
-                    #pragma omp simd collapse(3) reduction(op:value)
                     for (int32_t pz = -radius; pz <= radius; pz++) {
                         for (int32_t py = -radius; py <= radius; py++) {
                             for (int32_t px = -radius; px <= radius; px++) {
@@ -139,8 +138,8 @@ namespace cpu_seq {
                     int64_t X[3] = {z, y, x};
                     int64_t limits[6];
                     for (int axis = 0; axis < 3; axis++) {
-                        limits[(axis*2)] = -min(radius, X[axis]);
-                        limits[(axis*2)+1] = min(radius, N[axis] - X[axis] - 1);
+                        limits[(axis*2)] = -std::min(radius, X[axis]);
+                        limits[(axis*2)+1] = std::min(radius, N[axis] - X[axis] - 1);
                     }
 
                     // Apply the spherical kernel

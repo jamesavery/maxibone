@@ -79,7 +79,7 @@
 #define FOR_BLOCK_BEGIN(ARR) \
     for (int64_t ARR##_buffer_start = 0; ARR##_buffer_start < ARR##_length; ARR##_buffer_start += acc_block_size<ARR##_type>) { \
         ARR##_type *ARR##_buffer = (ARR##_type *) ARR.data + ARR##_buffer_start; \
-        ssize_t ARR##_buffer_length = min(acc_block_size<ARR##_type>, ARR##_length-ARR##_buffer_start); \
+        ssize_t ARR##_buffer_length = std::min(acc_block_size<ARR##_type>, ARR##_length-ARR##_buffer_start); \
         PRAGMA(acc data copy(ARR##_buffer[:ARR##_buffer_length])) \
         {
 
@@ -139,7 +139,7 @@
     for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<ARR_IN##_type> / 2) { \
         ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data + ARR_IN##_buffer_start; \
         ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data + ARR_IN##_buffer_start; \
-        ssize_t ARR_IN##_buffer_length = min(acc_block_size<ARR_IN##_type>, ARR_IN##_length - ARR_IN##_buffer_start); \
+        ssize_t ARR_IN##_buffer_length = std::min(acc_block_size<ARR_IN##_type>, ARR_IN##_length - ARR_IN##_buffer_start); \
         PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copy(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
         {
 

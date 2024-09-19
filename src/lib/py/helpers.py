@@ -9,7 +9,7 @@ matplotlib.use('Agg')
 
 from config.paths import binary_root, hdf5_root
 import h5py
-import lib.gpu.bitpacking as lib_bitpacking
+import lib.cpp.gpu.bitpacking as lib_bitpacking
 import lib.cpp.cpu.io as lib_io
 import lib.cpp.cpu.general as lib_general
 import lib.cpp.gpu.morphology as lib_morphology
