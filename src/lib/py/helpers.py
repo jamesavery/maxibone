@@ -78,7 +78,7 @@ def bitpack_encode(src, dst=None, block_size=32):
 
     nz, ny, nx = src.shape
 
-    assert src.dtype == np.uint8 or src.dtype == np.bool
+    assert src.dtype == np.uint8 or src.dtype == bool
     assert nx % 32 == 0
 
     if dst is None:
