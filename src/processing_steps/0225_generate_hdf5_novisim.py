@@ -9,7 +9,8 @@ matplotlib.use('Agg')
 
 from config.paths import hdf5_root
 import h5py
-from lib.py.helpers import commandline_args, generate_cylinder_mask, plot_middle_planes
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import generate_cylinder_mask, plot_middle_planes
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -17,29 +18,34 @@ from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
 if __name__ == "__main__":
-    sample, nz, ny, nx, voxelsize, verbose = commandline_args({
-        "sample" : "2000_projections",
-        "nz" : 818,
-        "ny" : 864,
-        "nx" : 864,
-        "voxelsize" : 5,
-        "verbose" : 1
-    })
+    parser = default_parser(description=__doc__)
+    parser.add_argument('--shape', action='store', default=['818', '864', '864'], nargs=3, metavar=('nz', 'ny', 'nx'), type=int,
+        help='The shape of the raw data. Default is 818 864 864.')
+    parser.add_argument('voxelsize', action='store', type=float, default=5, nargs='?',
+        help='The size of the voxels in micrometers. Default is 5.')
+    args = parser.parse_args()
 
-    file_path = f'{hdf5_root}/raw/rec_{nx}x{ny}x{nz}_{sample}.raw'
+    nz, ny, nx = args.shape
+
+    file_path = f'{hdf5_root}/raw/rec_{nx}x{ny}x{nz}_{args.sample}.raw'
     image_output_dir = f'{hdf5_root}/processed/novisim'
 
     os.makedirs(image_output_dir, exist_ok=True)
 
     tomo = np.fromfile(file_path, dtype=np.float32).reshape(nz, ny, nx)
+    # Rotate 90 degrees around z axis
+    tomo = np.rot90(tomo, -1, (1, 2))
+    yshift = ny - 1435
+    tomo = np.roll(tomo, yshift, axis=1)
+
     vmin, vmax = tomo.min(), tomo.max()
 
     # Remove circle on yx planes - i.e. cylinder mask
     tomo *= generate_cylinder_mask(tomo.shape[1])
 
     # Plot each plane
-    if verbose >= 1:
-        plot_middle_planes(tomo, image_output_dir, sample)
+    if args.verbose >= 1:
+        plot_middle_planes(tomo, image_output_dir, args.sample)
 
     # Scale to 16-bit
     tomo_norm = (tomo - tomo.min()) / (tomo.max() - tomo.min())
@@ -47,7 +53,7 @@ if __name__ == "__main__":
     tomo_norm = tomo_norm.astype(np.uint16)
 
     # Plot the histogram
-    if verbose >= 1:
+    if args.verbose >= 1:
         # Compute histogram of tomo_norm
         hist, bins = np.histogram(tomo_norm, bins=1000, range=(0, 2**16))
         hist[0] = 0
@@ -72,11 +78,11 @@ if __name__ == "__main__":
         scaled_valley = scaled_valley.astype(int)
         plt.vlines([scaled_valley], 0, smoothed[valley].astype(int), color='g')
         print (scaled_valley)
-        plt.savefig(f"{image_output_dir}/{sample}_histogram.png", bbox_inches='tight')
+        plt.savefig(f"{image_output_dir}/{args.sample}_histogram.png", bbox_inches='tight')
         plt.clf()
 
     # Print metadata keys and attributes
-    if verbose >= 1:
+    if args.verbose >= 1:
         with h5py.File(f'{hdf5_root}/hdf5-byte/msb/770c_pag.h5', 'r') as meta:
             print (meta.keys())
             print (meta['subvolume_range'])
