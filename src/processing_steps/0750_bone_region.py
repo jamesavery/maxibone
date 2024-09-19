@@ -17,7 +17,8 @@ from functools import partial
 import h5py
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu.geometry import compute_front_back_masks
-from lib.py.helpers import bitpack_decode, bitpack_encode, commandline_args, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import bitpack_decode, bitpack_encode, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -83,7 +84,7 @@ def largest_cc_of(mask, mask_name):
     layers_per_core = elements_per_core // layer_size
     n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core))))
     layers_per_chunk = nz // n_chunks
-    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x/"
+    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{args.sample_scale}x/"
     os.makedirs(intermediate_folder, exist_ok=True)
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
@@ -94,7 +95,7 @@ def largest_cc_of(mask, mask_name):
     else:
         start = datetime.datetime.now()
         with ThreadPool(n_cores) as pool:
-            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_")
+            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{args.sample}_")
             chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
             chunks.append(mask[(n_chunks-1) * layers_per_chunk:])
             n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
@@ -108,86 +109,82 @@ def largest_cc_of(mask, mask_name):
         gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
         print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
-        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
+        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
         largest_component = np.zeros((nz, ny, nx), dtype=bool)
-        largest_connected_component(largest_component, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+        largest_connected_component(largest_component, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
         return largest_component
 
 if __name__ == "__main__":
-    sample, scale, verbose = commandline_args({
-        "sample"  : "<required>",
-        "scale"   : 8,
-        "verbose" : 1
-    })
+    args = default_parser(__doc__, default_scale=4).parse_args()
 
-    image_output_dir = f"{hdf5_root}/processed/bone_region/{sample}/{scale}x/"
-    if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
+    image_output_dir = f"{hdf5_root}/processed/bone_region/{args.sample}/{args.sample_scale}x/"
+    if args.verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
 
-    if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
-    implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
+    if args.verbose >= 1: print(f"Loading {args.sample_scale}x implant mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
+    implant_file = h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5",'r')
     implant      = implant_file["implant/mask"][:].astype(np.uint8)
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
     implant_file.close()
 
     nz, ny, nx = implant.shape
 
-    if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
-    voxels  = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16",dtype=np.uint16).reshape(implant.shape)
+    if args.verbose >= 1: print(f"Loading {args.sample_scale}x voxels from {binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16")
+    voxels  = np.fromfile(f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16",dtype=np.uint16).reshape(implant.shape)
     plot_middle_planes(voxels, image_output_dir, 'voxels')
 
-    if verbose >= 1: print (f'Loading FoR values from {hdf5_root}/hdf5-byte/msb/{sample}.h5')
-    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{sample}.h5",'r') as f:
+    if args.verbose >= 1: print (f'Loading FoR values from {hdf5_root}/hdf5-byte/msb/{args.sample}.h5')
+    with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5",'r') as f:
         UVWp = f['implant-FoR/UVWp'][:]
         cp = f['implant-FoR/center_of_cylinder_UVW'][:]
         cm = (f['implant-FoR/center_of_mass'][:]) / voxel_size
         E = f['implant-FoR/E'][:]
 
-    if verbose >= 1: print(f"Computing front/back/implant_shell/solid_implant masks")
+    if args.verbose >= 1: print(f"Computing front/back/implant_shell/solid_implant masks")
     front_mask = np.empty_like(implant, dtype=np.uint8)
     back_mask = np.empty_like(implant, dtype=np.uint8)
     implant_shell_mask = np.empty_like(implant, dtype=np.uint8)
     solid_implant = np.empty_like(implant, dtype=np.uint8)
-    if verbose >= 1: start = datetime.datetime.now()
+    if args.verbose >= 1: start = datetime.datetime.now()
     compute_front_back_masks(implant, voxel_size, E, cm, cp, UVWp, front_mask, back_mask, implant_shell_mask, solid_implant)
-    if verbose >= 1: end = datetime.datetime.now()
-    if verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
+    if args.verbose >= 1: end = datetime.datetime.now()
+    if args.verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
 
     front_mask = largest_cc_of(front_mask, 'front')
     front_part = voxels * front_mask
 
-    output_dir = f"{hdf5_root}/masks/{scale}x/"
+    output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    if verbose >= 1: print(f"Saving implant_solid mask to {output_dir}/{sample}.h5")
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Saving implant_solid mask to {output_dir}/{args.sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                      group_name="implant_solid",
                      datasets={"mask": solid_implant},
-                     attributes={"sample": sample, "scale": scale, "voxel_size": voxel_size})
+                     attributes={"sample": args.sample, "scale": args.sample_scale, "voxel_size": voxel_size})
     plot_middle_planes(solid_implant, image_output_dir, 'implant-solid-sanity')
 
-    if verbose >= 1: print(f"Saving implant_shell mask to {output_dir}/{sample}.h5")
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Saving implant_shell mask to {output_dir}/{args.sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                      group_name="implant_shell",
                      datasets={"mask":implant_shell_mask},
-                     attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+                     attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
     plot_middle_planes(implant_shell_mask, image_output_dir, 'implant-shell-sanity')
     del implant_shell_mask
 
-    if verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{sample}.h5")
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{args.sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                      group_name="cut_cylinder_air",
                      datasets={"mask":back_mask},
-                     attributes={"sample":sample,"scale":scale,"voxel_size":voxel_size})
+                     attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
     plot_middle_planes(back_mask, image_output_dir, 'implant-back-sanity')
     del back_mask
 
-    if verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{sample}.h5")
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{args.sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                      group_name="cut_cylinder_bone",
                      datasets={"mask":front_mask},
-                     attributes={"sample":sample, "scale":scale, "voxel_size":voxel_size})
+                     attributes={"sample":args.sample, "scale":args.sample_scale, "voxel_size":voxel_size})
     plot_middle_planes(front_mask, image_output_dir, 'implant-front-sanity')
     del front_mask
 
@@ -200,14 +197,14 @@ if __name__ == "__main__":
     vmax = fpmin.max()
     del fpmin, front_part_implanted
 
-    if verbose >= 1: print(f"Computing bone region")
+    if args.verbose >= 1: print(f"Computing bone region")
     hist, bins = np.histogram(front_part, 2048, range=(vmin,vmax))
     hist[0] = 0
     hist_raw = hist.copy()
     hist = gaussian_filter1d(hist, 3)
     peaks, info = signal.find_peaks(hist, height=0.1*hist.max()) # Although, wouldn't the later argsort filter the smaller peaks away anyways?
 
-    if verbose >= 1:
+    if args.verbose >= 1:
         plt.figure(figsize=(20,10))
         plt.plot(bins[1:], hist_raw)
         plt.plot(bins[1:], hist)
@@ -218,13 +215,13 @@ if __name__ == "__main__":
     two_largest_peaks = peaks[np.argsort(info['peak_heights'])[::-1][:2]]
     p1, p2 = sorted(two_largest_peaks)
     midpoint = bins[np.argmin(hist[p1:p2]) + p1]
-    if verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
+    if args.verbose >= 1: print(f"p1, p2 = ({p1,bins[p1]}), ({p2,bins[p2]}); midpoint = {midpoint}")
 
     bone_mask1 = front_part > midpoint
     del front_part
     plot_middle_planes(bone_mask1, image_output_dir, 'implant-bone1-sanity')
 
-    if 'novisim' in sample:
+    if 'novisim' in args.sample:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 15 # micrometers
     else:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 5 # micrometers
@@ -262,7 +259,7 @@ if __name__ == "__main__":
 
     bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
 
-    if verbose >= 2:
+    if args.verbose >= 2:
         if bitpacked:
             dilated_implant_unpacked = bitpack_decode(dilated_implant)
         else:
@@ -277,8 +274,8 @@ if __name__ == "__main__":
     voxels[~bone_region_mask] = 0
     plot_middle_planes(voxels, image_output_dir, 'voxels-boned')
 
-    if verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{sample}.h5")
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{args.sample}.h5")
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                         group_name="bone_region",
                         datasets={"mask": bone_region_mask},
-                        attributes={"sample": sample, "scale": scale, "voxel_size": voxel_size})
+                        attributes={"sample": args.sample, "scale": args.sample_scale, "voxel_size": voxel_size})
