@@ -17,7 +17,8 @@ from config.constants import *
 from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.gpu.geometry import center_of_mass, inertia_matrix, sample_plane
-from lib.py.helpers import circle_center, commandline_args, coordinate_image, gramschmidt, homogeneous_transform, update_hdf5, plot_middle_planes, zyx_to_UVWp_transform
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import circle_center, coordinate_image, gramschmidt, homogeneous_transform, update_hdf5, plot_middle_planes, zyx_to_UVWp_transform
 import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import numpy as np
@@ -279,30 +280,26 @@ def figure_FoR_voxels(name, voxels, debug=2):
             vedo.show([vol], interactive=True)
 
 if __name__ == "__main__":
-    sample, scale, verbose = commandline_args({
-        "sample"  : "<required>",
-        "scale"   : 8,
-        "verbose" : 1
-    })
+    args = default_parser(__doc__, default_scale=8).parse_args()
 
-    if scale < 8:
-        if verbose >= 1: print(f"Warning: selected scale is {scale}x: This should not be run at high resolution, use scale>=8.")
+    if args.sample_scale < 8:
+        if args.verbose >= 1: print(f"Warning: selected scale is {args.sample_scale}x: This should not be run at high resolution, use scale>=8.")
 
     ## STEP 0: LOAD MASKS, VOXELS, AND METADATA
-    image_output_dir = f"{hdf5_root}/processed/implant-FoR/{sample}/"
-    if verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
+    image_output_dir = f"{hdf5_root}/processed/implant-FoR/{args.sample}/"
+    if args.verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
 
-    if verbose >= 1: print(f"Loading {scale}x implant mask from {hdf5_root}/masks/{scale}x/{sample}.h5")
-    implant_file = h5py.File(f"{hdf5_root}/masks/{scale}x/{sample}.h5",'r')
+    if args.verbose >= 1: print(f"Loading {args.sample_scale}x implant mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
+    implant_file = h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5",'r')
     implant      = implant_file["implant/mask"][:].astype(np.uint8)
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
     implant_file.close()
 
-    if verbose >= 1: print(f"Loading {scale}x voxels from {binary_root}/voxels/{scale}x/{sample}.uint16")
-    voxels = np.fromfile(f"{binary_root}/voxels/{scale}x/{sample}.uint16", dtype=np.uint16).reshape(implant.shape)
+    if args.verbose >= 1: print(f"Loading {args.sample_scale}x voxels from {binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16")
+    voxels = np.fromfile(f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", dtype=np.uint16).reshape(implant.shape)
 
-    if verbose >= 1: print(f'Plotting sanity images')
+    if args.verbose >= 1: print(f'Plotting sanity images')
     plot_middle_planes(implant, image_output_dir, 'implant-sanity')
     plot_middle_planes(voxels, image_output_dir, 'voxels-sanity')
     voxels_without_implant = voxels.copy()
@@ -311,14 +308,14 @@ if __name__ == "__main__":
     del voxels_without_implant
 
     nz,ny,nx = implant.shape
-    if verbose >= 1: print (f'Implant shape is {implant.shape}')
+    if args.verbose >= 1: print (f'Implant shape is {implant.shape}')
 
     ### STEP 1: COMPUTE IMPLANT PRINCIPAL AXES FRAME OF REFERENCE
     ## STEP1A: DIAGONALIZE MOMENT OF INTERTIA MATRIX TO GET PRINCIPAL AXES
     cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
-    if verbose >= 1: print(f"Center of mass is: {cm}")
+    if args.verbose >= 1: print(f"Center of mass is: {cm}")
     IM    = np.array(inertia_matrix(implant, cm)).reshape(3,3)
-    if verbose >= 1: print (f'IM: {IM}')
+    if args.verbose >= 1: print (f'IM: {IM}')
     ls,E  = la.eigh(IM)
 
     ## STEP 1B: PRINCIPAL AXES ARE ONLY DEFINED UP TO A SIGN.
@@ -369,13 +366,13 @@ if __name__ == "__main__":
     UVW = E.T
     u_vec,v_vec,w_vec = UVW
 
-    if verbose >= 1:
+    if args.verbose >= 1:
         print (f'u_vec {u_vec}')
         print (f'v_vec {v_vec}')
         print (f'w_vec {w_vec}')
     #quit()
 
-    figure_FoR_UVW(verbose)
+    figure_FoR_UVW(args.verbose)
 
     ### STEP 2: COMPUTE PHANTOM SCREW GEOMETRY
     #
@@ -450,7 +447,7 @@ if __name__ == "__main__":
     implant_length_voxels = implant_length / voxel_size
     implant_radius_voxels = implant_radius / voxel_size
 
-    figure_FoR_cylinder(verbose)
+    figure_FoR_cylinder(args.verbose)
 
     ### 3: In the cylinder coordinates, find radii and angle ranges to fill in the "holes" in the implant and make it solid
     ###    (More robust than closing operations, as we don't want to effect the screw threads).
@@ -465,7 +462,7 @@ if __name__ == "__main__":
 
     #TODO: Local circle figure (instead of showing global fit on local slice, which isn't snug)
     bbox_uvwp = [Up_min, Up_max, Vp_min, Vp_max, Wp_min, Wp_max]
-    figure_FoR_circle("prime-circle", Cp * voxel_size, v_vec, w_vec, implant_radius, bbox_uvwp, verbose)
+    figure_FoR_circle("prime-circle", Cp * voxel_size, v_vec, w_vec, implant_radius, bbox_uvwp, args.verbose)
 
     ## 3B: Profile of radii and angles
     implant_thetas = np.arctan2(implant_Vps, implant_Wps)
@@ -505,11 +502,11 @@ if __name__ == "__main__":
     solid_implant_UVWps = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
     Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0], 200)
 
-    #figure_FoR_profiles(verbose)
-    #figure_FoR_voxels("solid_implant",solid_implant,verbose)
+    #figure_FoR_profiles(args.verbose)
+    #figure_FoR_voxels("solid_implant",solid_implant,args.verbose)
 
     Muvwp = zyx_to_UVWp_transform(cm, voxel_size, UVW, w0, cp, UVWp)
-    if verbose >= 1:
+    if args.verbose >= 1:
         print(f"MUvpw = {np.round(Muvwp, 2)}")
         print(f"UVW  = {np.round(UVW, 2)}")
         print(f"UVWp = {np.round(UVWp, 2)}")
@@ -521,13 +518,13 @@ if __name__ == "__main__":
         print(f'Ws = {np.round(Ws.flatten(), 2)}')
         print(f'voxel_size = {voxel_size}')
 
-    figure_FoR_UVWp(verbose)
+    figure_FoR_UVWp(args.verbose)
 
-    if verbose >= 1: print(f"Physical Cp = {Cp[::-1] * voxel_size}")
+    if args.verbose >= 1: print(f"Physical Cp = {Cp[::-1] * voxel_size}")
 
     output_dir = f"{hdf5_root}/hdf5-byte/msb/"
-    if verbose >= 1: print(f"Writing frame-of-reference metadata to {output_dir}/{sample}.h5")
-    update_hdf5(f"{output_dir}/{sample}.h5",
+    if args.verbose >= 1: print(f"Writing frame-of-reference metadata to {output_dir}/{args.sample}.h5")
+    update_hdf5(f"{output_dir}/{args.sample}.h5",
                 group_name="implant-FoR",
                 datasets={"UVW": UVW,
                           "UVWp": UVWp,
