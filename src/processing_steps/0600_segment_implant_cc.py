@@ -14,7 +14,8 @@ from functools import partial
 import h5py
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu.io import load_slice
-from lib.py.helpers import commandline_args, update_hdf5_mask, plot_middle_planes
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import update_hdf5_mask, plot_middle_planes
 import numpy as np
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -23,31 +24,27 @@ import pathlib
 import scipy.ndimage as ndi
 
 if __name__ == "__main__":
-    sample, scale, verbose = commandline_args({
-        "sample"  : "<required>",
-        "scale"   : 8,
-        "verbose" : 1
-    })
+    args = default_parser(__doc__).parse_args()
 
     # Load metadata. TODO: Clean up, make automatic function.
-    meta_filename = f"{hdf5_root}/hdf5-byte/msb/{sample}.h5"
+    meta_filename = f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5"
     h5meta     = h5py.File(meta_filename,'r')
     vm_shifts  = h5meta['volume_matching_shifts'][:]
-    full_Nz, Ny, Nx = h5meta['voxels'].shape    # Full image resolution
-    Nz         = full_Nz - np.sum(vm_shifts)    # Full volume matched image resolution
-    nz,ny,nx   = np.array([Nz,Ny,Nx])//scale    # Volume matched image resolution at chosen scale
-    intermediate_folder = f"/tmp/maxibone/labels_implant/{scale}x/"
+    full_Nz, Ny, Nx = h5meta['voxels'].shape               # Full image resolution
+    Nz         = full_Nz - np.sum(vm_shifts)               # Full volume matched image resolution
+    nz,ny,nx   = np.array([Nz,Ny,Nx]) // args.sample_scale # Volume matched image resolution at chosen scale
+    intermediate_folder = f"/tmp/maxibone/labels_implant/{args.sample_scale}x/"
     os.makedirs(intermediate_folder, exist_ok=True)
-    if verbose >= 1:
+    if args.verbose >= 1:
         plot_dir = f"{hdf5_root}/processed/implant_mask/"
         pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
 
-    voxel_size  = h5meta['voxels'].attrs['voxelsize'] * scale
+    voxel_size  = h5meta['voxels'].attrs['voxelsize'] * args.sample_scale
     global_vmin = np.min(h5meta['subvolume_range'][:,0])
     global_vmax = np.max(h5meta['subvolume_range'][:,1])
     values      = np.linspace(global_vmin,global_vmax,2**16)
     implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
-    if 'novisim' in sample:
+    if 'novisim' in args.sample:
         implant_threshold_u16 = implant_threshold_u16_novisim
 
     # Automatic chunk size calculation.
@@ -64,7 +61,7 @@ if __name__ == "__main__":
     chunk_size_elements = layers_per_chunk * layer_size
     chunk_size_bytes = chunk_size_elements * 8
 
-    if verbose >= 1: print(f"""
+    if args.verbose >= 1: print(f"""
         Reading metadata from {meta_filename}.
         volume_matching_shifts = {vm_shifts}
         Implant threshold {implant_threshold} -> {implant_threshold_u16} as uint16
@@ -83,7 +80,7 @@ if __name__ == "__main__":
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
         voxels = np.empty((nz,ny,nx),dtype=np.uint16)
-        load_slice(voxels, f"{binary_root}/voxels/{scale}x/{sample}.uint16", (0,0,0), (nz,ny,nx))
+        load_slice(voxels, f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", (0,0,0), (nz,ny,nx))
         noisy_implant = (voxels > implant_threshold_u16)
         del voxels
         label, n_features = ndi.label(noisy_implant, output=np.int64)
@@ -95,14 +92,14 @@ if __name__ == "__main__":
         use_cache = False
 
         if use_cache:
-            n_labels = np.fromfile(f"{intermediate_folder}/{sample}_n_labels.int64", dtype=np.int64)
+            n_labels = np.fromfile(f"{intermediate_folder}/{args.sample}_n_labels.int64", dtype=np.int64)
         else:
             def label_chunk(i, chunk_size, chunk_prefix, implant_threshold_u16, global_shape):
                 start = i*chunk_size
                 end   = (i+1)*chunk_size if i < n_chunks-1 else nz # Last chunk gets the rest
                 chunk_length = end-start
                 voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
-                load_slice(voxel_chunk, f"{binary_root}/voxels/{scale}x/{sample}.uint16", (start,0,0), voxel_chunk.shape)
+                load_slice(voxel_chunk, f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", (start,0,0), voxel_chunk.shape)
                 noisy_implant = (voxel_chunk > implant_threshold_u16)
                 del voxel_chunk
                 label, n_features = ndi.label(noisy_implant, output=np.int64)
@@ -112,7 +109,7 @@ if __name__ == "__main__":
 
             start = datetime.datetime.now()
             with ThreadPool(n_cores) as pool:
-                label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_", implant_threshold_u16=implant_threshold_u16, global_shape=(nz,ny,nx))
+                label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{args.sample}_", implant_threshold_u16=implant_threshold_u16, global_shape=(nz,ny,nx))
                 n_labels = pool.map(label_chunk_partial, range(n_chunks))
             end = datetime.datetime.now()
             flat_size = nz*ny*nx
@@ -121,19 +118,20 @@ if __name__ == "__main__":
             gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
             print (f'Loading and labelling took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
-            np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
+            np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
         implant_mask = np.zeros((nz,ny,nx),dtype=bool)
-        largest_connected_component(implant_mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+        largest_connected_component(implant_mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
-    plot_middle_planes(implant_mask, plot_dir, sample)
+    if args.verbose >= 2:
+        plot_middle_planes(implant_mask, plot_dir, args.sample)
 
-    output_dir = f"{hdf5_root}/masks/{scale}x/"
+    output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    if verbose >= 1: print(f"Writing largest connected component to {output_dir}/{sample}.h5")
+    if args.verbose >= 1: print(f"Writing largest connected component to {output_dir}/{args.sample}.h5")
 
-    update_hdf5_mask(f"{output_dir}/{sample}.h5",
+    update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
                     group_name="implant",
-                    datasets={'mask':implant_mask},
-                    attributes={'scale':scale,'voxel_size':voxel_size,
-                                'sample':sample, 'name':"implant_mask"})
+                    datasets={'mask': implant_mask},
+                    attributes={'scale': args.sample_scale, 'voxel_size': voxel_size,
+                                'sample': args.sample, 'name': "implant_mask"})
