@@ -53,8 +53,7 @@ def bitpack_decode(src, dst=None, block_size=32):
         end = min(end, nz)
         lib_bitpacking.decode(src[start:end], dst[start:end])
 
-    if dst is None:
-        return dst
+    return dst
 
 def bitpack_encode(src, dst=None, block_size=32):
     '''
@@ -73,13 +72,16 @@ def bitpack_encode(src, dst=None, block_size=32):
     Returns
     -------
     `dst` : numpy.array[uint32]
-        The encoded image, if `dst` is None. `None` otherwise.
+        The encoded image.
     '''
 
     nz, ny, nx = src.shape
 
     assert src.dtype == np.uint8 or src.dtype == bool
     assert nx % 32 == 0
+
+    if src.dtype == bool:
+        src = src.astype(np.uint8)
 
     if dst is None:
         dst = np.empty((nz, ny, nx//32), dtype=np.uint32)
@@ -90,8 +92,7 @@ def bitpack_encode(src, dst=None, block_size=32):
         end = min(end, nz)
         lib_bitpacking.encode(src[start:end], dst[start:end])
 
-    if dst is None:
-        return dst
+    return dst
 
 def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
     '''
@@ -201,9 +202,9 @@ def close_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, lib_morphology.dilate_3d_bitpacked, lib_morphology.erode_3d_bitpacked)
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked, lib_morphology.erode_3d_sphere_bitpacked])
     else:
-        return morph_3d(image, r, lib_morphology.dilate_3d, lib_morphology.erode_3d)
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere, lib_morphology.erode_3d_sphere])
 
 def commandline_args(defaults):
     '''
@@ -319,9 +320,9 @@ def dilate_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, lib_morphology.dilate_3d_bitpacked)
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked])
     else:
-        return morph_3d(image, r, lib_morphology.dilate_3d)
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere])
 
 def erode_3d(image, r):
     '''
@@ -342,9 +343,9 @@ def erode_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, lib_morphology.erode_3d_bitpacked)
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked])
     else:
-        return morph_3d(image, r, lib_morphology.erode_3d)
+        return morph_3d(image, r, [lib_morphology.erode_3d])
 
 def gauss_kernel(sigma):
     '''
@@ -712,9 +713,9 @@ def open_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, lib_morphology.erode_3d_bitpacked, lib_morphology.dilate_3d_bitpacked)
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked, lib_morphology.dilate_3d_sphere_bitpacked])
     else:
-        return morph_3d(image, r, lib_morphology.erode_3d, lib_morphology.dilate_3d)
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere, lib_morphology.dilate_3d_sphere])
 
 def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose=0):
     '''
