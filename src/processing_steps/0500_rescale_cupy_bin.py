@@ -8,7 +8,7 @@ sys.path.append(sys.path[0]+"/../")
 from config.paths import hdf5_root, binary_root
 import h5py
 import importlib
-from lib.py.helpers import commandline_args
+from lib.py.commandline_args import default_parser
 from lib.py.resample import downsample2x
 import numpy as np
 import pathlib
@@ -26,27 +26,28 @@ else:
     import numpy as cp
 
 if __name__ == "__main__":
-    sample, image, chunk_size, dtype, verbose = commandline_args({
-        "sample" : "<required>",
-        "image" : "voxels",
-        "chunk_size" : 32*2,
-        "dtype" : "uint16",
-        "verbose" : 1
-    })
+    argparser = default_parser(description=__doc__)
+    argparser.add_argument('image', action='store', type=str, default='voxels', nargs='?',
+        help='The image type to rescale. Default is voxels.')
+    argparser.add_argument('dtype', action='store', type=str, default='uint16', nargs='?',
+        help='The data type of the binary file. Default is uint16.')
+    argparser.add_argument('--scales', action='store', type=int, default=[2, 4, 8, 16, 32], nargs='+', metavar='N',
+        help='The scales to rescale down to. Default is 2 4 8 16 32.')
+    args = argparser.parse_args()
 
     # Can do 6, 9, 12, 24, 27, etc. as well, but we currently don't. See old rescaly-cupy.py
-    scales = [2, 4, 8, 16, 32]
-    T = np.dtype(dtype)
+    scales = args.scales
+    T = np.dtype(args.dtype)
 
-    input_meta  = f'{hdf5_root}/hdf5-byte/msb/{sample}.h5'
-    input_bin   = f"{binary_root}/{image}/1x/{sample}.{dtype}"
-    output_root = f"{binary_root}/{image}"
+    input_meta  = f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5'
+    input_bin   = f"{binary_root}/{args.image}/1x/{args.sample}.{args.dtype}"
+    output_root = f"{binary_root}/{args.image}"
 
-    if verbose >= 1:
-        print(f"Generating power-of-twos rescalings for sample {sample}")
+    if args.verbose >= 1:
+        print(f"Generating power-of-twos rescalings for sample {args.sample}")
         print(f"Input metadata from {input_meta}")
-        print(f"Input flat binary {dtype} data from {input_bin}")
-        print(f"Output flat binary {dtype} data to {output_root}/[1,2,4,8,16,32]x/{sample}.{dtype}")
+        print(f"Input flat binary {args.dtype} data from {input_bin}")
+        print(f"Output flat binary {args.dtype} data to {output_root}/[1,2,4,8,16,32]x/{args.sample}.{args.dtype}")
 
     meta_h5         = h5py.File(input_meta, 'r')
     full_Nz, Ny, Nx = meta_h5['voxels'].shape
@@ -54,10 +55,10 @@ if __name__ == "__main__":
     Nz              = full_Nz - np.sum(shifts)
     meta_h5.close()
 
-    if verbose >= 1: print(f"Downscaling from 1x {(Nz,Ny,Nx)} to 2x {(Nz//2,Ny//2,Nx//2)}")
+    if args.verbose >= 1: print(f"Downscaling from 1x {(Nz,Ny,Nx)} to 2x {(Nz//2,Ny//2,Nx//2)}")
 
-    if (chunk_size % 32):
-        if verbose >= 1: print(f"Chunk size {chunk_size} is invalid: must be divisible by 32.")
+    if (args.chunk_size % 32):
+        if args.verbose >= 1: print(f"Chunk size {args.chunk_size} is invalid: must be divisible by 32.")
         sys.exit(-1)
 
     # TODO: Just iterate now we do powers of two
@@ -68,15 +69,15 @@ if __name__ == "__main__":
     voxels32x = np.empty((Nz//32, Ny//32, Nx//32), dtype=T)
     voxels    = [voxels2x, voxels4x, voxels8x, voxels16x, voxels32x]
 
-    for z in tqdm.tqdm(range(0, Nz, chunk_size), f"{sample}: Reading and scaling {chunk_size}-layer chunks"):
-        zend = min(z+chunk_size, Nz)
+    for z in tqdm.tqdm(range(0, Nz, args.chunk_size), f"{args.sample}: Reading and scaling {args.chunk_size}-layer chunks"):
+        zend = min(z+args.chunk_size, Nz)
         chunk_items = (zend-z) * Ny * Nx
         # TODO Use lib calls instead of fromfile
         try:
             voxels1x_chunk = cp.fromfile(input_bin, dtype=T, count=chunk_items, offset=z*Ny*Nx*T.itemsize).reshape(zend-z,Ny,Nx)
         except:
             traceback.print_exc()
-            if verbose >= 1: print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
+            if args.verbose >= 1: print(f"Read failed. chunk_items = {chunk_items} = {(zend-z)*Ny*Nx}, z = {z}, zend-z = {zend-z}")
             sys.exit(-1)
 
         voxels2x_chunk = downsample2x(voxels1x_chunk)
@@ -104,10 +105,10 @@ if __name__ == "__main__":
         del voxels16x_chunk
         del voxels32x_chunk
 
-    if verbose >= 1: print(f"Allocating {(Nz//2,Ny//2,Nx//2)}={Nz//2*Ny//2*Nx//2} {dtype} for voxels2x on GPU")
+    if args.verbose >= 1: print(f"Allocating {(Nz//2,Ny//2,Nx//2)}={Nz//2*Ny//2*Nx//2} {args.dtype} for voxels2x on GPU")
 
-    for i in tqdm.tqdm(range(len(scales)), f"{sample}: Downscaling to all smaller scales: {scales[2:]}"):
+    for i in tqdm.tqdm(range(len(scales)), f"{args.sample}: Downscaling to all smaller scales: {scales[2:]}"):
         output_dir = f"{output_root}/{scales[i]}x/"
         pathlib.Path(f"{output_dir}").mkdir(parents=True, exist_ok=True)
-        if verbose >= 1: print(f"Writing out scale {scales[i]}x {(voxels[i].shape)} to {output_dir}/{sample}.uint16")
-        voxels[i].tofile(f"{output_dir}/{sample}.uint16")
+        if args.verbose >= 1: print(f"Writing out scale {scales[i]}x {(voxels[i].shape)} to {output_dir}/{args.sample}.{args.dtype}")
+        voxels[i].tofile(f"{output_dir}/{args.sample}.{args.dtype}")
