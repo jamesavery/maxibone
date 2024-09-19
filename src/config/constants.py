@@ -3,6 +3,9 @@ Global constants for the Osteomorph project.
 '''
 import numpy as np
 
+VERSION = '0.1.0'
+'''The version of the Osteomorph project.'''
+
 implant_threshold = 3
 '''The value threshold for finding the implant in the raw float32 data.'''
 implant_threshold_u16 = 32000

@@ -38,5 +38,7 @@ def osteomorph_default_parser(description='MISSING DESCRIPTION', default_scale=1
         help=f'The scale of the image to be processed. Default is {default_scale}.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
         help='Set the verbosity level of the script. Default is 0.')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
+        help='Print the version of the script and exit.')
 
     return parser
