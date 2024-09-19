@@ -23,6 +23,7 @@ if __name__ == '__main__':
     image_output_dir = f"{hdf5_root}/processed/field-gauss+edt/{args.sample_scale}x/{args.sample}"
 
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(image_output_dir, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading EDT field from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.npy")
     edt_field = np.load(f"{edt_path}/{args.sample}.npy")
