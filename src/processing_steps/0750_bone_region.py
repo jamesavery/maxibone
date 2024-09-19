@@ -256,8 +256,8 @@ if __name__ == "__main__":
 
     if bitpacked:
         bone_region_mask = bitpack_decode(bone_region_tmp)
-
-    bone_region_mask = bone_region_tmp.astype(bool)
+    else:
+        bone_region_mask = bone_region_tmp.astype(bool)
     del bone_region_tmp
 
     bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
