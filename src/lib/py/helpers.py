@@ -21,30 +21,7 @@ import pathlib
 import scipy.signal as signal
 import tqdm
 
-def bitpack_decode(src):
-    '''
-    Decode a 3D image with bitpacking.
-
-    Parameters
-    ----------
-    `src` : numpy.array[uint32]
-        The image to decode.
-
-    Returns
-    -------
-    `dst` : numpy.array[uint8]
-        The decoded image.
-    '''
-
-    assert src.dtype == np.uint32
-
-    nz, ny, nx = src.shape
-    dst = np.empty((nz, ny, nx*32), dtype=np.uint8)
-    bitpack_decode(src, dst)
-
-    return dst
-
-def bitpack_decode(src, dst, block_size=32):
+def bitpack_decode(src, dst=None, block_size=32):
     '''
     Decode a 3D image with bitpacking.
     It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
@@ -54,7 +31,7 @@ def bitpack_decode(src, dst, block_size=32):
     `src` : numpy.array[uint32]
         The image to decode.
     `dst` : numpy.array[uint8]
-        The decoded image.
+        The decoded image. If None, a new array is created and returned.
     `block_size` : int
         The size of the z dimension of the blocks to decode. Default is 32.
 
@@ -63,37 +40,23 @@ def bitpack_decode(src, dst, block_size=32):
     `None`
     '''
 
-    blocks = (src.shape[0] + block_size - 1) // block_size
+    nz, ny, nx = src.shape
+
+    assert src.dtype == np.uint32
+
+    if dst is None:
+        dst = np.empty((nz, ny, nx*32), dtype=np.uint8)
+
+    blocks = (nz + block_size - 1) // block_size
     for i in range(blocks):
         start, end = i*block_size, (i+1)*block_size
-        end = min(end, src.shape[0])
+        end = min(end, nz)
         lib_bitpacking.decode(src[start:end], dst[start:end])
 
-def bitpack_encode(src):
-    '''
-    Encode a 3D image with bitpacking.
+    if dst is None:
+        return dst
 
-    Parameters
-    ----------
-    `src` : numpy.array[uint8|bool]
-        The image to encode.
-
-    Returns
-    -------
-    `dst` : numpy.array[uint32]
-        The encoded image.
-    '''
-
-    assert src.dtype == np.uint8 or src.dtype == np.bool
-    assert src.shape[0] % 32 == 0
-
-    nz, ny, nx = src.shape
-    dst = np.empty((nz, ny, nx//32), dtype=np.uint32)
-    bitpack_encode(src.astype(np.uint8), dst)
-
-    return dst
-
-def bitpack_encode(src, dst, block_size=32):
+def bitpack_encode(src, dst=None, block_size=32):
     '''
     Encode a 3D image with bitpacking.
     It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
@@ -103,20 +66,32 @@ def bitpack_encode(src, dst, block_size=32):
     `src` : numpy.array[uint8]
         The image to encode.
     `dst` : numpy.array[uint32]
-        The encoded image.
+        The encoded image. If None, a new array is created and returned.
     `block_size` : int
         The size of the z dimension of the blocks to encode. Default is 32.
 
     Returns
     -------
-    `None`
+    `dst` : numpy.array[uint32]
+        The encoded image, if `dst` is None. `None` otherwise.
     '''
 
-    blocks = (src.shape[0] + block_size - 1) // block_size
+    nz, ny, nx = src.shape
+
+    assert src.dtype == np.uint8 or src.dtype == np.bool
+    assert nx % 32 == 0
+
+    if dst is None:
+        dst = np.empty((nz, ny, nx//32), dtype=np.uint32)
+
+    blocks = (nz + block_size - 1) // block_size
     for i in range(blocks):
         start, end = i*block_size, (i+1)*block_size
-        end = min(end, src.shape[0])
+        end = min(end, nz)
         lib_bitpacking.encode(src[start:end], dst[start:end])
+
+    if dst is None:
+        return dst
 
 def block_info(h5meta_filename, scale, block_size=0, n_blocks=0, z_offset=0):
     '''
@@ -370,26 +345,6 @@ def erode_3d(image, r):
         return morph_3d(image, r, lib_morphology.erode_3d_bitpacked)
     else:
         return morph_3d(image, r, lib_morphology.erode_3d)
-
-def generate_cylinder_mask(nx):
-    '''
-    Generate a 2D mask of a cylinder with diameter `nx` pixels.
-
-    Parameters
-    ----------
-    `nx` : int
-        The diameter of the cylinder in pixels.
-
-    Returns
-    -------
-    `mask` : numpy.array[bool]
-        A 2D boolean mask of the cylinder.
-    '''
-
-    xs = np.linspace(-1, 1, nx)
-    rs = np.sqrt(xs[np.newaxis,np.newaxis,:]**2 + xs[np.newaxis,:,np.newaxis]**2)
-
-    return rs <= 1
 
 def gauss_kernel(sigma):
     '''
@@ -664,55 +619,13 @@ def load_block(sample, scale, offset, block_size, mask_name, mask_scale, field_n
 
     return voxels, fields
 
-def morph_3d(image, r, f):
+def morph_3d(image, r, fs):
     '''
-    Apply a 3D spherical morphology operation `f` of radius `r` to the image `img`.
-    The function is applied with spheres of max radius `rmin` (currently 16), and the remainder is applied with a sphere of radius `rrest`.
-    This is due to the fact that `r//rmin` applications with radius `rmin` are faster than a single application with radius `r`.
-
-    Parameters
-    ----------
-    `image` : numpy.array[Any]
-        The image to apply the morphological operation to.
-    `r` : int
-        The radius of the morphological operation.
-    `f` : function
-        The morphological operation to apply.
-
-    Returns
-    -------
-    `I` : numpy.array[Any]
-        The image after applying the morphological operation.
-    '''
-
-    # Allocate temporary arrays
-    I = image.copy().astype(image.dtype)
-    I2 = np.empty(image.shape, dtype=image.dtype)
-
-    # Determine number of applications of f
-    rmin = 16
-    rmins = r // rmin
-    rrest = r % rmin
-
-    # Apply f
-    for _ in range(rmins):
-        f(I, rmin, I2)
-        I, I2 = I2, I
-    if rrest > 0:
-        f(I, rrest, I2)
-        I, I2 = I2, I
-
-    # Ensure temporary array is deallocated
-    del I2
-
-    return I
-
-def morph_3d(image, r, fa, fb):
-    '''
-    Applies two 3D spherical morphology operation (`fa` and `fb`) of radius `r` to the image `img`.
+    Applies consecutive 3D spherical morphology operation (`fs`) of radius `r` to the image `img`.
     It is a generic function used to build `open_3d` and `close_3d`.
     Each function is applied with spheres of max radius `rmin` (currently 16), and the remainder is applied with a sphere of radius `rrest`.
     This is due to the fact that `r//rmin` applications with radius `rmin` are faster than a single application with radius `r`.
+    The reasoning behind multiple functions is that intermediate buffers can be reused.
 
     See `open_3d` and `close_3d` for examples of usage.
 
@@ -722,14 +635,12 @@ def morph_3d(image, r, fa, fb):
         The image to apply the morphological operation to.
     `r` : int
         The radius of the morphological operation.
-    `fa` : function
-        The first morphological operation to apply.
-    `fb` : function
-        The second morphological operation to apply.
+    `fs` : list[function]
+        The morphological operations to apply.
 
     Returns
     -------
-    `I1` : numpy.array[Any]
+    `I` : numpy.array[Any]
         The image after applying the morphological operation.
     '''
 
@@ -742,21 +653,14 @@ def morph_3d(image, r, fa, fb):
     rmins = r // rmin
     rrest = r % rmin
 
-    # Apply fa
-    for _ in range(rmins):
-        fa(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fa(I1, rrest, I2)
-        I1, I2 = I2, I1
-
-    # Apply fb
-    for i in range(rmins):
-        fb(I1, rmin, I2)
-        I1, I2 = I2, I1
-    if rrest > 0:
-        fb(I1, rrest, I2)
-        I1, I2 = I2, I1
+    # Apply the functions
+    for f in fs:
+        for _ in range(rmins):
+            f(I1, rmin, I2)
+            I1, I2 = I2, I1
+        if rrest > 0:
+            f(I1, rrest, I2)
+            I1, I2 = I2, I1
 
     # Ensure temporary array is deallocated
     del I2
@@ -871,26 +775,10 @@ def proj(u, v):
 
     return (np.dot(u,v) / np.dot(v,v)) * v
 
-def row_normalize(A):
-    '''
-    Normalize the rows of a matrix `A` by the maximum value in each row.
-
-    Parameters
-    ----------
-    `A` : numpy.array[float]
-        The matrix to normalize.
-
-    Returns
-    -------
-    `A_normed` : numpy.array[float]
-        The normalized matrix.
-    '''
-
-    return A / (1 + np.max(A, axis=1))[:,np.newaxis]
-
-def row_normalize(A, r):
+def row_normalize(A, r=None):
     '''
     Normalize the rows of a matrix `A` by the vector `r`.
+    If `r` is not provided, the rows are normalized by the maximum value in each row.
 
     Parameters
     ----------
@@ -907,7 +795,10 @@ def row_normalize(A, r):
 
     na = np.newaxis
 
-    return A / (r[:,na] + (r==0)[:,na])
+    if r is None:
+        return A / (1 + np.max(A, axis=1))[:,na]
+    else:
+        return A / (r[:,na] + (r==0)[:,na])
 
 def sphere(n):
     '''
