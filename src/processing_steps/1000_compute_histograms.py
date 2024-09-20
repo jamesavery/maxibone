@@ -23,7 +23,7 @@ import scipy.ndimage as ndi
 import timeit
 from tqdm import tqdm
 
-def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, voxel_bins=256):
+def axes_histogram_in_memory(voxels, func, ranges, voxel_bins, verbose):
     '''
     Compute the axes histograms for a given volume.
     This function assumes that the target device has enough memory to compute the histograms.
@@ -70,7 +70,7 @@ def axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=None, v
 
     return x_bins, y_bins, z_bins, r_bins
 
-def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=None, voxel_bins=256, field_bins=256):
+def field_histogram_in_memory(voxels, field, func, ranges, voxel_bins, field_bins, verbose):
     '''
     Compute the field histogram for a given volume.
     This function assumes that the target device has enough memory to compute the histogram.
@@ -108,7 +108,7 @@ def field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, range
 
     return bins
 
-def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
+def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
     '''
     Verify that the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes histogram produce the same results.
 
@@ -131,7 +131,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
 
     tolerance = 1e-5
     print ('Running sequential CPU version')
-    schx, schy, schz, schr = axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    schx, schy, schz, schr = axes_histogram_in_memory(voxels, axis_histogram_seq_cpu, ranges, voxel_bins, verbose)
 
     # Check that the sequential CPU version produced any results
     seq_cpu_verified = False
@@ -139,7 +139,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
         seq_cpu_verified = True
 
     print ('Running parallel CPU version')
-    pchx, pchy, pchz, pchr = axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins)
+    pchx, pchy, pchz, pchr = axes_histogram_in_memory(voxels, axis_histogram_par_cpu, ranges, voxel_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pchx), np.uint8)).save(f"{outpath}/xb_verification.png")
     Image.fromarray(to_int(row_normalize(pchy), np.uint8)).save(f"{outpath}/yb_verification.png")
@@ -161,7 +161,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
         print (f'diff r = {dr}')
 
     print ('Running parallel GPU version')
-    pghx, pghy, pghz, pghr = axes_histogram_in_memory(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins)
+    pghx, pghy, pghz, pghr = axes_histogram_in_memory(voxels, axis_histogram_par_gpu, ranges, voxel_bins, verbose)
 
     dx = np.abs(schx - pghx).sum()
     dy = np.abs(schy - pghy).sum()
@@ -183,7 +183,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins=256):
 
     return verified
 
-def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field_bins=256):
+def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bins, verbose):
     '''
     Verify that the different implementations (Sequential CPU, Parallel CPU and GPU) of the field histogram produce the same results.
 
@@ -210,7 +210,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field
 
     tolerance = 1e-5
     print ('Running sequential CPU version')
-    sch = field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+    sch = field_histogram_in_memory(voxels, field, field_histogram_seq_cpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(sch), np.uint8)).save(f"{outpath}/field_verification_seq_cpu.png")
 
@@ -220,7 +220,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field
         seq_cpu_verified = True
 
     print ('Field - Running parallel CPU version')
-    pch = field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+    pch = field_histogram_in_memory(voxels, field, field_histogram_par_cpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pch), np.uint8)).save(f"{outpath}/field_verification_par_cpu.png")
 
@@ -233,7 +233,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field
         print (f'par cpu diff = {d}')
 
     print ('Field - Running parallel GPU version')
-    pgh = field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins)
+    pgh = field_histogram_in_memory(voxels, field, field_histogram_par_gpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pgh), np.uint8)).save(f"{outpath}/field_verification_gpu.png")
 
@@ -251,7 +251,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins=256, field
 
     return verified
 
-def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
+def benchmark_axes_histograms(voxels, ranges, voxel_bins, runs, verbose):
     '''
     Benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes histogram.
 
@@ -275,9 +275,9 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins), number=1)
-    par_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
-    par_gpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, func=axis_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, axis_histogram_seq_cpu, ranges, voxel_bins, verbose), number=1)
+    par_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, axis_histogram_par_cpu, ranges, voxel_bins, verbose), number=runs)
+    par_gpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, axis_histogram_par_gpu, ranges, voxel_bins, verbose), number=runs)
 
     mean_seq_cpu = seq_cpu / 1
     mean_par_cpu = par_cpu / runs
@@ -288,7 +288,7 @@ def benchmark_axes_histograms(voxels, ranges=(1,4095), voxel_bins=256, runs=10):
     print (f'Par CPU: {mean_par_cpu:9.04f} (speedup: {mean_seq_cpu / mean_par_cpu:7.02f}x)')
     print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
-def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins=256, runs=10):
+def benchmark_field_histograms(voxels, field, ranges, voxel_bins, field_bins, runs, verbose):
     '''
     Benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the field histogram.
 
@@ -315,9 +315,9 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins
     print()
     print('----- Benchmarking -----')
     print()
-    seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_seq_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=1)
-    par_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_cpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
-    par_gpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, func=field_histogram_par_gpu, ranges=ranges, voxel_bins=voxel_bins, field_bins=field_bins), number=runs)
+    seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, field_histogram_seq_cpu, ranges, voxel_bins, field_bins, verbose), number=1)
+    par_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, field_histogram_par_cpu, ranges, voxel_bins, field_bins, verbose), number=runs)
+    par_gpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, field_histogram_par_gpu, ranges, voxel_bins, field_bins, verbose), number=runs)
 
     mean_seq_cpu = seq_cpu / 1
     mean_par_cpu = par_cpu / runs
@@ -328,7 +328,7 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins=256, field_bins
     print (f'Par CPU: {mean_par_cpu:9.04f} (speedup: {mean_seq_cpu / mean_par_cpu:7.02f}x)')
     print (f'Par GPU: {mean_par_gpu:9.04f} (speedup: {mean_seq_cpu / mean_par_gpu:7.02f}x)')
 
-def verify_and_benchmark(voxels, field, outpath, bins=4096):
+def verify_and_benchmark(voxels, field, outpath, bins, runs, verbose):
     '''
     Verify and benchmark the different implementations (Sequential CPU, Parallel CPU and GPU) of the axes and field histograms.
 
@@ -349,12 +349,12 @@ def verify_and_benchmark(voxels, field, outpath, bins=4096):
     '''
 
     vrange, frange = ( (1, 32000), (1, 2**16-1) )
-    axes_verified = verify_axes_histogram(voxels, vrange, outpath, voxel_bins=bins)
+    axes_verified = verify_axes_histogram(voxels, vrange, outpath, bins, verbose)
     assert axes_verified
-    fields_verified = verify_field_histogram(voxels, field, (vrange, frange), outpath, voxel_bins=bins, field_bins=bins)
+    fields_verified = verify_field_histogram(voxels, field, (vrange, frange), outpath, bins, bins, verbose)
     assert fields_verified
-    benchmark_axes_histograms(voxels, vrange, voxel_bins=bins)
-    benchmark_field_histograms(voxels, field, (vrange, frange), voxel_bins=bins, field_bins=bins)
+    benchmark_axes_histograms(voxels, vrange, bins, runs, verbose)
+    benchmark_field_histograms(voxels, field, (vrange, frange), bins, bins, runs, verbose)
 
 def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
                     mask=None, mask_scale=8, voxel_bins=4096, field_bins=4096,
