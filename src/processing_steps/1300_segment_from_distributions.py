@@ -84,24 +84,24 @@ def load_value_ranges(path, group, verbose):
     return f[group]['value_ranges'][:].astype(int)
 
 
-def nblocks(size, block_size):
+def nchunks(size, chunk_size):
     '''
-    Calculate the number of blocks needed to cover a `size`.
+    Calculate the number of chunks needed to cover a `size`.
 
     Parameters
     ----------
     `size` : int
         The size to cover.
-    `block_size` : int
-        The size of the blocks.
+    `chunk_size` : int
+        The size of the chunks.
 
     Returns
     -------
-    `n_blocks` : int
-        The number of blocks needed
+    `n_chunks` : int
+        The number of chunks needed
     '''
 
-    return (size + block_size - 1) // block_size
+    return (size + chunk_size - 1) // chunk_size
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)
