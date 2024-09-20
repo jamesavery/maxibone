@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 '''
-Computes the axes and field histograms for a given sample.
+Computes the axes and field histograms for a given sample. If mask is provided, it is applied to the volume before computing the histograms.
 '''
 import sys
 sys.path.append(sys.path[0]+"/../")
@@ -38,6 +38,8 @@ def axes_histogram_in_memory(voxels, func, ranges, voxel_bins, verbose):
         The value ranges for the voxels.
     `voxel_bins` : int
         The number of bins to use for the histograms.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -89,6 +91,8 @@ def field_histogram_in_memory(voxels, field, func, ranges, voxel_bins, field_bin
         The number of bins to use for the voxel histogram.
     `field_bins` : int
         The number of bins to use for the field histogram.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -122,6 +126,8 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
         The directory to save the verification images to.
     `voxel_bins` : int
         The number of bins to use for the histograms.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -201,6 +207,8 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bin
         The number of bins to use for the voxel histogram.
     `field_bins` : int
         The number of bins to use for the field histogram.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -265,6 +273,8 @@ def benchmark_axes_histograms(voxels, ranges, voxel_bins, runs, verbose):
         The number of bins to use for the histograms.
     `runs` : int
         The number of runs to average the benchmark over.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -306,6 +316,8 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins, field_bins, ru
         The number of bins to use for the field histogram.
     `runs` : int
         The number of runs to average the benchmark over.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -342,6 +354,10 @@ def verify_and_benchmark(voxels, field, outpath, bins, runs, verbose):
         The directory to save the verification images to.
     `bins` : int
         The number of bins to use for the histograms.
+    `runs` : int
+        The number of runs to average the benchmark over.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
