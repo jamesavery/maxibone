@@ -9,7 +9,7 @@ matplotlib.use('Agg')
 
 from config.constants import *
 from config.paths import hdf5_root
-from lib.py.helpers import commandline_args
+from lib.py.commandline_args import default_parser
 import numpy as np
 
 # sample : [new_start, new_end, old_start, old_end]
@@ -26,14 +26,11 @@ ranges = {
 }
 
 if __name__ == '__main__':
-    sample, scale = commandline_args({
-        "sample" : "<required>",
-        "scale" : 1}
-    )
+    args = default_parser(__doc__).parse_args()
 
-    bics = np.load(f'{hdf5_root}/processed/bic/{sample}_bics.npy')
+    bics = np.load(f'{hdf5_root}/processed/bic/{args.sample}_bics.npy')
 
-    range = ranges[sample] // scale
+    range = ranges[args.sample] // args.sample_scale
     new_bics = bics[range[0]:range[1]]
     old_bics = bics[range[2]:range[3]]
 
