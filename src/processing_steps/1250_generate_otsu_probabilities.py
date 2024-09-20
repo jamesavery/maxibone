@@ -9,7 +9,8 @@ matplotlib.use('Agg')
 
 from config.paths import hdf5_root as hdf5_root
 from lib.cpp.cpu.label import otsu
-from lib.py.helpers import commandline_args, update_hdf5
+from lib.py.commandline_args import default_parser
+from lib.py.helpers import update_hdf5
 from lib.py.piecewise_cubic import piecewisecubic, smooth_fun
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +18,7 @@ import pathlib
 from PIL import Image
 from tqdm import tqdm
 
-def apply_otsu(bins, name=None):
+def apply_otsu(bins, name, debug_output):
     '''
     Apply Otsu's method to separate the two distributions in the bins of the histogram.
     The method is applied to each row of the histogram.
@@ -69,7 +70,7 @@ def apply_otsu(bins, name=None):
     xs = np.arange(start, end, dtype=float)
     pc = smooth_fun(xs, threshes[start:end], 12)
     new_threshes_linear = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='linear')
-    if debug:
+    if not (debug_output is None):
         new_threshes_cubic = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='cubic')
         new_threshes_constant = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='constant')
 
@@ -80,7 +81,7 @@ def apply_otsu(bins, name=None):
         P1[i,int(new_threshes_linear[i]):] = row[int(new_threshes_linear[i]):].astype(np.float32) / ma
 
     # Save control images
-    if debug:
+    if not (debug_output is None):
         NA = np.newaxis
 
         # Plot the two extracted probabilities
@@ -103,7 +104,7 @@ def apply_otsu(bins, name=None):
 
     return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
-def extract_probabilities(labeled, axes_names, field_names):
+def extract_probabilities(labeled, axes_names, field_names, debug_output):
     '''
     Extract the probabilities for each row of the histograms.
 
@@ -122,11 +123,11 @@ def extract_probabilities(labeled, axes_names, field_names):
         A list of the probabilities for each row of the histograms. Each element is a tuple containing the output of `apply_otsu`.
     '''
 
-    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins') for name in tqdm(axes_names, desc='Computing from axes')]
+    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', debug_output) for name in tqdm(axes_names, desc='Computing from axes')]
     for name in tqdm(field_names, desc='Computing from fields'):
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
-        Ps.append(apply_otsu(bins, f'field_bins_{name}'))
+        Ps.append(apply_otsu(bins, f'field_bins_{name}', debug_output))
 
     return Ps
 
@@ -178,16 +179,23 @@ def save_probabilities(Ps, sample, subbins, value_ranges):
         )
 
 if __name__ == '__main__':
-    sample, subbins, debug_output = commandline_args({'sample':'<required>', 'subbins': '<required>', 'debug_output': None})
-    output_folder = f'{hdf5_root}/processed/probabilities/'
-    debug = True
-    debug_output = f'{output_folder}/{sample}' if not debug_output else debug_output
+    argparser = default_parser(__doc__)
+    argparser.add_argument('subbins', action='store', type=str, default=None, nargs='?',
+        help='The name of the subbins to process. Subbins is the postfix to the bins file, if one exists, e.g. "-bone_region". The default is None.')
+    argparser.add_argument('--debug-output', action='store', type=str, default=None,
+        help='The output folder for debug images.')
+    args = argparser.parse_args()
 
-    pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
+    output_folder = f'{hdf5_root}/processed/probabilities/'
+    debug_output = f'{output_folder}/{args.sample}' if args.debug_output is not None else args.debug_output
+
+    if not (debug_output is None):
+        pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
     pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
 
-    bins = np.load(f'{hdf5_root}/processed/histograms/{sample}/bins-{subbins}.npz')
+    subbins_str = f'-{args.subbins}' if args.subbins is not None else ''
+    bins = np.load(f'{hdf5_root}/processed/histograms/{args.sample}/bins-{args.subbins}.npz')
     axes_names = [name.split('_bins')[0] for name in bins.keys() if '_bins' in name and 'field' not in name]
     field_names = bins['field_names']
-    Ps = extract_probabilities(bins, axes_names, field_names)
-    save_probabilities(Ps, sample, subbins, bins['value_ranges'])
+    Ps = extract_probabilities(bins, axes_names, field_names, debug_output)
+    save_probabilities(Ps, args.sample, args.subbins, bins['value_ranges'])
