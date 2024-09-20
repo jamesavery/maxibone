@@ -14,7 +14,8 @@ from lib.cpp.cpu.histograms import axis_histograms as axis_histogram_par_cpu, fi
 from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, field_histogram as field_histogram_par_gpu
 from lib.cpp.cpu_seq.general import masked_minmax
 from lib.cpp.cpu_seq.io import load_slice
-from lib.py.helpers import block_info, commandline_args, load_block, row_normalize, to_int
+from lib.py.commandline_args import add_volume, default_parser
+from lib.py.helpers import block_info, load_block, row_normalize, to_int
 import numpy as np
 import pathlib
 from PIL import Image
@@ -456,67 +457,67 @@ def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
     return x_bins, y_bins, z_bins, r_bins, f_bins
 
 if __name__ == '__main__':
-    sample, scale, field_scale, block_size, z_offset, n_blocks, suffix, \
-    mask, mask_scale, voxel_bins, field_bins, benchmark, verbose \
-        = commandline_args({
-            "sample" : "<required>",
-            "scale" : 1,
-            "field_scale" : 2,
-            "block_size" : 256,
-            "z_offset" :  0,
-            "n_blocks" : 0,
-            "suffix" : "",
-            "mask" : "None",
-            "mask_scale" :  8,
-            "voxel_bins" : 4096,
-            "field_bins" : 2048,
-            "benchmark" : False,
-            "verbose" : 0
-        })
+    argparser = default_parser(__doc__)
+    argparser = add_volume(argparser, 'field', 2, 'implant-gauss')
+    argparser = add_volume(argparser, 'mask', 8, 'None')
+    argparser.add_argument('--z-offset', type=int, default=0,
+        help='The offset to start loading the volume from.')
+    argparser.add_argument('--n-blocks', type=int, default=0,
+        help='The number of blocks to load from disk. If set to 0, all blocks are loaded.')
+    argparser.add_argument('--suffix', type=str, default='',
+        help='The suffix to append to the output files.')
+    argparser.add_argument('--voxel-bins', type=int, default=4096,
+        help='The number of bins to use for the voxel histograms.')
+    argparser.add_argument('--field-bins', type=int, default=2048,
+        help='The number of bins to use for the field histograms.')
+    argparser.add_argument('--benchmark', action='store_true',
+        help='Whether to benchmark the different implementations of the histogram.')
+    argparser.add_argument('--benchmark-runs', type=int, default=10,
+        help='The number of runs to average the benchmark over.')
+    args = argparser.parse_args()
 
-    outpath = f'{hdf5_root}/processed/histograms/{sample}/'
+    outpath = f'{hdf5_root}/processed/histograms/{args.sample}/'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
 
-    if benchmark:
-        print(f'Benchmarking axes_histograms for {sample} at scale {scale}x')
-        h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-        Nz, Ny, Nx = h5meta['voxels'].shape # TODO this is not the volume matched shape!
-        scaled_shape = (Nz//scale, Ny//scale, Nx//scale)
+    if args.benchmark:
+        if args.verbose >= 1: print(f'Benchmarking axes_histograms for {args.sample} at scale {args.sample_scale}x')
+        h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 'r')
+        scaled_shape = (Nz//args.sample_scale, Ny//args.sample_scale, Nx//args.sample_scale)
         voxels = np.empty(scaled_shape, dtype=np.uint16)
         start = datetime.now()
-        load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (0, 0, 0), scaled_shape)
-        field = np.load(f'{binary_root}/fields/implant-gauss/{scale*2}x/{sample}.npy')
+        load_slice(voxels, f'{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16', (0, 0, 0), scaled_shape)
+        field = np.load(f'{binary_root}/fields/implant-gauss/{args.field_scale}x/{args.sample}.npy')
         end = datetime.now()
         # Align them
         voxels = voxels[:field.shape[0]*2,:,:]
 
-        print (voxels.shape, field.shape, (Nz, Ny, Nx), field.dtype)
+        if args.verbose >= 1: print (voxels.shape, field.shape, (Nz, Ny, Nx), field.dtype)
         gb = (voxels.nbytes + field.nbytes) / 1024**3
-        print(f"Loaded {gb:.02f} GB in {end-start} ({gb/(end-start).total_seconds()} GB/s)")
-        verify_and_benchmark(voxels, field, outpath, voxel_bins // scale)
+        if args.verbose >= 1: print(f"Loaded {gb:.02f} GB in {end-start} ({gb / (end-start).total_seconds()} GB/s)")
+        verify_and_benchmark(voxels, field, outpath, args.voxel_bins // args.sample_scale, args.benchmark_runs, args.verbose)
     else:
-        if 'novisim' in sample:
+        if 'novisim' in args.sample:
             implant_threshold = 40000
         else:
             implant_threshold = implant_threshold_u16
         (vmin,vmax), (fmin,fmax) = ((1,implant_threshold), (1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
         field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
-        xb, yb, zb, rb, fb = run_out_of_core(sample, scale, block_size, z_offset, n_blocks,
-                                            None if mask=="None" else mask, mask_scale, voxel_bins, field_bins,
-                                            field_names, field_scale, ((vmin,vmax),(fmin,fmax)),
-                                            verbose)
+        xb, yb, zb, rb, fb = run_out_of_core(args.sample, args.sample_scale, args.block_size, args.z_offset, args.n_blocks,
+                                            None if args.mask=="None" else args.mask, args.mask_scale, args.voxel_bins, args.field_bins,
+                                            field_names, args.field_scale, ((vmin,vmax),(fmin,fmax)),
+                                            args.verbose)
 
-        Image.fromarray(to_int(row_normalize(xb), np.uint8)).save(f"{outpath}/xb{suffix}.png")
-        Image.fromarray(to_int(row_normalize(yb), np.uint8)).save(f"{outpath}/yb{suffix}.png")
-        Image.fromarray(to_int(row_normalize(zb), np.uint8)).save(f"{outpath}/zb{suffix}.png")
-        Image.fromarray(to_int(row_normalize(rb), np.uint8)).save(f"{outpath}/rb{suffix}.png")
+        Image.fromarray(to_int(row_normalize(xb), np.uint8)).save(f"{outpath}/xb{args.suffix}.png")
+        Image.fromarray(to_int(row_normalize(yb), np.uint8)).save(f"{outpath}/yb{args.suffix}.png")
+        Image.fromarray(to_int(row_normalize(zb), np.uint8)).save(f"{outpath}/zb{args.suffix}.png")
+        Image.fromarray(to_int(row_normalize(rb), np.uint8)).save(f"{outpath}/rb{args.suffix}.png")
 
         for i in range(len(field_names)):
-            Image.fromarray(to_int(row_normalize(fb[i]), np.uint8)).save(f"{outpath}/fb-{field_names[i]}{suffix}.png")
+            Image.fromarray(to_int(row_normalize(fb[i]), np.uint8)).save(f"{outpath}/fb-{field_names[i]}{args.suffix}.png")
 
-        np.savez(f'{outpath}/bins{suffix}.npz',
+        np.savez(f'{outpath}/bins{args.suffix}.npz',
                 x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
                 axis_names=np.array(["x","y","z","r"]),
-                field_names=field_names, suffix=suffix, mask=mask,
-                sample=sample, z_offset=z_offset, block_size=block_size, n_blocks=n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
+                field_names=field_names, suffix=args.suffix, mask=args.mask,
+                sample=args.sample, z_offset=args.z_offset, block_size=args.block_size, n_blocks=args.n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
