@@ -1,3 +1,8 @@
+#! /usr/bin/python3
+'''
+This script finds the amount of "healthy bone".
+Healthy bone is defined as the amount of bone that is within a certain distance of soft tissue.
+'''
 import sys
 sys.path.append(sys.path[0]+"/../")
 import matplotlib
