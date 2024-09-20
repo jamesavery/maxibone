@@ -29,6 +29,8 @@ def apply_otsu(bins, name, debug_output):
         The histogram to separate.
     `name` : str
         The name of the histogram. Used for prefixing the output files.
+    `debug_output` : str
+        The output folder for debug images.
 
     Returns
     -------
@@ -116,6 +118,8 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output):
         The names of the axes histograms.
     `field_names` : list
         The names of the field histograms.
+    `debug_output` : str
+        The output folder for debug images.
 
     Returns
     -------

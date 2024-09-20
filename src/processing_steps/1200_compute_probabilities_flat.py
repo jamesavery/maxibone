@@ -39,6 +39,8 @@ def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_m
         Value ranges for the field.
     `prob_method` : str
         Method used to compute the probabilities.
+    `verbose` : int
+        Verbosity level.
 
     Returns
     -------

@@ -34,6 +34,8 @@ def load_probabilities(path, group, axes_names, field_names, m, verbose):
         The names of the fields.
     `m` : int
         The index of the probability to load. 0 is currently soft tissue, 1 is bone.
+    `verbose` : int
+        The verbosity level of the script.
 
     Returns
     -------
@@ -66,6 +68,8 @@ def load_value_ranges(path, group, verbose):
         The path to the HDF5 file.
     `group` : str
         The group in the HDF5 file.
+    `verbose` : int
+        The verbosity level of the script.
 
     Returns
     -------
