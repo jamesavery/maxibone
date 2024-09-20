@@ -5,7 +5,7 @@ matplotlib.use('Agg')
 
 from config.constants import *
 from config.paths import hdf5_root, binary_root
-from lib.py.helpers import bitpack_decode, bitpack_encode, block_info, close_3d, commandline_args, dilate_3d, open_3d
+from lib.py.helpers import bitpack_decode, bitpack_encode, chunk_info, close_3d, commandline_args, dilate_3d, open_3d
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     if verbose >= 1: os.makedirs(image_output_dir, exist_ok=True)
 
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5')
     voxel_size = bi["voxel_size"] * scale
     shape = np.array(bi["dimensions"][:3])
     shape //= scale

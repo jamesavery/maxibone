@@ -11,7 +11,7 @@ from config.paths import binary_root, hdf5_root as hdf5_root
 import h5py
 from lib.cpp.cpu.io import write_slice
 from lib.cpp.gpu.label import material_prob_justonefieldthx
-from lib.py.helpers import block_info, commandline_args, load_block, plot_middle_planes
+from lib.py.helpers import chunk_info, commandline_args, load_chunk, plot_middle_planes
 import numpy as np
 import matplotlib.pyplot as plt
 import pathlib
@@ -118,20 +118,20 @@ if __name__ == '__main__':
 
     # TODO scale may not trickle down correctly
     # Iterate over all subvolumes
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, block_size=block_size, n_blocks=0, z_offset=block_start)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, chunk_size=block_size, n_chunks=0, z_offset=block_start)
     Nz, Ny, Nx = bi['dimensions'][:3]
     axes_names =  [] # ["x", "y", "z", "r"] # For later when we also use axes.
     field_names = [scheme] # TODO: We are currently only using one field.
 
     probs_file = f'{hdf5_root}/processed/probabilities/{sample}.h5'
-    for b in tqdm(range(block_start,block_start+bi['n_blocks']), desc='segmenting subvolumes'):
+    for b in tqdm(range(block_start,block_start+bi['n_chunks']), desc='segmenting subvolumes'):
         group_name = f"{group}/{region_mask}/"
 
-        block_size = bi['block_size']
+        block_size = bi['chunk_size']
         zstart = b*block_size
         zend = min(zstart + block_size, Nz)
 
-        voxels, fields = load_block(sample, 1, zstart, block_size, region_mask, mask_scale, field_names, field_scale)
+        voxels, fields = load_chunk(sample, 1, zstart, block_size, region_mask, mask_scale, field_names, field_scale)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name)
 
         this_z = zend - zstart

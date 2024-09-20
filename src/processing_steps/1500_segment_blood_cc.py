@@ -13,7 +13,7 @@ import datetime
 from functools import partial
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu_seq.io import load_slice
-from lib.py.helpers import block_info, commandline_args, plot_middle_planes, update_hdf5
+from lib.py.helpers import chunk_info, commandline_args, plot_middle_planes, update_hdf5
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     })
 
     scales = [32, 16, 8, 4, 2, 1] if scale <= 0 else [scale]
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 1)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 1)
     Nz, Ny, Nx, _ = bi["dimensions"]
 
     for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):

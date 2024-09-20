@@ -15,7 +15,7 @@ from lib.cpp.gpu.histograms import axis_histograms as axis_histogram_par_gpu, fi
 from lib.cpp.cpu_seq.general import masked_minmax
 from lib.cpp.cpu_seq.io import load_slice
 from lib.py.commandline_args import add_volume, default_parser
-from lib.py.helpers import block_info, load_block, row_normalize, to_int
+from lib.py.helpers import chunk_info, load_chunk, row_normalize, to_int
 import numpy as np
 import pathlib
 from PIL import Image
@@ -372,7 +372,7 @@ def verify_and_benchmark(voxels, field, outpath, bins, runs, verbose):
     benchmark_axes_histograms(voxels, vrange, bins, runs, verbose)
     benchmark_field_histograms(voxels, field, (vrange, frange), bins, bins, runs, verbose)
 
-def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
+def run_out_of_core(sample, scale=1, chunk_size=128, z_offset=0, n_chunks=0,
                     mask=None, mask_scale=8, voxel_bins=4096, field_bins=4096,
                     field_names=["gauss","edt","gauss+edt"],
                     field_scale=2,
@@ -390,12 +390,12 @@ def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
         The sample to compute the histograms for.
     `scale` : int
         The scale of the sample.
-    `block_size` : int
-        The size of the blocks to load from disk. If set to 0, the block size is the size of a subvolume.
+    `chunk_size` : int
+        The size of the chunks to load from disk. If set to 0, the chunk size is the size of a subvolume.
     `z_offset` : int
         The offset to start loading the volume from.
-    `n_blocks` : int
-        The number of blocks to load from disk. If set to 0, all blocks are loaded.
+    `n_chunks` : int
+        The number of chunks to load from disk. If set to 0, all chunks are loaded.
     `mask` : str
         The mask to use for the volume. If set to None, no mask is used.
     `mask_scale` : int
@@ -427,11 +427,11 @@ def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
         The histogram for the fields.
     '''
 
-    bi = block_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, block_size, n_blocks, z_offset)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, chunk_size, n_chunks, z_offset)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
-    block_size    = bi['block_size']
-    n_blocks      = bi['n_blocks']
-    blocks_are_subvolumes = bi['blocks_are_subvolumes']
+    chunk_size    = bi['chunk_size']
+    n_chunks      = bi['n_chunks']
+    chunks_are_subvolumes = bi['chunks_are_subvolumes']
 
     center = (Ny//2,Nx//2)
     (vmin,vmax), (fmin,fmax) = value_ranges
@@ -443,14 +443,14 @@ def run_out_of_core(sample, scale=1, block_size=128, z_offset=0, n_blocks=0,
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
     f_bins = np.zeros((Nfields,field_bins, voxel_bins), dtype=np.uint64)
 
-    for b in tqdm(range(n_blocks), desc='Computing histograms'):
-        if blocks_are_subvolumes:
+    for b in tqdm(range(n_chunks), desc='Computing histograms'):
+        if chunks_are_subvolumes:
             zstart     = bi['subvolume_starts'][z_offset+b]
-            block_size = bi['subvolume_nzs'][z_offset+b]
+            chunk_size = bi['subvolume_nzs'][z_offset+b]
         else:
-            zstart = z_offset + b*block_size
+            zstart = z_offset + b*chunk_size
 
-        voxels, fields = load_block(sample, scale, zstart, block_size, mask, mask_scale, field_names, field_scale)
+        voxels, fields = load_chunk(sample, scale, zstart, chunk_size, mask, mask_scale, field_names, field_scale)
 
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
             axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
@@ -478,8 +478,8 @@ if __name__ == '__main__':
     argparser = add_volume(argparser, 'mask', 8, 'None')
     argparser.add_argument('--z-offset', type=int, default=0,
         help='The offset to start loading the volume from.')
-    argparser.add_argument('--n-blocks', type=int, default=0,
-        help='The number of blocks to load from disk. If set to 0, all blocks are loaded.')
+    argparser.add_argument('--n-chunks', type=int, default=0,
+        help='The number of chunks to load from disk. If set to 0, all chunks are loaded.')
     argparser.add_argument('--suffix', type=str, default='',
         help='The suffix to append to the output files.')
     argparser.add_argument('--voxel-bins', type=int, default=4096,
@@ -521,7 +521,7 @@ if __name__ == '__main__':
         (vmin,vmax), (fmin,fmax) = ((1,implant_threshold), (1,2**16-1)) # TODO: Compute from total voxel histogram resp. total field histogram
         field_names = ["edt", "gauss", "gauss+edt"] # Should this be commandline defined?
 
-        xb, yb, zb, rb, fb = run_out_of_core(args.sample, args.sample_scale, args.block_size, args.z_offset, args.n_blocks,
+        xb, yb, zb, rb, fb = run_out_of_core(args.sample, args.sample_scale, args.chunk_size, args.z_offset, args.n_chunks,
                                             None if args.mask=="None" else args.mask, args.mask_scale, args.voxel_bins, args.field_bins,
                                             field_names, args.field_scale, ((vmin,vmax),(fmin,fmax)),
                                             args.verbose)
@@ -538,4 +538,4 @@ if __name__ == '__main__':
                 x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
                 axis_names=np.array(["x","y","z","r"]),
                 field_names=field_names, suffix=args.suffix, mask=args.mask,
-                sample=args.sample, z_offset=args.z_offset, block_size=args.block_size, n_blocks=args.n_blocks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
+                sample=args.sample, z_offset=args.z_offset, chunk_size=args.chunk_size, n_chunks=args.n_chunks, value_ranges=np.array(((vmin,vmax),(fmin,fmax))))
