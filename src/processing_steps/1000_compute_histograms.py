@@ -498,6 +498,8 @@ if __name__ == '__main__':
     if args.benchmark:
         if args.verbose >= 1: print(f'Benchmarking axes_histograms for {args.sample} at scale {args.sample_scale}x')
         h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 'r')
+        Nz, Ny, Nx = h5meta['voxels'].shape
+        Nz -= sum(h5meta['volume_matching_shifts'][:])
         scaled_shape = (Nz//args.sample_scale, Ny//args.sample_scale, Nx//args.sample_scale)
         voxels = np.empty(scaled_shape, dtype=np.uint16)
         start = datetime.now()
