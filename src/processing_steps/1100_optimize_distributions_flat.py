@@ -8,8 +8,9 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.paths import hdf5_root
+from lib.py.commandline_args import add_volume, default_parser
 from lib.py.distributions import powers
-from lib.py.helpers import commandline_args, row_normalize, update_hdf5
+from lib.py.helpers import row_normalize, update_hdf5
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize as opt
@@ -119,7 +120,7 @@ def opt_all(abcd, *args):
     A, B, C, D = abcd[:n], abcd[n:2*n], abcd[2*n:3*n], abcd[3*n:4*n]
     Ecloseness = np.sum(1 / (np.abs(C[1:] - C[:-1]) + 0.001))
 
-    if(verbose >= 3):
+    if(args.verbose >= 3):
         line1.set_ydata(model)
         ax.set_title(f"{x}: a = {np.round(A*A,1)}, b = {np.round(B*B,1)}, c = {np.round(C,1)}, d = {np.round(D*D,1)}")
         ax.relim()
@@ -130,41 +131,41 @@ def opt_all(abcd, *args):
     return E1 + 1e2*Ecloseness + E2
 
 if __name__ == '__main__':
-    sample, region_mask, field, stride, verbose = commandline_args({
-        "sample" : "<required>",
-        "region_mask" : "<required>",
-        "field" : "edt",
-        "stride" : 4,
-        "verbose" : 8
-    })
+    argparser = default_parser(__doc__)
+    argparser = add_volume(argparser, 'field')
+    argparser = add_volume(argparser, 'region_mask')
+    argparser.add_argument('--stride', action='store', type=int, default=4,
+        help='The stride to use when loading the 2D histogram. Default is 4.')
+    args = argparser.parse_args()
+
     hist_path = f"{hdf5_root}/processed/histograms/"
 
-    f_hist   = np.load(f"{hist_path}/{sample}/bins-{region_mask}.npz")
-    f_labels = np.load(f"{hist_path}/{sample}/bins-{region_mask}_labeled.npz")
+    f_hist   = np.load(f"{hist_path}/{args.sample}/bins-{args.region_mask}.npz")
+    f_labels = np.load(f"{hist_path}/{args.sample}/bins-{args.region_mask}_labeled.npz")
 
     #TODO: Weight importance in piecewise cubic fitting
 
-    field_id = { 'edt': 0, 'gauss': 1, 'gauss+edt': 2}; # TODO: Get from data
+    field_id = { 'edt': 0, 'gauss': 1, 'gauss+edt': 2 }; # TODO: Get from data
 
-    hist = f_hist["field_bins"][field_id[field]][::stride,::stride]
-    lab  = f_labels[field][::stride,::stride]
+    hist = f_hist["field_bins"][field_id[args.field]][::args.stride,::args.stride]
+    lab  = f_labels[args.field][::args.stride,::args.stride]
 
-    if verbose >= 2:
+    if args.verbose >= 2:
         plt.imshow(lab)
         plt.show()
 
     nmat    = lab.max()
     (nx,nv) = hist.shape
-    xs = np.arange(0,nx*stride,stride)
-    vs = np.arange(0,nv*stride,stride)
+    xs = np.arange(0, nx*args.stride, args.stride)
+    vs = np.arange(0, nv*args.stride, args.stride)
 
     # Compute start parameter approximation samples
     labm = np.array([lab == m+1 for m in range(nmat)])
     amx = np.sqrt(np.array([np.max(labm[m] * hist, axis=1) for m in range(nmat)]))
-    cmx = np.array([np.argmax(labm[m] * hist, axis=1) for m in range(nmat)]) * stride
+    cmx = np.array([np.argmax(labm[m] * hist, axis=1) for m in range(nmat)]) * args.stride
 
-    starts = np.argmax(labm, axis=-1) * stride
-    ends   = (nv - np.argmax(labm[...,::-1], axis=-1)) * stride
+    starts = np.argmax(labm, axis=-1) * args.stride
+    ends   = (nv - np.argmax(labm[...,::-1], axis=-1)) * args.stride
     ends[ends == nv] = 0
 
     widths = np.abs(np.concatenate([ [(cmx[1]-cmx[0]) / 2], (cmx[1:]-cmx[:-1]) / 2 ]).astype(float))
@@ -172,9 +173,9 @@ if __name__ == '__main__':
     dmx    = np.sqrt(np.ones_like(bmx)*2)
     goodix  = amx>0
 
-    print(f"Optimizing distributions for {field} with {lab.max()} materials")
+    print(f"Optimizing distributions for {args.field} with {lab.max()} materials")
 
-    if (verbose >= 3):
+    if (args.verbose >= 3):
         plt.ion()
         fig = plt.figure(figsize=(15,15))
         ax = fig.add_subplot(111)
@@ -200,7 +201,7 @@ if __name__ == '__main__':
         if (n > 0):
             abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
-            if (verbose >= 2):
+            if (args.verbose >= 2):
                 model = powers(vs, abcd0)
                 line1.set_ydata(np.sum(model, axis=0))
                 line2.set_ydata(hist[i])
@@ -209,7 +210,7 @@ if __name__ == '__main__':
                 fig.canvas.draw()
                 fig.canvas.flush_events()
 
-            if(verbose >= 3):
+            if(args.verbose >= 3):
                 ax.set_title(f"x = {x}")
                 line2.set_ydata(hist[i])
 
@@ -245,7 +246,7 @@ if __name__ == '__main__':
                     ABCDm[m]   += [abcd.reshape(4,n)[:,im]]
                     print(f"ABCDm[{m}]    += {[abcd.reshape(4,n)[:,im]].copy()}")
 
-            if(verbose >= 5):
+            if(args.verbose >= 5):
                 colors = ['r', 'orange']
                 lines  = [line3, line4]
                 model = powers(vs, abcd)
@@ -278,12 +279,12 @@ if __name__ == '__main__':
         hist_modeled[gi] = np.sum(model, axis=0)
         hist_m[ms, gi] = model
 
-    if (verbose >= 6):
+    if (args.verbose >= 6):
         fig = plt.figure(figsize=(10,10))
         axarr = fig.subplots(2,2)
-        fig.suptitle(f'{sample} {region_mask}') # or plt.suptitle('Main title')
+        fig.suptitle(f'{args.sample} {args.region_mask}') # or plt.suptitle('Main title')
         axarr[0,0].imshow(row_normalize(hist, hist.max(axis=1)))
-        axarr[0,0].set_title(f"{field}-field 2D Histogram")
+        axarr[0,0].set_title(f"{args.field}-field 2D Histogram")
         axarr[0,1].imshow(row_normalize(hist_modeled, hist.max(axis=1)))
         axarr[0,1].set_title("Remodeled 2D Histogram")
         axarr[1,0].imshow(row_normalize(hist_m[0], hist.max(axis=1)))
@@ -291,16 +292,16 @@ if __name__ == '__main__':
         axarr[1,1].imshow(row_normalize(hist_m[1], hist.max(axis=1)))
         axarr[1,1].set_title("Material 2")
         fig.tight_layout()
-        fig.savefig(f"{hdf5_root}/processed/histograms/{sample}/hist_vs_modeled_{field}_{region_mask}.png", bbox_inches='tight')
+        fig.savefig(f"{hdf5_root}/processed/histograms/{args.sample}/hist_vs_modeled_{args.field}_{args.region_mask}.png", bbox_inches='tight')
         plt.show()
 
     # TODO: How to generalize to arbitrarily many materials?
-    update_hdf5(f"{hdf5_root}/processed/histograms/{sample}.h5",
-                group_name=f"{region_mask}/{field}",
+    update_hdf5(f"{hdf5_root}/processed/histograms/{args.sample}.h5",
+                group_name=f"{args.region_mask}/{args.field}",
                 datasets={
                     "value_ranges": f_hist["value_ranges"][:],
-                    "histogram": f_hist["field_bins"][field_id[field]][:],
-                    "labels": f_labels[field][:],
+                    "histogram": f_hist["field_bins"][field_id[args.field]][:],
+                    "labels": f_labels[args.field][:],
                     "good_xs0": np.array(good_xs[0]),
                     "good_xs1": np.array(good_xs[1]),
                     "ABCD0":    np.array(ABCDm[0]),
