@@ -42,15 +42,43 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     epilog='For more information, please visit github.com/jamesavery/maxibone'
     parser = argparse.ArgumentParser(description=description, epilog=epilog, formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument('sample', action='store', type=str,
-        help='The sample name to be processed, e.g. "770c_pag".')
-    parser.add_argument('sample_scale', action='store', type=int, default=default_scale, nargs='?',
-        help=f'The scale of the image to be processed. Default is {default_scale}.')
+    parser = add_volume(parser, 'sample', default_scale, '770c_pag', (None, '?'))
     parser.add_argument('-c', '--chunk-size', action='store', type=int, default=64,
         help='The size of the z-axis of the chunks to be processed. Default is 64.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
         help='Set the verbosity level of the script. Default is 0. Generally, 0 is no output, 1 is some text output, 2 is plotting, and 3 is debugging.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
         help='Print the version of the script and exit.')
+
+    return parser
+
+def add_volume(parser, name, default_scale, default_name, nargs=('?', '?')):
+    '''
+    This function adds a volume argument to the parser.
+
+    Parameters
+    ----------
+    `parser` : argparse.ArgumentParser
+        The parser to add the volume argument to.
+    `name` : str
+        The name of the volume to be processed.
+    `default_scale` : int
+        The default scale of the volume to be processed.
+    `default_name` : str
+        The default name of the volume to be processed.
+    `nargs` : tuple[str,str]
+        Whether the arguments should be optional or not.
+
+
+    Returns
+    -------
+    `parser` : argparse.ArgumentParser
+        The parser with the volume argument added.
+    '''
+
+    parser.add_argument(f'{name}', action='store', type=str, default=default_name, nargs=nargs[0],
+        help=f'The name of the {name} volume to be processed. Default is {default_name}.')
+    parser.add_argument(f'{name}_scale', action='store', type=int, default=default_scale, nargs=nargs[1],
+        help=f'The scale of the {name} volume to be processed. Default is {default_scale}.')
 
     return parser
