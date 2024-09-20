@@ -13,7 +13,8 @@ import datetime
 from functools import partial
 from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu_seq.io import load_slice
-from lib.py.helpers import chunk_info, commandline_args, plot_middle_planes, update_hdf5
+from lib.py.commandline_args import add_volume, default_parser
+from lib.py.helpers import chunk_info, plot_middle_planes, update_hdf5
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
@@ -24,27 +25,24 @@ import scipy.ndimage as ndi
 import tqdm
 
 if __name__ == '__main__':
-    sample, scale, m, scheme, chunk_size, verbose = commandline_args({
-        "sample" : "<required>",
-        "scale" : 1,
-        "material" : 0,
-        "scheme" : "edt",
-        "chunk_size" : 256,
-        "verbose" : 2
-    })
+    argparser = default_parser(__doc__)
+    argparser = add_volume(argparser, 'field')
+    argparser.add_argument('-m', '--material', action='store', type=int, default=0,
+        help='The material to segment. Default is 0, which should be soft tissue.')
+    args = argparser.parse_args()
 
-    scales = [32, 16, 8, 4, 2, 1] if scale <= 0 else [scale]
-    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 1)
+    scales = [32, 16, 8, 4, 2, 1] if args.sample_scale <= 0 else [args.sample_scale]
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1)
     Nz, Ny, Nx, _ = bi["dimensions"]
 
-    for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
-        data = f'{binary_root}/segmented/{scheme}/P{m}/{scale}x/{sample}.uint16'
-        output_dir = f'{hdf5_root}/masks/{scale}x'
+    for args.sample_scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
+        data = f'{binary_root}/segmented/{args.field}/P{args.material}/{args.sample_scale}x/{args.sample}.uint16'
+        output_dir = f'{hdf5_root}/masks/{args.sample_scale}x'
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        nz, ny, nx = Nz // scale, Ny // scale, Nx // scale
-        voxel_size = bi["voxel_size"]*scale
+        nz, ny, nx = Nz // args.sample_scale, Ny // args.sample_scale, Nx // args.sample_scale
+        voxel_size = bi["voxel_size"]*args.sample_scale
 
-        if verbose >= 1:
+        if args.verbose >= 1:
             plot_dir = f"{hdf5_root}/processed/blood_mask/"
             pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
 
@@ -68,7 +66,7 @@ if __name__ == '__main__':
             largest_cc = np.argmax(counts)
             mask = (label == largest_cc)
         else:
-            intermediate_folder = f"/tmp/maxibone/labels_blood/{scale}x/"
+            intermediate_folder = f"/tmp/maxibone/labels_blood/{args.sample_scale}x/"
             os.makedirs(intermediate_folder, exist_ok=True)
 
             def label_chunk(i, chunk_size, chunk_prefix):
@@ -77,8 +75,8 @@ if __name__ == '__main__':
                 chunk_length = end-start
                 voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
                 load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
-                if verbose >= 3:
-                    plot_middle_planes(voxel_chunk, plot_dir, f'{sample}_{scale}_{i}_voxels')
+                if args.verbose >= 3:
+                    plot_middle_planes(voxel_chunk, plot_dir, f'{args.sample}_{args.sample_scale}_{i}_voxels')
                 label, n_features = ndi.label(voxel_chunk, output=np.int64)
                 del voxel_chunk
                 label.tofile(f'{chunk_prefix}{i}.int64')
@@ -87,7 +85,7 @@ if __name__ == '__main__':
 
             start = datetime.datetime.now()
             with ThreadPool(n_cores) as pool:
-                label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{sample}_")
+                label_chunk_partial = partial(label_chunk, chunk_size=layers_per_chunk, chunk_prefix=f"{intermediate_folder}/{args.sample}_")
                 n_labels = pool.map(label_chunk_partial, range(n_chunks))
             end = datetime.datetime.now()
             flat_size = nz*ny*nx
@@ -96,20 +94,20 @@ if __name__ == '__main__':
             gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
             print (f'Loading and labelling took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
-            np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample}_n_labels.int64")
+            np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
-            mask = np.zeros((nz,ny,nx),dtype=bool)
-            largest_connected_component(mask, f"{intermediate_folder}/{sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+            mask = np.zeros((nz,ny,nx), dtype=bool)
+            largest_connected_component(mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
 
-        if verbose >= 1:
-            plot_middle_planes(mask, plot_dir, f'{sample}_{scale}_{scheme}_mask')
+        if args.verbose >= 1:
+            plot_middle_planes(mask, plot_dir, f'{args.sample}_{args.sample_scale}_{args.field}_mask')
 
-        update_hdf5(f"{output_dir}/{sample}.h5",
+        update_hdf5(f"{output_dir}/{args.sample}.h5",
                     group_name=f"blood",
                     datasets={'mask':mask},
                     attributes={
-                        'scale': scale,
+                        'scale': args.sample_scale,
                         'voxel_size': voxel_size,
-                        'sample': sample,
+                        'sample': args.sample,
                         'name': "blood_mask"
                     })
