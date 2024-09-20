@@ -52,7 +52,7 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
 
     return parser
 
-def add_volume(parser, name, default_scale, default_name, nargs=('?', '?')):
+def add_volume(parser, name, default_scale=1, default_name='', nargs=('?', '?')):
     '''
     This function adds a volume argument to the parser.
 
