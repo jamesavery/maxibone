@@ -236,6 +236,7 @@ python src/histogram_processing/compute_ridges.py $BONE_DATA/processed/histogram
 
     # E.g. histogram: /mnt/data/MAXIBONE/Goats/tomograms/processed/histograms/770c_pag/bins1.npz
     # TODO glob support / -r --recursive
+    # TODO change to match the other argparse's
     parser.add_argument('histogram', nargs='+',
         help='Specifies one or more histogram files (usually *.npz) to process. If in GUI mode, only the first will be processed. Glob is currently not supported.')
     parser.add_argument('-b', '--batch', action='store_true',

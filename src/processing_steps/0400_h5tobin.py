@@ -47,6 +47,8 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
     Nvols          = len(subvolume_dims)
     Nzs            = subvolume_dims[:,0]
 
+    # TODO Rather than just choosing one of the volumes as the reference in the overlapping regions, make a smooth weighted average based on how "close" each plane is to each of the volumes.
+
     # The ith subvolume in input  starts at sum(Nzs[:(i-1)]) and ends at sum(Nzs[:i])
     # The ith subvolume in output starts at sum(Nzs[:(i-1)]) - sum(vm_shifts[:i])
     input_zstarts         = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)

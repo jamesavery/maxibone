@@ -38,9 +38,8 @@ namespace python_api {
 
 #ifdef _OPENACC
         const int64_t total_size = N.z * N.y * N.x;
-        if (total_size * (sizeof(uint8_t) + (2 * sizeof(float)) + sizeof(uint16_t)) > (9 * 1e9)) { // TODO make automatic - set to ~90% of the 3080's 10 GB
-        if (true) {
-            const shape_t global_shape = { 128, 128, 128 }; // TODO balancing act. Larger results in less wasted compute, while smaller results in more concurrency.
+        if (total_size * (sizeof(uint8_t) + (2 * sizeof(float)) + sizeof(uint16_t)) > (1 * 1e9)) { // TODO make automatic - set to ~10% of the 3080's 10 GB to have enough room for multiple concurrent kernels.
+            const shape_t global_shape = { 128, 128, 128 }; // TODO balancing act. Larger results in less wasted compute, while smaller results in more concurrency. Should reflect the size used in the if condition above.
             NS::diffusion_out_of_core(voxels, N, global_shape, kernel, kernel_size, repititions, output);
         } else {
 #endif

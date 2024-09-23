@@ -929,6 +929,10 @@ namespace gpu {
         float *buf0 = (float *) malloc(total_size * sizeof(float));
         float *buf1 = (float *) malloc(total_size * sizeof(float));
 
+        // TODO Istedet for at have staging area, som bliver lavet om og om igen, hvad med at inddele dem i blokke på forhånd, og så for hver tråd, overfoere en blok (og dens naboer til padding), og så reassemble igen. Så burde man kunne fjerne al det arbejde CPU'en laver for at opretholde det samlede og staging billede paa en og samme tid. Men der burde ikke vaere brug for det! Eller rettere, amortiser koeretiden. Men, maaske lige maale paa hvad det er der gaar tid paa allerede, fordi det kan godt vaere at det er neglible. Men egentlig, saa burde det reducere maengden af arbejde, og derved ogsaa tid/varme/stroem.
+
+        // TODO Oventstaaende kan kombineres med rolling buffer, saa man ikke skal overfoerer al data hver gang. Fordi jeg havde tanken med at man kun skulle overfoerer naboer der roer ved den man roer ved, men det er jo ikke helt tilfaeldet, fordi man skal ogsaa overfoerer dem som roer ved dem der roerer. Saa altsaa istedet for 6 naboer i 3d, saa er det 25 naboer. Men med rolling buffer, saa er det i 3d kun 9 nye naboer der skal med over, ikke alle 25 + den man arbejder med. Det burde kunne reducerer dataoverfoerslen betydeligt. Det eneste irreterende er at man skal enten have index for hvilke blokker der relaterer sig til hvilke, eller ogsaa skal man lave copy. Men copy goer jo ikke lige saa ondt, saa laenge at det er inde paa device. Plus, blokkene er store nok til at alt bliver coalesced, hvilket giver god performance.
+
         // Should be faster on CPU, compared to GPU, since the data has to come back to the CPU anyways due to the size. For in-memory, the GPU version is faster, since the transfer back can be avoided.
         // This should be tested to confirm.
         #pragma omp parallel for collapse(3) schedule(static)
@@ -1020,7 +1024,7 @@ namespace gpu {
                                                 valid_y = start_y+y < total_shape.y,
                                                 valid_x = start_x+x < total_shape.x;
                                             if (valid_z && valid_y && valid_x) {
-                                            buf1[dst_index] = buf1_stage[src_index];
+                                                buf1[dst_index] = buf1_stage[src_index];
                                             }
                                         }
                                     }
