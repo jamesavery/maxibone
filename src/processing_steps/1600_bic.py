@@ -33,13 +33,14 @@ if __name__ == '__main__':
     blood_file = h5py.File(f'{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5', 'r')
     blood = blood_file['blood']['mask']
     voxel_size = blood_file["implant"].attrs["voxel_size"]
+    if args.verbose >= 1: print (f'Loaded blood mask with shape {blood.shape} and voxel size {blood_file["blood"].attrs["voxel_size"]}')
     field = np.load(f'{binary_root}/fields/implant-{args.field}/{args.field_scale}x/{args.sample}.npy', mmap_mode='r')
+    if args.verbose >= 1: print (f'Loaded field with shape {field.shape}')
     mask_file = h5py.File(f'{hdf5_root}/masks/{args.mask_scale}x/{args.sample}.h5', 'r')
-    args.mask = mask_file[args.mask]['mask']
+    if args.verbose >= 1: print (f'Loaded mask with shape {mask.shape}')
 
     # Compute the divisable shapes
-    assert blood.shape[0] >= field.shape[0] and blood.shape[0] >= args.mask.shape[0] # blood is the largest, handle others later
-    assert field.shape[0] >= args.mask.shape[0] # field is the largest, handle mask later
+    if args.verbose >= 1: print (f'Computing divisable shapes')
     min_factor = max(args.field_scale, args.mask_scale) // args.sample_scale
     bnz = (blood.shape[0] // min_factor) * min_factor
     fnz = bnz // (args.field_scale // args.sample_scale)
@@ -71,9 +72,10 @@ if __name__ == '__main__':
             plt.savefig(f"{image_output_dir}/{args.sample}_field_{name}.png", bbox_inches='tight')
             plt.clf()
 
+    if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
+    bic(blood, field, mask, args.threshold * args.sample_scale, bics, args.verbose)
 
-    bic(blood, field, args.mask, args.threshold * args.sample_scale, bics)
-
+    if args.verbose >= 1: print (f'Saving BICs to {image_output_dir}')
     plt.plot(bics); plt.savefig(f"{image_output_dir}/{args.sample}_bics.png", bbox_inches='tight'); plt.clf()
     np.save(f"{image_output_dir}/{args.sample}_bics.npy", bics)

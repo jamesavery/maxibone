@@ -18,10 +18,11 @@ namespace python_api {
      * @param mask A binary mask indicating which part of the volume to consider. It has shape `(mNz, mNy, mNx)`, where `mNz = Nz / mask_scale`, `mNy = Ny / mask_scale` and `mNx = Nx / mask_scale` and `mask_scale >= field_scale >= scale >= 1`.
      * @param threshold The threshold for the field. This is the parameter that chooses the distance from the implant surface to consider.
      * @param output The output array. It has shape `(Nz,)`.
+     * @param verbose The verbosity level. If `verbose >= 1`, the function will print out information about the progress. If `verbose >= 2`, the function will print out debug information.
      *
      * @return `void`. The result is stored in the `output` array, which is given as a parameter.
      */
-    void bic_wrapper(const py::array_t<bool> &voxels, const py::array_t<uint16_t> &field, const py::array_t<bool> &mask, const uint16_t threshold, py::array_t<float> &output) {
+    void bic_wrapper(const py::array_t<bool> &voxels, const py::array_t<uint16_t> &field, const py::array_t<bool> &mask, const uint16_t threshold, py::array_t<float> &output, const int verbose = 0) {
         // Get the buffer information
         auto voxels_info = voxels.request();
         auto field_info = field.request();
@@ -43,7 +44,7 @@ namespace python_api {
         output_ndarray<float> packed_output = { output_info.ptr, output_info.shape };
 
         // Call the function
-        NS::bic(packed_voxels, packed_field, packed_mask, threshold, packed_output);
+        NS::bic(packed_voxels, packed_field, packed_mask, threshold, packed_output, verbose);
     }
 
 }
@@ -94,5 +95,5 @@ Returns:
 PYBIND11_MODULE(analysis, m) {
     m.doc() = "Various bone analysis functions."; // optional module docstring
 
-    m.def("bic", &python_api::bic_wrapper, py::arg("voxels").noconvert(), py::arg("field").noconvert(), py::arg("mask").noconvert(), py::arg("threshold"), py::arg("output").noconvert(), __doc_python_api_bic_wrapper);
+    m.def("bic", &python_api::bic_wrapper, py::arg("voxels").noconvert(), py::arg("field").noconvert(), py::arg("mask").noconvert(), py::arg("threshold"), py::arg("output").noconvert(), py::arg("verbose"), __doc_python_api_bic_wrapper);
 }

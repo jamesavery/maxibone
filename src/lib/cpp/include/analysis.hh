@@ -20,10 +20,11 @@ namespace NS {
      * @param mask A binary mask indicating which part of the volume to consider. It has shape `(mNz, mNy, mNx)`, where `mNz = Nz / mask_scale`, `mNy = Ny / mask_scale` and `mNx = Nx / mask_scale` and `mask_scale >= field_scale >= scale >= 1`.
      * @param threshold The threshold for the field. This is the parameter that chooses the distance from the implant surface to consider.
      * @param output The output array. It has shape `(Nz,)`.
+     * @param verbose The verbosity level. If `verbose >= 1`, the function will print out information about the progress. If `verbose >= 2`, the function will print out debug information.
      *
      * @return `void`. The result is stored in the `output` array, which is given as a parameter.
      */
-    void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output);
+    void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output, const int verbose = 0);
 
 } // namespace NS
 

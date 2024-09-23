@@ -6,7 +6,7 @@
 
 namespace cpu_seq {
 
-    void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output) {
+    void bic(const input_ndarray<bool> &voxels, const input_ndarray<uint16_t> &field, const input_ndarray<bool> &mask, uint16_t threshold, output_ndarray<float> &output, const int verbose) {
         // Unpack the input arrays.
         UNPACK_NUMPY(voxels);
         UNPACK_NUMPY(field);
@@ -19,6 +19,11 @@ namespace cpu_seq {
 
         #pragma acc data copyout(output.data[:voxels_Nz])
         for (int64_t z_start = 0; z_start < voxels_Nz; z_start += BLOCK_SIZE) {
+            if (verbose >= 1) {
+                printf("\rComputing BIC: %d%%", (int)(100.0 * (double)z_start / (double)voxels_Nz));
+                fflush(stdout);
+            }
+
             int64_t
                 z_end = std::min(z_start + BLOCK_SIZE, voxels_Nz),
                 this_z = z_end - z_start,
@@ -73,6 +78,11 @@ namespace cpu_seq {
                     output.data[z_start + z] = 1.0f - ((float)count / (float)total);
                 }
             }
+        }
+
+        if (verbose >= 1) {
+            printf("\rComputing BIC: 100%%\n");
+            fflush(stdout);
         }
     }
 
