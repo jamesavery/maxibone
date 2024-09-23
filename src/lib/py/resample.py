@@ -11,7 +11,7 @@ else:
 
 import numpy.ma as ma
 
-def downsample2x(V, verbose=False):
+def downsample2x(V, verbose=0):
     '''
     Downsample a 3D image by a factor of 2 in each dimension.
     The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
@@ -21,8 +21,8 @@ def downsample2x(V, verbose=False):
     ----------
     `V` : numpy.array[Any]
         The input 3D image.
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function prints debug information if verbose >= 2 (which is the debug level).
 
     Returns
     -------
@@ -38,18 +38,18 @@ def downsample2x(V, verbose=False):
     ys = np.linspace(-1, 1, ny)[NA,:]
     cylinder_mask = (xs*xs + ys*ys) <= 1
 
-    if verbose:
+    if verbose >= 2:
         print(f"Rescaling from {Nz, Ny, Nx} to {nz, ny, nx}", flush=True)
         print("Extracting S1")
 
     S1 = V[0:(2*nz):2].astype(np.float32)
 
-    if verbose:
+    if verbose >= 2:
         print("Extracting S2", flush=True)
 
     S2 = V[1:(2 * nz+1):2].astype(np.float32)
 
-    if verbose:
+    if verbose >= 2:
         print(S1.shape, S2.shape)
         print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
         print("Averaging", flush=True)
@@ -57,12 +57,12 @@ def downsample2x(V, verbose=False):
     s1 = S1[:, 0:2*ny:2, 0:2*nx:2] + S1[:, 0:2*ny:2, 1:(2*nx+1):2] + S1[:, 1:(2*ny+1):2, 0:(2*nx):2] + S1[:, 1:(2*ny+1):2, 1:(2*nx+1):2]
     s2 = S2[:, 0:2*ny:2, 0:2*nx:2] + S2[:, 0:2*ny:2, 1:(2*nx+1):2] + S2[:, 1:(2*ny+1):2, 0:(2*nx):2] + S2[:, 1:(2*ny+1):2, 1:(2*nx+1):2]
 
-    if verbose:
+    if verbose >= 2:
         print("Storing")
 
     return (cylinder_mask * (s1+s2) / 8).astype(V.dtype)
 
-def downsample3x(V, verbose=False):
+def downsample3x(V, verbose=0):
     '''
     Downsample a 3D image by a factor of 3 in each dimension.
     The image is assumed to be a 3D array with dimensions (Nz, Ny, Nx).
@@ -72,8 +72,8 @@ def downsample3x(V, verbose=False):
     ----------
     `V` : numpy.array[Any]
         The input 3D image.
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function prints debug information if verbose >= 2 (which is the debug level).
 
     Returns
     -------
@@ -87,23 +87,23 @@ def downsample3x(V, verbose=False):
     ys = np.linspace(-1, 1, ny)[np.newaxis,:]
     cylinder_mask = (xs*xs + ys*ys) <= 1
 
-    if verbose:
+    if verbose >= 2:
         print(f"Rescaling from {Nz, Ny, Nx} to {nz, ny, nx}", flush=True)
         print("Extracting S1")
 
     S1 = V[0:(3 * nz):3].astype(np.float32)
 
-    if verbose:
+    if verbose >= 2:
         print("Extracting S2", flush=True)
 
     S2 = V[1:(3 * nz+1):3].astype(np.float32)
 
-    if verbose:
+    if verbose >= 2:
         print("Extracting S3", flush=True)
 
     S3 = V[2:(3 * nz+2):3].astype(np.float32)
 
-    if verbose:
+    if verbose >= 2:
         print(S1.shape, S2.shape, S3.shape)
         print(S1[0:(2*ny):2, 0:(2*nx):2].shape)
         print("Averaging", flush=True)
@@ -200,7 +200,7 @@ def cart_to_polar(image, nr, ntheta, r=0, R=None):
 
     return sample(image, xs, ys)
 
-def polar_to_cart(polar_image, nx, ny, verbose=False):
+def polar_to_cart(polar_image, nx, ny, verbose=0):
     '''
     Convert a polar image to cartesian coordinates.
     The image is assumed to be a 2D array with dimensions (Nr, Ntheta).
@@ -213,6 +213,8 @@ def polar_to_cart(polar_image, nx, ny, verbose=False):
         The number of x samples.
     `ny` : int
         The number of y samples.
+    `verbose` : int
+        The verbosity level. This function prints debug information if verbose >= 2 (which is the debug level).
 
     Returns
     -------
@@ -224,7 +226,7 @@ def polar_to_cart(polar_image, nx, ny, verbose=False):
     xs = np.arange(nx) + 0.5 - R
     ys = np.arange(ny) + 0.5 - R
 
-    if verbose:
+    if verbose >= 2:
         print(nx, ny, R)
         print(xs.min(), xs.max())
         print(ys.min(), ys.max())
@@ -236,7 +238,7 @@ def polar_to_cart(polar_image, nx, ny, verbose=False):
     rs     = ma.masked_array(rs,     mask=invalid)
     thetas = ma.masked_array(thetas, mask=invalid)
 
-    if verbose:
+    if verbose >= 2:
         print(rs.min(), rs.max())
         print(thetas.min(), thetas.max())
 
