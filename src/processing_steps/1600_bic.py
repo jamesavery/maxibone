@@ -20,8 +20,8 @@ import os
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)
-    argparser = add_volume(argparser, 'field', 2)
-    argparser = add_volume(argparser, 'mask', 2)
+    argparser = add_volume(argparser, 'field', 2, 'gauss+edt')
+    argparser = add_volume(argparser, 'mask', 2, 'bone_region')
     argparser.add_argument('-t', '--threshold', action='store', type=int, default=500,
         help='The threshold for the field. Default is 500.')
     args = argparser.parse_args()
@@ -37,10 +37,13 @@ if __name__ == '__main__':
     field = np.load(f'{binary_root}/fields/implant-{args.field}/{args.field_scale}x/{args.sample}.npy', mmap_mode='r')
     if args.verbose >= 1: print (f'Loaded field with shape {field.shape}')
     mask_file = h5py.File(f'{hdf5_root}/masks/{args.mask_scale}x/{args.sample}.h5', 'r')
+    mask = mask_file[args.mask]['mask']
     if args.verbose >= 1: print (f'Loaded mask with shape {mask.shape}')
 
     # Compute the divisable shapes
     if args.verbose >= 1: print (f'Computing divisable shapes')
+    assert blood.shape[0] >= field.shape[0] and blood.shape[0] >= mask.shape[0] # blood is the largest, handle others later
+    assert field.shape[0] >= mask.shape[0] # field is the largest, handle mask later
     min_factor = max(args.field_scale, args.mask_scale) // args.sample_scale
     bnz = (blood.shape[0] // min_factor) * min_factor
     fnz = bnz // (args.field_scale // args.sample_scale)
@@ -48,7 +51,7 @@ if __name__ == '__main__':
 
     blood = blood[:bnz]
     field = field[:fnz]
-    args.mask = args.mask[:mnz]
+    mask = mask[:mnz]
 
     blood_file.close()
     mask_file.close()
