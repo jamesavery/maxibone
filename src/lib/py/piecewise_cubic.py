@@ -30,7 +30,7 @@ from numpy import array, linspace, zeros, linalg, concatenate
 import numpy as np
 
 # Each data point (x_i,y_i)  defines a row with the coefficients for A1,B1,C1,D1,C2,D2,...,C_N,D_N in the matrix, and y_i on the RHS.
-def mxrow_f (x, borders, verbose=False):
+def mxrow_f (x, borders, verbose=0):
     '''
     Recursive function to construct the matrix row for the function value `f_n(x) = A + B*(x-Xn) + C*(x-Xn)**2 + D*(x-Xn)**3`.
     The function is defined by the borders of the segments, and the current segment number `n`.
@@ -41,8 +41,8 @@ def mxrow_f (x, borders, verbose=False):
         The x-coordinate at which to evaluate the function.
     `borders` : list[float]
         A list of the segment borders, [X0,X1,...,Xn].
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function will only print when `verbose` is 2 or higher (Aka. debug level).
 
     Returns
     -------
@@ -56,7 +56,7 @@ def mxrow_f (x, borders, verbose=False):
 
     Xleft, Xright = borders[-2:] # x >= Xleft & x <= Xright
     n = len(borders)-2          # n is the current segment number
-    if verbose:
+    if verbose >= 2:
         print(f"f_{n}({x}): Xleft, Xright = {np.round([Xleft, Xright], 2)}; borders = {borders}, {len(borders)-1} segments")
 
     if n == 0:
@@ -65,16 +65,16 @@ def mxrow_f (x, borders, verbose=False):
     else:
         # We recursively define the matrix row
         # f_n(x) = f_{n-1}(Xn) + f'_{n-1}(Xn)*(x-Xn) + Cn*(x-Xn)**2 + Dn*(x-Xn)**3
-        if verbose:
+        if verbose >= 2:
             print(f"Recursing down from level {n} to level {n-1}, evaluated at {Xleft}")
         row               = zeros((4 + 2*n,), dtype=float)
         row[:(4+2*(n-1))] = mxrow_f(Xleft, borders[:-1]) + mxrow_df(Xleft, borders[:-1]) * (x-Xleft)
         row[-2:]          = [(x-Xleft)**2, (x-Xleft)**3]
-        if verbose:
+        if verbose >= 2:
             print(f"returning length = {len(row)} row at level {n}")
         return row
 
-def mxrow_df(x, borders, verbose=False):
+def mxrow_df(x, borders, verbose=0):
     '''
     Recursive function to construct the matrix row for the derivative of the function value `f'_n(x) = f'_{n-1}(Xn) + Cn*2*(x-Xn) + Dn*3*(x-Xn)`.
     The function is defined by the borders of the segments, and the current segment number `n`.
@@ -85,8 +85,8 @@ def mxrow_df(x, borders, verbose=False):
         The x-coordinate at which to evaluate the function.
     `borders` : list[float]
         A list of the segment borders, [X0,X1,...,Xn].
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function will only print when `verbose` is 2 or higher (Aka. debug level).
 
     Returns
     -------
@@ -100,7 +100,7 @@ def mxrow_df(x, borders, verbose=False):
 
     Xleft, Xright = borders[-2:] # x >= Xleft & x <= Xright
     n = len(borders)-2           # n is the current segment number
-    if verbose:
+    if verbose >= 2:
         print(f"f'_{n}({x}): Xleft,Xright = {np.round([Xleft, Xright], 2)}; borders = {borders}, {len(borders)-1} segments")
 
     if n==0:
@@ -118,7 +118,7 @@ def mxrow_df(x, borders, verbose=False):
 #
 
 # We can now put these together to construct the matrix and RHS row by row:
-def piecewisecubic_matrix(xs, ys, Xs, verbose=False):
+def piecewisecubic_matrix(xs, ys, Xs, verbose=0):
     '''
     Construct the matrix `A` and the RHS vector `b` for the linear least squares problem to fit a piecewise cubic polynomial to the data points.
 
@@ -130,8 +130,8 @@ def piecewisecubic_matrix(xs, ys, Xs, verbose=False):
         The y-coordinates of the data points.
     `Xs` : numpy.array[float]
         The borders of the segments.
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function will only print when `verbose` is 2 or higher (Aka. debug level).
 
     Returns
     -------
@@ -149,13 +149,13 @@ def piecewisecubic_matrix(xs, ys, Xs, verbose=False):
     Xleft, Xright = Xs[0], Xs[1]
 
     for i in range(len(xs)):
-        if verbose:
+        if verbose >= 2:
             print(f"Xleft, Xright = {Xleft, Xright}, Xs = {Xs}, n = {n}")
         if (xs[i] > Xright):
             n += 1
             Xleft, Xright = Xs[n], Xs[n+1]
 
-        if verbose:
+        if verbose >= 2:
             print(f"A[{i}]: n = {n}, 4+2n = {4 + 2*n}, n+2 = {n+2}")
         A[i,:(4 + 2*n)] = mxrow_f(xs[i], Xs[:(n+2)], verbose)
         b[i] = ys[i]
@@ -232,7 +232,7 @@ def piecewisecubic(pc, all_xs, extrapolation="cubic"):
 
     return concatenate(ys)
 
-def fit_piecewisecubic(xs, ys, Xs, regularization_beta=0, verbose=False):
+def fit_piecewisecubic(xs, ys, Xs, regularization_beta=0, verbose=0):
     '''
     A function to construct the overdetermined linear system of equations and find the least squares optimal approximate solution for a piecewise cubic polynomial.
 
@@ -246,8 +246,8 @@ def fit_piecewisecubic(xs, ys, Xs, regularization_beta=0, verbose=False):
         The borders of the segments.
     `regularization_beta` : float
         The regularization parameter for the least squares problem.
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function will only print when `verbose` is 2 or higher (Aka. debug level).
 
     Returns
     -------
@@ -262,11 +262,11 @@ def fit_piecewisecubic(xs, ys, Xs, regularization_beta=0, verbose=False):
         I          = np.eye(n, n)[3:]
         I[:,5:]   -= np.eye(n-3, n-3)[:,:-2]
         I[:-2,7:] -= np.eye(n-5, n-5)[:,:-2]
-        if verbose:
+        if verbose >= 2:
             print(I)
         Ap  = np.vstack([A,regularization_beta*I])
         bp  = np.concatenate([b,np.zeros((n-3,1))])
-        if verbose:
+        if verbose >= 2:
             print(f"{regularization_beta} {m,n} {A.shape}, {I.shape}, {Ap.shape}, b:{b.shape}, bp:{bp.shape}")
         coefs, residuals, rank, sing = linalg.lstsq(Ap, bp, rcond=None)
     else:
@@ -274,7 +274,7 @@ def fit_piecewisecubic(xs, ys, Xs, regularization_beta=0, verbose=False):
 
     return (coefs.reshape(-1), Xs)
 
-def smooth_fun(xs, ys, n_segments, regularization_beta=0, verbose=False):
+def smooth_fun(xs, ys, n_segments, regularization_beta=0, verbose=0):
     '''
     A function to fit a smooth piecewise cubic polynomial to a set of data points.
     The number of segments is given by `n_segments`.
@@ -289,8 +289,8 @@ def smooth_fun(xs, ys, n_segments, regularization_beta=0, verbose=False):
         The number of segments in the piecewise cubic polynomial.
     `regularization_beta` : float
         The regularization parameter for the least squares problem.
-    `verbose` : bool
-        Print debug information.
+    `verbose` : int
+        The verbosity level. This function will only print when `verbose` is 2 or higher (Aka. debug level).
 
     Returns
     -------
@@ -304,7 +304,7 @@ def smooth_fun(xs, ys, n_segments, regularization_beta=0, verbose=False):
 
 if __name__ == "__main__":
     # A test:
-    verbose = True
+    verbose = 2
 
     # N, m = 100, 50
     # xs = linspace(2,15,N)
@@ -341,9 +341,9 @@ if __name__ == "__main__":
     xs_len = xs.max() - xs.min()
     new_xs = np.linspace(xs.min() - xs_len/2, xs.max() + xs_len/2, 100)
 
-    Ys1 = piecewisecubic(pc, new_xs, verbose=True) # Cubic extrapolation is default
-    Ys2 = piecewisecubic(pc, new_xs, extrapolation="linear", verbose=True)
-    Ys3 = piecewisecubic(pc, new_xs, extrapolation="constant", verbose=True)
+    Ys1 = piecewisecubic(pc, new_xs) # Cubic extrapolation is default
+    Ys2 = piecewisecubic(pc, new_xs, extrapolation="linear")
+    Ys3 = piecewisecubic(pc, new_xs, extrapolation="constant")
 
     plt.plot(xs, ys, c='black', linewidth=2.5)
     plt.plot(new_xs, Ys1, c='r')
