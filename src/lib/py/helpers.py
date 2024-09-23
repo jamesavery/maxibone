@@ -374,7 +374,7 @@ def gauss_kernel(sigma):
 
         return kernel
     else:
-        # Stolen from ndimage
+        # Stolen from ndimage. Makes it easier to compare with scipy.
         sigma2 = sigma * sigma
         x = np.arange(-radius, radius+1)
         phi_x = np.exp(-0.5 / sigma2 * x ** 2)
