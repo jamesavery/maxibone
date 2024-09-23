@@ -11,13 +11,16 @@ namespace cpu_seq {
         UNPACK_NUMPY(voxels);
         UNPACK_NUMPY(field);
         UNPACK_NUMPY(mask);
+        UNPACK_NUMPY(output);
 
         int64_t
             BLOCK_SIZE  = 32,
             field_scale = voxels_Nz / field_Nz,
             mask_scale  = voxels_Nz / mask_Nz;
 
-        #pragma acc data copyout(output.data[:voxels_Nz])
+        float *output_ptr = output.data;
+
+        #pragma acc data copyout(output_ptr[:voxels_Nz])
         for (int64_t z_start = 0; z_start < voxels_Nz; z_start += BLOCK_SIZE) {
             if (verbose >= 1) {
                 printf("\rComputing BIC: %d%%", (int)(100.0 * (double)z_start / (double)voxels_Nz));
@@ -75,7 +78,7 @@ namespace cpu_seq {
                             }
                         }
                     }
-                    output.data[z_start + z] = 1.0f - ((float)count / (float)total);
+                    output_ptr[z_start + z] = 1.0f - ((float)count / (float)total);
                 }
             }
         }
