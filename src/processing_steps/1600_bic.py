@@ -14,6 +14,7 @@ from config.paths import hdf5_root, binary_root
 import h5py
 from lib.cpp.cpu.analysis import bic
 from lib.py.commandline_args import add_volume, default_parser
+from lib.py.helpers import plot_middle_planes
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -57,23 +58,8 @@ if __name__ == '__main__':
     mask_file.close()
 
     if args.verbose >= 2:
-        print (f'Writing debug plane images to {image_output_dir}')
-        nz, ny, nx = blood.shape
-        names = ['yx', 'zx', 'zy']
-        planes = [blood[nz//2,:,:], blood[:,ny//2,:], blood[:,:,nx//2]]
-
-        for name, plane in zip(names, planes):
-            plt.imshow(plane)
-            plt.savefig(f"{image_output_dir}/{args.sample}_blood_{name}.png", bbox_inches='tight')
-            plt.clf()
-
-        nz, ny, nx = field.shape
-        planes = [field[nz//2,:,:], field[:,ny//2,:], field[:,:,nx//2]]
-
-        for name, plane in zip(names, planes):
-            plt.imshow((plane < args.threshold) & (plane > 0))
-            plt.savefig(f"{image_output_dir}/{args.sample}_field_{name}.png", bbox_inches='tight')
-            plt.clf()
+        plot_middle_planes(blood, f'{image_output_dir}', f'{args.sample}_blood', verbose=args.verbose)
+        plot_middle_planes(field, f'{image_output_dir}', f'{args.sample}_field', verbose=args.verbose)
 
     if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
