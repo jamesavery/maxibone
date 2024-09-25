@@ -18,10 +18,11 @@ namespace NS {
      * @param mask The mask to pack.
      * @param n The length of the mask.
      * @param packed The packed mask.
+     * @param verbose Verbosity level. 0: no output, 1: progress output, 2: debug output.
      * @tparam T The type of the packed mask.
      */
     template <typename T>
-    void encode(const uint8_t *mask, const uint64_t n, T *packed);
+    void encode(const uint8_t *mask, const uint64_t n, T *packed, const int verbose = 0);
 
     /**
      * Unpack the given `packed` of length `n` into `mask`.
@@ -32,10 +33,11 @@ namespace NS {
      * @param packed The packed mask.
      * @param n The length of the packed mask.
      * @param mask The unpacked mask.
+     * @param verbose Verbosity level. 0: no output, 1: progress output, 2: debug output.
      * @tparam T The type of the packed mask.
      */
     template <typename T>
-    void decode(const T *packed, const uint64_t n, mask_type *mask);
+    void decode(const T *packed, const uint64_t n, mask_type *mask, const int verbose = 0);
 
     /**
      * Extract a slice (or chunk) of the bitpacked data `packed`, into `slice`.
@@ -47,10 +49,11 @@ namespace NS {
      * @param slice_shape The shape of the slice.
      * @param offset The offset of the slice.
      * @param slice The extracted slice.
+     * @param verbose Verbosity level. 0: no output, 1: progress output, 2: debug output.
      * @tparam T The type of the packed data.
      */
     template <typename T>
-    void slice(const T *packed, const shape_t &total_shape, const shape_t &slice_shape, const shape_t &offset, T *slice);
+    void slice(const T *packed, const shape_t &total_shape, const shape_t &slice_shape, const shape_t &offset, T *slice, const int verbose = 0);
 
 } // namespace NS
 

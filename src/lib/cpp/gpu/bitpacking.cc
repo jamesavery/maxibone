@@ -18,7 +18,7 @@ namespace gpu {
     // 7. Using num_workers to allow for more threads per block (This allows for more threads to be executed in parallel) This shouldn't be applied, since it congests the memory.
 
     template <typename T>
-    void encode(const uint8_t *mask, const uint64_t n, T *packed) {
+    void encode(const uint8_t *mask, const uint64_t n, T *packed, const int verbose) {
         constexpr uint8_t
             T_bits = sizeof(T)*8,
             T_words = T_bits / sizeof(uint32_t),
@@ -29,10 +29,23 @@ namespace gpu {
             buffer_size = (uint32_t)vec_size*(uint32_t)T_words,
             block_size = (uint32_t)worker_size*buffer_size;
 
+        // Blocks is the number of GPU blocks, i.e. one per SM.
         uint32_t n_blocks = (uint32_t) ((n/sizeof(uint32_t) + (uint64_t)block_size - 1) / (uint64_t)block_size);
 
         const uint32_t *mask32 = (const uint32_t *) mask;
         uint32_t local[buffer_size]; // Shared memory
+
+        if (verbose >= 2) {
+            std::cout << "Packing " << n << " bits into " << n/(uint64_t)T_bits << " " << sizeof(T)*8 << "-bit integers" << std::endl;
+            std::cout << "T_bits: " << (uint32_t)T_bits << std::endl;
+            std::cout << "T_words: " << (uint32_t)T_words << std::endl;
+            std::cout << "vec_size: " << (uint32_t)vec_size << std::endl;
+            std::cout << "vec_transactions: " << (uint32_t)vec_transactions << std::endl;
+            std::cout << "worker_size: " << (uint32_t)worker_size << std::endl;
+            std::cout << "buffer_size: " << (uint32_t)buffer_size << std::endl;
+            std::cout << "block_size: " << (uint32_t)block_size << std::endl;
+            std::cout << "n_blocks: " << n_blocks << std::endl;
+        }
 
         #pragma acc data copyin(mask32[0:n/sizeof(uint32_t)]) copyout(packed[0:n/(uint64_t)T_bits])
         #pragma acc parallel vector_length(vec_size) num_workers(worker_size)
@@ -74,7 +87,7 @@ namespace gpu {
     }
 
     template <typename T>
-    void decode(const T *packed, const uint64_t n, mask_type *mask) {
+    void decode(const T *packed, const uint64_t n, mask_type *mask, const int verbose) {
         constexpr uint8_t
             T_bits = sizeof(T)*8,
             vec_size = 32,
@@ -87,6 +100,17 @@ namespace gpu {
 
         uint32_t local[buffer_size]; // Shared memory. Padded to uint32_t to avoid bank conflicts
 
+        if (verbose >= 2) {
+            std::cout << "Unpacking " << n/(uint64_t)T_bits << " " << sizeof(T)*8 << "-bit integers into " << n << " bits" << std::endl;
+            std::cout << "T_bits: " << (uint32_t)T_bits << std::endl;
+            std::cout << "vec_size: " << (uint32_t)vec_size << std::endl;
+            std::cout << "worker_size: " << (uint32_t)worker_size << std::endl;
+            std::cout << "buffer_size: " << (uint32_t)buffer_size << std::endl;
+            std::cout << "block_size: " << (uint32_t)block_size << std::endl;
+            std::cout << "n_blocks: " << n_blocks << std::endl;
+        }
+
+        // TODO Progress cannot be printed since this is a single kernel. If the implementation becomes multi-kernel, progress can be printed.
         #pragma acc data copyin(packed[0:n/(uint64_t)T_bits]) copyout(mask[0:n])
         #pragma acc parallel vector_length(vec_size) num_workers(worker_size)
         {
@@ -122,10 +146,15 @@ namespace gpu {
 
     template <typename T>
     void slice(const T *packed, const shape_t &total_shape, const shape_t &slice_shape,
-               const shape_t &offset, T *slice) {
+               const shape_t &offset, T *slice, const int verbose) {
         auto [Nz, Ny, Nx] = total_shape;
         auto [sz, sy, sx] = slice_shape;
         auto [oz, oy, ox] = offset;
+
+        if (verbose >= 2) {
+            std::cout << "Extracting slice of shape (" << sz << ", " << sy << ", " << sx << ") from offset (" << oz << ", " << oy << ", " << ox << ")" << std::endl;
+            std::cout << "Total shape is (" << Nz << ", " << Ny << ", " << Nx << ")" << std::endl;
+        }
 
         for (uint64_t z = 0; z < sz; z++) {
             for (uint64_t y = 0; y < sy; y++) {

@@ -7,8 +7,12 @@
 namespace cpu_seq {
 
     template <typename T>
-    void encode(const uint8_t *mask, const uint64_t n, T *packed) {
+    void encode(const uint8_t *mask, const uint64_t n, T *packed, const int verbose) {
         constexpr uint64_t T_bits = sizeof(T)*8;
+
+        if (verbose >= 2) {
+            std::cout << "Packing " << n << " bits into " << n/T_bits << " " << sizeof(T)*8 << "-bit integers" << std::endl;
+        }
 
         #pragma omp parallel for
         for (uint64_t i = 0; i < n; i += T_bits) {
@@ -21,8 +25,12 @@ namespace cpu_seq {
     }
 
     template <typename T>
-    void decode(const T *packed, const uint64_t n, mask_type *mask) {
+    void decode(const T *packed, const uint64_t n, mask_type *mask, const int verbose) {
         constexpr uint64_t T_bits = sizeof(T)*8;
+
+        if (verbose >= 2) {
+            std::cout << "Unpacking " << n/T_bits << " " << sizeof(T)*8 << "-bit integers into " << n << " bits" << std::endl;
+        }
 
         #pragma omp parallel for
         for (uint64_t i = 0; i < n; i += T_bits) {
@@ -35,10 +43,15 @@ namespace cpu_seq {
 
     template <typename T>
     void slice(const T *packed, const shape_t &total_shape, const shape_t &slice_shape,
-               const shape_t &offset, T *slice) {
+               const shape_t &offset, T *slice, const int verbose) {
         auto [Nz, Ny, Nx] = total_shape;
         auto [sz, sy, sx] = slice_shape;
         auto [oz, oy, ox] = offset;
+
+        if (verbose >= 2) {
+            std::cout << "Extracting slice of shape (" << sz << ", " << sy << ", " << sx << ") from offset (" << oz << ", " << oy << ", " << ox << ")" << std::endl;
+            std::cout << "Total shape is (" << Nz << ", " << Ny << ", " << Nx << ")" << std::endl;
+        }
 
         #pragma omp parallel for
         for (uint64_t z = 0; z < sz; z++) {
