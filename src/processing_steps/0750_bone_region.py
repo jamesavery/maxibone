@@ -230,7 +230,7 @@ if __name__ == "__main__":
     implant_dilate_voxels = 2 * int(round(implant_dilate_diameter / (2 * voxel_size))) + 1 # Scale & ensure odd length
     bitpacked = nx % 32 == 0
     if bitpacked:
-        bone_region_tmp = bitpack_encode(bone_mask1)
+        bone_region_tmp = bitpack_encode(bone_mask1, verbose=args.verbose)
     else:
         bone_region_tmp = bone_mask1.astype(np.uint8)
     del bone_mask1
@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
     for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
         if bitpacked:
-            packed_implant = bitpack_encode(solid_implant)
+            packed_implant = bitpack_encode(solid_implant, verbose=args.verbose)
         else:
             packed_implant = solid_implant
         del solid_implant
@@ -252,7 +252,7 @@ if __name__ == "__main__":
         bone_region_tmp &= ~dilated_implant
 
     if bitpacked:
-        bone_region_mask = bitpack_decode(bone_region_tmp)
+        bone_region_mask = bitpack_decode(bone_region_tmp, verbose=args.verbose)
     else:
         bone_region_mask = bone_region_tmp.astype(bool)
     del bone_region_tmp
@@ -261,7 +261,7 @@ if __name__ == "__main__":
 
     if args.verbose >= 2:
         if bitpacked:
-            dilated_implant_unpacked = bitpack_decode(dilated_implant)
+            dilated_implant_unpacked = bitpack_decode(dilated_implant, verbose=args.verbose)
         else:
             dilated_implant_unpacked = dilated_implant
         voxels_implanted = voxels.copy()

@@ -13,7 +13,7 @@ namespace py = pybind11;
 namespace python_api {
 
     template <typename T>
-    void encode(const py::array_t<uint8_t> &np_mask, py::array_t<T> &np_packed) {
+    void encode(const py::array_t<uint8_t> &np_mask, py::array_t<T> &np_packed, const int verbose) {
         constexpr uint64_t T_bits = sizeof(T)*8;
 
         auto mask_info = np_mask.request();
@@ -25,11 +25,11 @@ namespace python_api {
         const uint8_t *mask = static_cast<const uint8_t*>(mask_info.ptr);
         T *packed = static_cast<T*>(packed_info.ptr);
 
-        NS::encode(mask, mask_info.size, packed);
+        NS::encode(mask, mask_info.size, packed, verbose);
     }
 
     template <typename T>
-    void decode(const py::array_t<T> &np_packed, py::array_t<uint8_t> &np_mask) {
+    void decode(const py::array_t<T> &np_packed, py::array_t<uint8_t> &np_mask, const int verbose) {
         constexpr uint64_t T_bits = sizeof(T)*8;
 
         auto packed_info = np_packed.request();
@@ -40,7 +40,7 @@ namespace python_api {
         const T *packed = static_cast<const T*>(packed_info.ptr);
         uint8_t *mask = static_cast<uint8_t*>(mask_info.ptr);
 
-        NS::decode(packed, mask_info.size, mask);
+        NS::decode(packed, mask_info.size, mask, verbose);
     }
 
 }
@@ -50,13 +50,13 @@ PYBIND11_MODULE(bitpacking, m) {
 
     // TODO Currently, the GPU implementation only supports uint32_t.
 
-    //m.def("encode", &python_api::encode<uint8_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert());
-    //m.def("encode", &python_api::encode<uint16_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert());
-    m.def("encode", &python_api::encode<uint32_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert());
-    //m.def("encode", &python_api::encode<uint64_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert());
+    //m.def("encode", &python_api::encode<uint8_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert(), py::arg("verbose") = 0);
+    //m.def("encode", &python_api::encode<uint16_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert(), py::arg("verbose") = 0);
+    m.def("encode", &python_api::encode<uint32_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert(), py::arg("verbose") = 0);
+    //m.def("encode", &python_api::encode<uint64_t>, py::arg("np_mask").noconvert(), py::arg("np_packed").noconvert(), py::arg("verbose") = 0);
 
-    //m.def("decode", &python_api::decode<uint8_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert());
-    //m.def("decode", &python_api::decode<uint16_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert());
-    m.def("decode", &python_api::decode<uint32_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert());
-    //m.def("decode", &python_api::decode<uint64_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert());
+    //m.def("decode", &python_api::decode<uint8_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert(), py::arg("verbose") = 0);
+    //m.def("decode", &python_api::decode<uint16_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert(), py::arg("verbose") = 0);
+    m.def("decode", &python_api::decode<uint32_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert(), py::arg("verbose") = 0);
+    //m.def("decode", &python_api::decode<uint64_t>, py::arg("np_packed").noconvert(), py::arg("np_mask").noconvert(), py::arg("verbose") = 0);
 }

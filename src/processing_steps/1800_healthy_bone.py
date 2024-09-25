@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     if args.verbose >= 1:
         print (f'Writing soft tissue debug plane images to {image_output_dir}')
-        soft = bitpack_decode(soft_bp)
+        soft = bitpack_decode(soft_bp, verbose=args.verbose)
         names = ['yx', 'zx', 'zy']
         planes = [soft[nz//2,:,:], soft[:,ny//2,:], soft[:,:,nx//2]]
         for name, plane in zip(names, planes):
@@ -107,7 +107,7 @@ if __name__ == '__main__':
 
     bone_bp = bitpack_encode(bone_threshed)
     bone_bp_opened = open_3d(bone_bp, opening_voxels)
-    bone_opened = bitpack_decode(bone_bp_opened)
+    bone_opened = bitpack_decode(bone_bp_opened, verbose=args.verbose)
     del bone_bp
 
     if args.verbose >= 1:
@@ -121,7 +121,7 @@ if __name__ == '__main__':
             plt.clf()
 
     disted_bp = soft_bp & bone_bp_opened
-    disted = bitpack_decode(disted_bp)
+    disted = bitpack_decode(disted_bp, verbose=args.verbose)
 
     if args.verbose >= 1:
         print (f'Writing distance debug plane images to {image_output_dir}')

@@ -21,7 +21,7 @@ import pathlib
 import scipy.signal as signal
 import tqdm
 
-def bitpack_decode(src, dst=None, block_size=32):
+def bitpack_decode(src, dst=None, block_size=32, verbose=0):
     '''
     Decode a 3D image with bitpacking.
     It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
@@ -34,6 +34,8 @@ def bitpack_decode(src, dst=None, block_size=32):
         The decoded image. If None, a new array is created and returned.
     `block_size` : int
         The size of the z dimension of the blocks to decode. Default is 32.
+    `verbose` : int
+        The verbosity level. Default is 0. If 1, a progress bar is shown.
 
     Returns
     -------
@@ -51,11 +53,11 @@ def bitpack_decode(src, dst=None, block_size=32):
     for i in range(blocks):
         start, end = i*block_size, (i+1)*block_size
         end = min(end, nz)
-        lib_bitpacking.decode(src[start:end], dst[start:end])
+        lib_bitpacking.decode(src[start:end], dst[start:end], verbose)
 
     return dst
 
-def bitpack_encode(src, dst=None, block_size=32):
+def bitpack_encode(src, dst=None, block_size=32, verbose=0):
     '''
     Encode a 3D image with bitpacking.
     It is done in blocks of size `block_size`, to ensure that the target device has enough memory.
@@ -68,6 +70,8 @@ def bitpack_encode(src, dst=None, block_size=32):
         The encoded image. If None, a new array is created and returned.
     `block_size` : int
         The size of the z dimension of the blocks to encode. Default is 32.
+    `verbose` : int
+        The verbosity level. Default is 0. If 1, a progress bar is shown.
 
     Returns
     -------
@@ -90,7 +94,7 @@ def bitpack_encode(src, dst=None, block_size=32):
     for i in range(blocks):
         start, end = i*block_size, (i+1)*block_size
         end = min(end, nz)
-        lib_bitpacking.encode(src[start:end], dst[start:end])
+        lib_bitpacking.encode(src[start:end], dst[start:end], verbose)
 
     return dst
 
