@@ -121,7 +121,7 @@ if __name__ == "__main__":
             np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
         implant_mask = np.zeros((nz,ny,nx),dtype=bool)
-        largest_connected_component(implant_mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+        largest_connected_component(implant_mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
     if args.verbose >= 2:
         plot_middle_planes(implant_mask, plot_dir, args.sample)

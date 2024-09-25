@@ -112,7 +112,7 @@ def largest_cc_of(mask, mask_name):
         np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
         largest_component = np.zeros((nz, ny, nx), dtype=bool)
-        largest_connected_component(largest_component, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), True)
+        largest_connected_component(largest_component, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
         return largest_component
 
