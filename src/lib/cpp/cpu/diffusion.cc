@@ -59,7 +59,7 @@ namespace cpu_par {
         }
     }
 
-    // Use I/O functions rather than reimplementing the same functionality!
+    // TODO Use I/O functions rather than reimplementing the same functionality!
     // padding is padding*ny*nx - i.e. number of padding layers in flat size
     template <typename T>
     void load_partial(FILE *f, T *__restrict__ buffer, const int64_t buffer_size, const int64_t offset, const int64_t size, const int64_t total_size, const int64_t padding) {
@@ -150,8 +150,9 @@ namespace cpu_par {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -161,10 +162,16 @@ namespace cpu_par {
         uint8_t *buffer_dst = (uint8_t *) aligned_alloc(disk_block_size, chunk_size*sizeof(uint8_t));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
+            if (verbose >= 1) {
+                std::cout << "\rConverting float to uint8: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             convert_float_to_uint8(buffer_src, buffer_dst, size);
             store_partial(file_dst, buffer_dst, chunk, size, 0);
+        }
+        if (verbose >= 1) {
+            std::cout << "\rConversion of float to uint8 is complete!" << std::endl;
         }
 
         free(buffer_dst);
@@ -195,8 +202,9 @@ namespace cpu_par {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -206,13 +214,17 @@ namespace cpu_par {
         uint16_t *buffer_dst = (uint16_t *) aligned_alloc(disk_block_size, chunk_size*sizeof(uint16_t));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
-            std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            if (verbose >= 1) {
+                std::cout << "\rConverting float to uint16: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             convert_float_to_uint16(buffer_src, buffer_dst, size);
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
-        std::cout << "\rConversion is complete!" << std::endl;
+        if (verbose >= 1) {
+            std::cout << "\rConversion of float to uint16 is complete!" << std::endl;
+        }
 
         free(buffer_dst);
         free(buffer_src);
@@ -242,8 +254,9 @@ namespace cpu_par {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -253,10 +266,16 @@ namespace cpu_par {
         float *buffer_dst = (float *) aligned_alloc(disk_block_size, chunk_size*sizeof(float));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
+            if (verbose >= 1) {
+                std::cout << "\rConverting uint8 to float: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             convert_uint8_to_float(buffer_src, buffer_dst, size);
             store_partial(file_dst, buffer_dst, chunk, size, 0);
+        }
+        if (verbose >= 1) {
+            std::cout << "\rConversion of uint8 to float is complete!" << std::endl;
         }
 
         free(buffer_dst);
@@ -317,7 +336,7 @@ namespace cpu_par {
         }
     }
 
-    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
+    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose) {
         const int64_t
             total_size = N.z*N.y*N.x,
             radius = kernel_size / 2;
@@ -325,22 +344,44 @@ namespace cpu_par {
         buffers[0] = new float[total_size];
         buffers[1] = new float[total_size];
 
+        if (verbose >= 1) {
+            std::cout << "Converting uint8 to float" << std::endl;
+        }
+
         convert_uint8_to_float(voxels, buffers[0], total_size);
+
         for (int64_t rep = 0; rep < repititions; rep++) {
+            if (verbose >= 1) {
+                std::cout << "\rRepitition: " << rep << "/" << repititions << std::flush;
+            }
+
             diffusion_step(voxels, buffers, N, kernel, radius);
         }
+
+        if (verbose >= 1) {
+            std::cout << "\rDiffusion is complete!" << std::endl;
+        }
+
         convert_float_to_uint16(buffers[0], output, total_size);
+
+        if (verbose >= 1) {
+            std::cout << "Conversion to uint16 is complete!" << std::endl;
+        }
 
         delete[] buffers[0];
         delete[] buffers[1];
         delete[] buffers;
     }
 
-    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const bool verbose) {
+    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const int verbose) {
         std::string
             temp_folder = "/tmp/maxibone",
             temp0 = temp_folder + "/diffusion-temp0.float32",
             temp1 = temp_folder + "/diffusion-temp1.float32";
+
+        if (verbose >= 2) {
+            std::cout << "Storing temporary files in: " << temp0 << " and " << temp1 << std::endl;
+        }
 
         // Create temp folder
         std::filesystem::create_directories(temp_folder);
@@ -361,9 +402,18 @@ namespace cpu_par {
 
         const shape_t global_shape_padded = {global_shape.z+padding, global_shape.y, global_shape.x};
 
-        if (verbose) {
-            // Print the number of blocks
+        if (verbose >= 2) {
+            std::cout << "Radius: " << radius << std::endl;
+            std::cout << "Padding: " << padding << std::endl;
+            std::cout << "Disk block size: " << disk_block_size << std::endl;
+            std::cout << "Total flat size: " << total_flat_size << std::endl;
             std::cout << "Global blocks: " << global_blocks << std::endl;
+            std::cout << "Global flat size: " << global_flat_size << std::endl;
+            std::cout << "Global flat size padded: " << global_flat_size_padded << std::endl;
+            std::cout << "Layer flat size: " << layer_flat_size << std::endl;
+            std::cout << "Disk total flat size: " << disk_total_flat_size << std::endl;
+            std::cout << "Disk global flat size: " << disk_global_flat_size << std::endl;
+            std::cout << "Disk mask flat size: " << disk_mask_flat_size << std::endl;
         }
 
         // Allocate memory. Aligned to block_size, and should overallocate to ensure alignment.
@@ -378,10 +428,14 @@ namespace cpu_par {
             *tmp1 = open_file_read_write(temp1, disk_total_flat_size);
 
         // Convert to float
-        convert_uint8_to_float(input_file, temp0, total_flat_size);
+        convert_uint8_to_float(input_file, temp0, total_flat_size, verbose);
 
         for (int64_t rep = 0; rep < repititions; rep++) {
             for (int64_t global_block = 0; global_block < global_blocks; global_block++) {
+                if (verbose >= 1) {
+                    std::cout << "\rRepitition: " << rep << "/" << repititions << " - Global block: " << global_block << "/" << global_blocks << std::flush;
+                }
+
                 int64_t this_block_size = std::min(global_shape.z, total_shape.z - global_block*global_shape.z) * layer_flat_size;
 
                 // Load the global block
@@ -397,9 +451,12 @@ namespace cpu_par {
             std::swap(temp0, temp1);
             std::swap(tmp0, tmp1);
         }
+        if (verbose >= 1) {
+            std::cout << "\rDiffusion is complete!" << std::endl;
+        }
 
         // Convert to uint8
-        convert_float_to_uint8(temp0, output_file, total_flat_size);
+        convert_float_to_uint8(temp0, output_file, total_flat_size, verbose);
 
         // Free memory
         free(buffers[0]);
@@ -408,6 +465,11 @@ namespace cpu_par {
         free(mask);
         fclose(tmp0);
         fclose(tmp1);
+    }
+
+    #pragma GCC diagnostic ignored "-Wunused-parameter"
+    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose) {
+        std::cout << "Not implemented yet" << std::endl;
     }
 
 }

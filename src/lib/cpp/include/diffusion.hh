@@ -31,8 +31,9 @@ namespace NS {
      * @param kernel_size The size of the kernel.
      * @param repititions The number of repititions to apply the kernel.
      * @param output Pointer to where the result should be stored.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output);
+    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose = 0);
 
     /**
      * Out-of-core 3D diffusion approximation using repeated applications of a 1D gaussian in each dimension.
@@ -49,9 +50,9 @@ namespace NS {
      * @param total_shape The shape of the volume.
      * @param global_shape The shape of each chunk to load in and out.
      * @param repititions How many times to apply the gaussians.
-     * @param verbose Whether debug information should be printed.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const bool verbose);
+    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const int verbose = 0);
 
     /**
      * Out-of-core 3D diffusion approximation using repeated applications of a 1D gaussian in each dimension.
@@ -68,8 +69,9 @@ namespace NS {
      * @param kernel_size The size of the kernel.
      * @param repititions The number of repititions to apply the kernel.
      * @param output Pointer to where the result should be stored.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output);
+    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose = 0);
 
     //
     // Internal functions (i.e. assumed to be called internally in C++).

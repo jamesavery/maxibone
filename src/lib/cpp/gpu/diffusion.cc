@@ -469,8 +469,9 @@ namespace gpu {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_float_to_uint8(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -480,6 +481,9 @@ namespace gpu {
         uint8_t *buffer_dst = (uint8_t *) aligned_alloc(disk_block_size, chunk_size*sizeof(uint8_t));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
+            if (verbose >= 1) {
+                std::cout << "\rConverting float to uint8: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             #pragma acc data copyin(buffer_src[0:chunk_size]) create(buffer_dst[0:chunk_size]) copyout(buffer_dst[0:chunk_size])
@@ -487,6 +491,9 @@ namespace gpu {
                 convert_float_to_uint8(buffer_src, buffer_dst, size);
             }
             store_partial(file_dst, buffer_dst, chunk, size, 0);
+        }
+        if (verbose >= 1) {
+            std::cout << "\rConversion from float to uint8 is complete!" << std::endl;
         }
 
         free(buffer_dst);
@@ -540,8 +547,9 @@ namespace gpu {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_float_to_uint16(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -551,7 +559,9 @@ namespace gpu {
         uint16_t *buffer_dst = (uint16_t *) aligned_alloc(disk_block_size, chunk_size*sizeof(uint16_t));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
-            std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            if (verbose >= 1) {
+                std::cout << "\rConverting float to uint16: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             #pragma acc data copyin(buffer_src[0:chunk_size]) create(buffer_dst[0:chunk_size]) copyout(buffer_dst[0:chunk_size])
@@ -560,7 +570,9 @@ namespace gpu {
             }
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
-        std::cout << "\rConversion is complete!" << std::endl;
+        if (verbose >= 1) {
+            std::cout << "\rConversion from float to uint16 is complete!" << std::endl;
+        }
 
         free(buffer_dst);
         free(buffer_src);
@@ -617,8 +629,9 @@ namespace gpu {
      * @param src The path to the input file.
      * @param dst The path to the output file.
      * @param total_flat_size The size of each file.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size) {
+    void convert_uint8_to_float(const std::string &src, const std::string &dst, const int64_t total_flat_size, const int verbose = 0) {
         constexpr int64_t
             disk_block_size = 4096,
             chunk_size = 2048*disk_block_size;
@@ -628,7 +641,9 @@ namespace gpu {
         float *buffer_dst = (float *) aligned_alloc(disk_block_size, chunk_size*sizeof(float));
 
         for (int64_t chunk = 0; chunk < total_flat_size; chunk += chunk_size) {
-            std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            if (verbose >= 1) {
+                std::cout << "\rConverting: " << chunk / chunk_size << "/" << total_flat_size / chunk_size << std::flush;
+            }
             int64_t size = std::min(chunk_size, total_flat_size - chunk);
             load_partial(file_src, buffer_src, chunk_size, chunk, size, total_flat_size, 0);
             #pragma acc data copyin(buffer_src[0:chunk_size]) create(buffer_dst[0:chunk_size]) copyout(buffer_dst[0:chunk_size])
@@ -637,7 +652,9 @@ namespace gpu {
             }
             store_partial(file_dst, buffer_dst, chunk, size, 0);
         }
-        std::cout << "\rConversion is complete!" << std::endl;
+        if (verbose >= 1) {
+            std::cout << "\rConversion is complete!" << std::endl;
+        }
 
         free(buffer_dst);
         free(buffer_src);
@@ -738,7 +755,7 @@ namespace gpu {
         }
     }
 
-    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
+    void diffusion_in_memory(const uint8_t *__restrict__ voxels, const shape_t &N, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose) {
         constexpr int32_t veclen = 32; // TODO
         const shape_t P = {
             ((N.z + veclen-1) / veclen) * veclen,
@@ -750,24 +767,45 @@ namespace gpu {
             total_size = N.z*N.y*N.x,
             radius = kernel_size / 2;
 
+        if (verbose >= 2) {
+            std::cout << "N: " << N.z << "x" << N.y << "x" << N.x << std::endl;
+            std::cout << "P: " << P.z << "x" << P.y << "x" << P.x << std::endl;
+            std::cout << "Total size: " << total_size << std::endl;
+            std::cout << "Padded size: " << padded_size << std::endl;
+            std::cout << "Kernel size: " << kernel_size << std::endl;
+            std::cout << "Radius: " << radius << std::endl;
+        }
+
         float *buf0 = new float[padded_size];
         float *buf1 = new float[padded_size];
 
         #pragma acc data copyin(voxels[0:total_size], kernel[0:kernel_size]) copyout(output[0:total_size]) create(buf0[0:padded_size], buf1[0:padded_size])
         {
+            if (verbose >= 1) {
+                std::cout << "Converting uint8 to float" << std::endl;
+            }
             convert_uint8_to_float(voxels, buf0, N, P);
             for (int64_t rep = 0; rep < repititions; rep++) {
+                if (verbose >= 1) {
+                    std::cout << "\rDiffusion: " << rep << "/" << repititions << std::flush;
+                }
                 diffusion_step(voxels, buf0, buf1, N, P, kernel, radius);
                 std::swap(buf0, buf1);
             }
+            if (verbose >= 1) {
+                std::cout << "\rDiffusion is complete!" << std::endl;
+            }
             convert_float_to_uint16(buf0, output, N, P);
+            if (verbose >= 1) {
+                std::cout << "Conversion to uint16 is complete!" << std::endl;
+            }
         }
 
         delete[] buf0;
         delete[] buf1;
     }
 
-    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const bool verbose) {
+    void diffusion_on_disk(const std::string &input_file, const float *__restrict__ kernel, const int64_t kernel_size, const std::string &output_file, const shape_t &total_shape, const shape_t &global_shape, const int64_t repititions, const int verbose) {
         std::string
             temp_folder = "/tmp/maxibone",
             temp0 = temp_folder + "/diffusion-temp0.float32",
@@ -824,13 +862,15 @@ namespace gpu {
         }
 
         // Convert to float
-        convert_uint8_to_float(input_file, temp0, total_flat_size);
+        convert_uint8_to_float(input_file, temp0, total_flat_size, verbose);
 
         #pragma acc data copyin(kernel[:kernel_size]) create(mask[:global_flat_size_padded])
         {
             for (int64_t rep = 0; rep < repititions; rep++) {
                 for (int64_t global_block = 0; global_block < global_blocks; global_block++) {
-                    std::cout << "\rDiffusion: " << rep*global_blocks + global_block << "/" << repititions*global_blocks << std::flush;
+                    if (verbose >= 1) {
+                        std::cout << "\rDiffusion: " << rep*global_blocks + global_block << "/" << repititions*global_blocks << std::flush;
+                    }
                     int64_t this_block_size = std::min(global_shape.z, total_shape.z - global_block*global_shape.z) * layer_flat_size;
                     assert (this_block_size <= global_flat_size_padded);
 
@@ -863,7 +903,9 @@ namespace gpu {
                 std::swap(temp0, temp1);
                 std::swap(tmp0, tmp1);
             }
-            std::cout << "\rDiffusion is complete!" << std::endl;
+            if (verbose >= 1) {
+                std::cout << "\rDiffusion is complete!" << std::endl;
+            }
 
             if (PROFILE) {
                 double
@@ -892,7 +934,7 @@ namespace gpu {
         }
 
         // Convert to uint16
-        convert_float_to_uint16(temp0, output_file, total_flat_size);
+        convert_float_to_uint16(temp0, output_file, total_flat_size, verbose);
 
         // Free memory
         free(buf0);
@@ -902,7 +944,7 @@ namespace gpu {
         fclose(tmp1);
     }
 
-    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output) {
+    void diffusion_out_of_core(uint8_t *__restrict__ voxels, const shape_t &total_shape, const shape_t &global_shape, const float *__restrict__ kernel, const int64_t kernel_size, const int64_t repititions, uint16_t *__restrict__ output, const int verbose) {
         // TODO should be a configuration parameter set somewhere global / statically during configuration/compilation.
         const int32_t
             veclen = 32,
@@ -926,12 +968,25 @@ namespace gpu {
             total_size = total_shape.z*total_shape.y*total_shape.x,
             global_size_padded = global_shape_padded.z*global_shape_padded.y*global_shape_padded.x;
 
+        if (verbose >= 2) {
+            std::cout << "Total shape: " << total_shape.z << "x" << total_shape.y << "x" << total_shape.x << std::endl;
+            std::cout << "Global shape: " << global_shape.z << "x" << global_shape.y << "x" << global_shape.x << std::endl;
+            std::cout << "Global shape padded: " << global_shape_padded.z << "x" << global_shape_padded.y << "x" << global_shape_padded.x << std::endl;
+            std::cout << "Blocks shape: " << blocks_shape.z << "x" << blocks_shape.y << "x" << blocks_shape.x << std::endl;
+            std::cout << "Total size: " << total_size << std::endl;
+            std::cout << "Global size padded: " << global_size_padded << std::endl;
+        }
+
         float *buf0 = (float *) malloc(total_size * sizeof(float));
         float *buf1 = (float *) malloc(total_size * sizeof(float));
 
         // TODO Istedet for at have staging area, som bliver lavet om og om igen, hvad med at inddele dem i blokke på forhånd, og så for hver tråd, overfoere en blok (og dens naboer til padding), og så reassemble igen. Så burde man kunne fjerne al det arbejde CPU'en laver for at opretholde det samlede og staging billede paa en og samme tid. Men der burde ikke vaere brug for det! Eller rettere, amortiser koeretiden. Men, maaske lige maale paa hvad det er der gaar tid paa allerede, fordi det kan godt vaere at det er neglible. Men egentlig, saa burde det reducere maengden af arbejde, og derved ogsaa tid/varme/stroem.
 
         // TODO Oventstaaende kan kombineres med rolling buffer, saa man ikke skal overfoerer al data hver gang. Fordi jeg havde tanken med at man kun skulle overfoerer naboer der roer ved den man roer ved, men det er jo ikke helt tilfaeldet, fordi man skal ogsaa overfoerer dem som roer ved dem der roerer. Saa altsaa istedet for 6 naboer i 3d, saa er det 25 naboer. Men med rolling buffer, saa er det i 3d kun 9 nye naboer der skal med over, ikke alle 25 + den man arbejder med. Det burde kunne reducerer dataoverfoerslen betydeligt. Det eneste irreterende er at man skal enten have index for hvilke blokker der relaterer sig til hvilke, eller ogsaa skal man lave copy. Men copy goer jo ikke lige saa ondt, saa laenge at det er inde paa device. Plus, blokkene er store nok til at alt bliver coalesced, hvilket giver god performance.
+
+        if (verbose >= 1) {
+            std::cout << "Converting uint8 to float" << std::endl;
+        }
 
         // Should be faster on CPU, compared to GPU, since the data has to come back to the CPU anyways due to the size. For in-memory, the GPU version is faster, since the transfer back can be avoided.
         // This should be tested to confirm.
@@ -972,10 +1027,11 @@ namespace gpu {
             #pragma acc data create(voxels_stage[:global_size_padded], buf0_stage[:global_size_padded], buf1_stage[:global_size_padded]) copyin(kernel[:kernel_size])
             {
                 for (int64_t rep = 0; rep < repititions; rep++) {
-                    #pragma omp single
-                    printf("\rDiffusion: %*ld/%ld", repititions_digits, rep, repititions);
-                    #pragma omp single
-                    fflush(stdout);
+                    if (verbose >= 1) {
+                        #pragma omp single
+                        std::cout << "\rDiffusion: " << rep << "/" << repititions << std::flush;
+                    }
+
                     #pragma omp for collapse(3) schedule(dynamic)
                     for (int32_t bz = 0; bz < blocks_shape.z; bz++) {
                         for (int32_t by = 0; by < blocks_shape.y; by++) {
@@ -1035,10 +1091,11 @@ namespace gpu {
                     #pragma omp single
                     std::swap(buf0, buf1);
                 }
-                #pragma omp single
-                printf("\rDiffusion is complete!\n");
-                #pragma omp single
-                fflush(stdout);
+
+                if (verbose >= 1) {
+                    #pragma omp single
+                    std::cout << "\rDiffusion is complete!" << std::endl;
+                }
             }
 
             free(voxels_stage);
@@ -1057,6 +1114,10 @@ namespace gpu {
                     output[dst_index] = (uint16_t) std::floor(buf0[src_index] * 65535.0f);
                 }
             }
+        }
+
+        if (verbose >= 1) {
+            std::cout << "Conversion to uint16 is complete!" << std::endl;
         }
 
         free(buf0);
