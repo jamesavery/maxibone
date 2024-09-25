@@ -6,8 +6,16 @@
 
 namespace python_api {
 
-    // Assumes that the chunks are layed out flat
-    int64_t merge_labeled_chunks(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const bool verbose = false) {
+
+    /**
+     * Merge the labeled chunks in `chunks` to have a global labeling across all chunks.
+     * Assumes that each chunk is layed out flat and that they have the same shape, except for the last chunk, which can have less z-slices.
+     *
+     * @param np_chunks The labeled chunks to merge.
+     * @param np_n_labels The number of labels in each chunk.
+     * @param verbose Whether to print debug information.
+     */
+    int64_t merge_labeled_chunks(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const int verbose = 0) {
         auto chunks_info = np_chunks.request();
         auto n_labels_info = np_n_labels.request();
 
@@ -35,7 +43,7 @@ namespace python_api {
      * @param py_global_shape The shape of a chunk.
      * @param verbose Whether to print debug information.
      */
-    int64_t connected_components(const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const bool verbose = false) {
+    int64_t connected_components(const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const int verbose = 0) {
         auto n_labels_info = py_n_labels.request();
         int64_t *n_labels = static_cast<int64_t*>(n_labels_info.ptr);
 
@@ -60,7 +68,7 @@ namespace python_api {
      * @param py_global_shape The shape of a chunk.
      * @param verbose Whether to print debug information.
      */
-    void largest_connected_component(np_array<bool> &result, const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const bool verbose = false) {
+    void largest_connected_component(np_array<bool> &result, const std::string &base_path, np_array<int64_t> &py_n_labels, const std::tuple<int64_t, int64_t, int64_t> &py_total_shape, const std::tuple<int64_t, int64_t, int64_t> &py_global_shape, const int verbose = 0) {
         auto n_labels_info = py_n_labels.request();
         int64_t *n_labels = static_cast<int64_t*>(n_labels_info.ptr);
 
@@ -83,7 +91,7 @@ namespace python_api {
 PYBIND11_MODULE(connected_components, m) {
     m.doc() = "Connected Components"; // optional module docstring
 
-    m.def("connected_components", &python_api::connected_components, py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = false);
-    m.def("largest_connected_component", &python_api::largest_connected_component, py::arg("result").noconvert(), py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = false);
-    m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("verbose") = false);
+    m.def("connected_components", &python_api::connected_components, py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = 0);
+    m.def("largest_connected_component", &python_api::largest_connected_component, py::arg("result").noconvert(), py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = 0);
+    m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("verbose") = 0);
 }

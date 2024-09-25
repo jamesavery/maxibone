@@ -27,7 +27,7 @@ namespace cpu_par {
         }
     }
 
-    int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose) {
+    int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const std::vector<std::vector<int64_t>> &renames, const int verbose) {
         auto cc_app_start = std::chrono::high_resolution_clock::now();
 
         // Apply the renaming to a new global file
@@ -51,7 +51,7 @@ namespace cpu_par {
         assert (e_largest_chunk >= e_global_shape.z && "The largest chunk is smaller than the global shape");
         assert ((chunks-1) * e_global_shape.z + e_largest_chunk == e_total_shape.z && "The chunks don't add up to the total shape");
 
-        if (verbose) {
+        if (verbose >= 2) {
             std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
             std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
             std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
@@ -79,7 +79,7 @@ namespace cpu_par {
             load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
             auto load_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_load = load_end - load_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -87,7 +87,7 @@ namespace cpu_par {
             apply_renaming(chunk, e_this_chunk_size, renames[i]);
             auto apply_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -103,7 +103,7 @@ namespace cpu_par {
             store_flat(chunk, all_file, i*e_chunk_size, e_this_chunk_size);
             auto store_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_store = store_end - store_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "store_partial: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_store.count() / 1e9 << " GB/s" << std::endl;
             }
         }
@@ -120,14 +120,14 @@ namespace cpu_par {
 
         auto cc_app_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_cc_app = cc_app_end - cc_app_start;
-        if (verbose) {
+        if (verbose >= 2) {
             std::cout << "connected_components lut application: " << elapsed_cc_app.count() << " s" << std::endl;
         }
 
         return n_labels[0];
     }
 
-    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose) {
+    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const int verbose) {
         std::vector<bool> found(n_labels+1, false);
         const idx3d strides = { global_shape.y * global_shape.x, global_shape.x, 1 };
         int64_t n_chunks = total_shape.z / global_shape.z; // Assuming that they are divisible
@@ -135,7 +135,7 @@ namespace cpu_par {
         int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
         int64_t *img = (int64_t *) aligned_alloc(b_disk_block_size, chunk_size * sizeof(int64_t));
         for (int64_t chunk = 0; chunk < n_chunks; chunk++) {
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "Chunk " << chunk << " / " << n_chunks << std::endl;
             }
 
@@ -144,14 +144,14 @@ namespace cpu_par {
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
 
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "load_partial: " << (double) (chunk_size*sizeof(int64_t)) / elapsed.count() / 1e9 << " GB/s" << std::endl;
             }
 
             for (int64_t i = 0; i < chunk_size; i++) {
                 int64_t label = img[i];
                 if (label > n_labels || label < 0) {
-                    if (verbose) {
+                    if (verbose >= 2) {
                         std::cout << "Label " << label << " in chunk " << chunk << " at index " << i <<" is outside of bounds 0:" << n_labels << std::endl;
                     }
                     continue;
@@ -173,7 +173,7 @@ namespace cpu_par {
         fclose(file);
     }
 
-    std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose) {
+    std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const int verbose) {
         auto cc_start = std::chrono::high_resolution_clock::now();
         // Check if the call is well-formed
         int64_t n_chunks = n_labels.size();
@@ -190,7 +190,7 @@ namespace cpu_par {
         }
 
         // Generate the adjacency tree
-        std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks);
+        std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks, verbose);
 
         std::vector<std::vector<int64_t>> renames(n_chunks, std::vector<int64_t>());
         for (int64_t i = 0; i < n_chunks; i++) {
@@ -260,7 +260,7 @@ namespace cpu_par {
 
         auto cc_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_cc = cc_end - cc_start;
-        if (verbose) {
+        if (verbose >= 2) {
             std::cout << "connected_components lut building: " << elapsed_cc.count() << " s" << std::endl;
         }
 
@@ -289,7 +289,7 @@ namespace cpu_par {
         }
     }
 
-    void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
+    void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &e_total_shape, const idx3d &e_global_shape, const int verbose) {
         // Apply the renaming to a new global file
         int64_t
             e_global_size = e_global_shape.z * e_global_shape.y * e_global_shape.x,
@@ -299,6 +299,15 @@ namespace cpu_par {
             e_largest_chunk_size = e_largest_chunk * e_global_shape.y * e_global_shape.x,
             b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
             b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size;
+
+        if (verbose >= 2) {
+            std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
+            std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
+            std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
+            std::cout << "Chunks: " << chunks << std::endl;
+            std::cout << "Chunk size: " << e_chunk_size << std::endl;
+            std::cout << "Largest chunk size: " << e_largest_chunk_size << std::endl;
+        }
 
         // Generate the paths to the different chunks
         std::vector<std::string> paths(chunks);
@@ -313,6 +322,12 @@ namespace cpu_par {
             b_aligned_img_size = ((b_img_size + (b_disk_block_size-1)) / b_disk_block_size) * b_disk_block_size,
             e_aligned_img_size = b_aligned_img_size / sizeof(int64_t),
             *debug_image;
+
+        if (verbose >= 2) {
+            std::cout << "Image size: " << b_img_size << std::endl;
+            std::cout << "Aligned image size: " << b_aligned_img_size << std::endl;
+        }
+
         if (DEBUG) {
             debug_image = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_img_size);
             memset(debug_image, 0, b_aligned_img_size);
@@ -325,7 +340,7 @@ namespace cpu_par {
             load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
             auto load_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_load = load_end - load_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -333,7 +348,7 @@ namespace cpu_par {
             apply_renaming(chunk, e_this_chunk_size, renames[i]);
             auto apply_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -353,7 +368,7 @@ namespace cpu_par {
             }
             auto filter_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_filter = filter_end - filter_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "filter_largest: " << (double) (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
             }
         }
@@ -390,9 +405,14 @@ namespace cpu_par {
         return sizes;
     }
 
-    std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks) {
+    std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks, const int verbose) {
         int64_t log_chunks = (int64_t) std::ceil(std::log2(chunks));
         std::vector<std::vector<std::tuple<int64_t, int64_t>>> tree(log_chunks);
+
+        if (verbose >= 2) {
+            std::cout << "Generating adjacency tree with " << log_chunks << " layers." << std::endl;
+        }
+
         for (int64_t layer = 0; layer < log_chunks; layer++) {
             int64_t n_elements = chunks >> (layer+1); // chunks / 2^layer
             int64_t i = 1 << layer; // 1 * 2^layer
@@ -403,10 +423,15 @@ namespace cpu_par {
             }
             tree[layer] = indices;
         }
+
+        if (verbose >= 2) {
+            std::cout << "First layer has " << tree[0].size() << " pairs." << std::endl;
+        }
+
         return tree;
     }
 
-    int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const bool verbose) {
+    int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &e_total_shape, const idx3d &e_global_shape, const int verbose) {
         // Apply the renaming to a new global file
         int64_t
             chunks = renames.size(),
@@ -416,6 +441,15 @@ namespace cpu_par {
             b_largest_chunk_size = e_largest_chunk_size * sizeof(int64_t),
             b_aligned_chunk_size = ((b_largest_chunk_size + b_disk_block_size-1) / b_disk_block_size) * b_disk_block_size,
             e_aligned_chunk_size = b_aligned_chunk_size / sizeof(int64_t);
+
+        if (verbose >= 2) {
+            std::cout << "Largest chunk: " << e_largest_chunk << std::endl;
+            std::cout << "Total shape: " << e_total_shape.z << " " << e_total_shape.y << " " << e_total_shape.x << std::endl;
+            std::cout << "Global shape: " << e_global_shape.z << " " << e_global_shape.y << " " << e_global_shape.x << std::endl;
+            std::cout << "Chunks: " << chunks << std::endl;
+            std::cout << "Chunk size: " << e_chunk_size << std::endl;
+            std::cout << "Largest chunk size: " << e_largest_chunk_size << std::endl;
+        }
 
         // Generate the paths to the different chunks
         std::vector<std::string> paths(chunks);
@@ -435,7 +469,7 @@ namespace cpu_par {
             load_file_flat(chunk, paths[i], 0, e_this_chunk_size);
             auto load_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_load = load_end - load_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "load_file: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_load.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -443,7 +477,7 @@ namespace cpu_par {
             apply_renaming(chunk, e_this_chunk_size, renames[i]);
             auto apply_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_apply = apply_end - apply_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "apply_renaming: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_apply.count() / 1e9 << " GB/s" << std::endl;
             }
 
@@ -451,7 +485,7 @@ namespace cpu_par {
             count_sizes(chunk, sizes, n_labels, e_this_chunk_size);
             auto sizes_end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_sizes = sizes_end - sizes_start;
-            if (verbose) {
+            if (verbose >= 2) {
                 std::cout << "count_sizes: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
             }
         }
@@ -465,7 +499,7 @@ namespace cpu_par {
         }
         auto largest_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_largest = largest_end - largest_start;
-        if (verbose) {
+        if (verbose >= 2) {
             std::cout << "max_element: " << (double) (n_labels*sizeof(int64_t)) / elapsed_largest.count() / 1e9 << " GB/s" << std::endl;
             std::cout << "Largest element is: " << largest << std::endl;
             std::cout << "It occurs " << sizes[largest] << " times" << std::endl;
@@ -474,15 +508,17 @@ namespace cpu_par {
         return largest;
     }
 
-    int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const bool verbose) {
+    int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const int verbose) {
         // Generate the adjacency tree
         auto adj_start = std::chrono::high_resolution_clock::now();
-        std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks);
+        std::vector<std::vector<std::tuple<int64_t, int64_t>>> index_tree = NS::generate_adjacency_tree(n_chunks, verbose);
         auto adj_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_adj = adj_end - adj_start;
-        if (verbose) {
+
+        if (verbose >= 2) {
             std::cout << "generate_adjacency_tree: " << elapsed_adj.count() << " s" << std::endl;
         }
+
         const int64_t chunk_size = global_shape.z * global_shape.y * global_shape.x;
         const idx3d global_strides = { global_shape.y * global_shape.x, global_shape.x, 1 };
 
@@ -506,7 +542,7 @@ namespace cpu_par {
                 std::vector<int64_t> b(chunks + (r*chunk_size), chunks + (r*chunk_size) + global_strides.z);
                 auto chunk_init = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_chunk_init = chunk_init - chunk_start;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "chunk_init: " << elapsed_chunk_init.count() << " s" << std::endl;
                 }
 
@@ -524,19 +560,19 @@ namespace cpu_par {
 
                 auto chunk_apply = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_chunk_apply = chunk_apply - chunk_init;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "chunk_apply: " << elapsed_chunk_apply.count() << " s" << std::endl;
                 }
 
                 auto [rename_l, rename_r, n_new_labels] = NS::relabel(a, n_labels[l], b, n_labels[r], global_shape, verbose);
                 auto chunk_relabel = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_chunk_relabel = chunk_relabel - chunk_apply;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "chunk_relabel: " << elapsed_chunk_relabel.count() << " s" << std::endl;
                 }
                 n_labels[l] = n_new_labels;
                 n_labels[r] = n_new_labels;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "Found " << n_new_labels << " new labels." << std::endl;
                 }
 
@@ -561,11 +597,11 @@ namespace cpu_par {
 
                 auto chunk_end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_store = chunk_end - chunk_relabel;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "chunk_store: " << elapsed_store.count() << " s" << std::endl;
                 }
                 std::chrono::duration<double> elapsed_chunk = chunk_end - chunk_start;
-                if (verbose) {
+                if (verbose >= 2) {
                     std::cout << "chunk_total: " << elapsed_chunk.count() << " s" << std::endl;
                 }
             }
@@ -648,7 +684,7 @@ namespace cpu_par {
         return next-1;
     }
 
-    std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose) {
+    std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const int verbose) {
         mapping_t mapping_a(n_labels_a+1);
         mapping_t mapping_b(n_labels_b+1);
         std::vector<int64_t> rename_a(n_labels_a+1, 0);
@@ -656,7 +692,7 @@ namespace cpu_par {
 
         // TODO parallel where applicable? Do something with scan to get new global labels?
 
-        if (verbose) {
+        if (verbose >= 2) {
             std::cout << "Relabeling" << std::endl;
         }
 

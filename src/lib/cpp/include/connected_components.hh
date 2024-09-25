@@ -21,10 +21,10 @@ namespace NS {
      * @param total_shape The shape of the total volume.
      * @param global_shape The shape of a chunk.
      * @param renames The renaming LUT.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      * @return The number of labels in the new volume.
      */
-    int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const bool verbose);
+    int64_t apply_renamings(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &total_shape, const idx3d &global_shape, const std::vector<std::vector<int64_t>> &renames, const int verbose = 0);
 
     /**
      * Compute the connected components of the labeled chunks in `base_path`, essentially merging the labels so that there exist a global labeling across all chunks.
@@ -33,9 +33,9 @@ namespace NS {
      * @param base_path The path to the directory and prefix of the labeled chunks.
      * @param n_labels The number of labels in each chunk.
      * @param global_shape The shape of a chunk.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
-    std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const bool verbose);
+    std::vector<std::vector<int64_t>> connected_components(const std::string &base_path, std::vector<int64_t> &n_labels, const idx3d &global_shape, const int verbose = 0);
 
     /**
      * Find the largest connected component in the labeled chunks in `base_path`.
@@ -48,9 +48,9 @@ namespace NS {
      * @param n_labels The number of labels in each chunk.
      * @param total_shape The shape of the total volume.
      * @param global_shape The shape of a chunk.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &total_shape, const idx3d &global_shape, const bool verbose);
+    void filter_largest(const std::string &base_path, bool *__restrict__ mask, const std::vector<std::vector<int64_t>> &renames, const int64_t largest, const idx3d &total_shape, const idx3d &global_shape, const int verbose = 0);
 
     /**
      * Find the largest connected component in the labeled chunks in `base_path`.
@@ -60,9 +60,9 @@ namespace NS {
      * @param n_labels The number of labels in each chunk.
      * @param total_shape The shape of the total volume.
      * @param global_shape The shape of a chunk.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
-    int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose = false);
+    int64_t largest_component(const std::string &base_path, const std::vector<std::vector<int64_t>> &renames, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const int verbose = 0);
 
     /**
      * Merge the labeled chunks in `chunks` to have a global labeling across all chunks.
@@ -73,9 +73,9 @@ namespace NS {
      * @param n_labels The number of labels in each chunk.
      * @param global_shape The shape of a chunk.
      * @param total_z The total number of z-slices in the volume, i.e. across all chunks.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
-    int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const bool verbose);
+    int64_t merge_labeled_chunks(int64_t *chunks, const int64_t n_chunks, int64_t *n_labels, const idx3d &global_shape, const int64_t total_z, const int verbose = 0);
 
     //
     // Internal Functions
@@ -109,8 +109,9 @@ namespace NS {
      * @param n_labels The number of labels in each chunk.
      * @param total_shape The shape of the total volume.
      * @param global_shape The shape of a chunk.
+     * @param verbose The verbosity level. Default is 0.
      */
-    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const bool verbose);
+    void canonical_names_and_size(const std::string &path, int64_t *__restrict__ out, const int64_t n_labels, const idx3d &total_shape, const idx3d &global_shape, const int verbose = 0);
 
     /**
      * Count the sizes of each label in the given chunk `img`.
@@ -151,9 +152,10 @@ namespace NS {
      * The first layer will have n_chunks // 2 pairs, the second layer will have n_chunks // 4 pairs, and so on until the final layer, which will have one pair.
      *
      * @param chunks The number of chunks. Must be a power of 2.
+     * @param verbose The verbosity level. Default is 0.
      * @return The adjacency tree.
      */
-    std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks);
+    std::vector<std::vector<std::tuple<int64_t, int64_t>>> generate_adjacency_tree(const int64_t chunks, const int verbose = 0);
 
     /**
      * Ensure that the labels in the renaming LUTs are consecutive.
@@ -173,10 +175,10 @@ namespace NS {
      * @param b The second chunk.
      * @param n_labels_b The number of labels in the second chunk.
      * @param global_shape The shape of a chunk.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      * @return A tuple containing the renaming LUTs for each chunk and the number of labels in the new volume.
      */
-    std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const bool verbose);
+    std::tuple<std::vector<int64_t>, std::vector<int64_t>, int64_t> relabel(const std::vector<int64_t> &a, const int64_t n_labels_a, const std::vector<int64_t> &b, const int64_t n_labels_b, const idx3d &global_shape, const int verbose = 0);
 
     //
     // Debugging functions
