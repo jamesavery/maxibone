@@ -91,7 +91,7 @@ if __name__ == '__main__':
             print(f"Using {n_layers} layers of {ny}x{nx} slices")
             start = timeit.default_timer()
 
-        diffusion(input_path, kernel, output_path, (nz, ny, nx), (n_layers, ny, nx), args.repetitions)
+        diffusion(input_path, kernel, output_path, (nz, ny, nx), (n_layers, ny, nx), args.repetitions, args.verbose)
 
         if args.verbose >= 1:
             diffusion_time = timeit.default_timer() - start
@@ -105,7 +105,7 @@ if __name__ == '__main__':
             start = timeit.default_timer()
             print(f"Repeated Gauss blurs ({args.repetitions} iterations, sigma_voxels={sigma_voxels}, kernel length={kernel.shape} coefficients)")
 
-        diffusion(implant_mask, kernel, result, args.repetitions)
+        diffusion(implant_mask, kernel, result, args.repetitions, args.verbose)
 
         if args.verbose >= 1:
             diffusion_time = timeit.default_timer() - start
