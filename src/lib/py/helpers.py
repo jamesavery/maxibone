@@ -50,7 +50,11 @@ def bitpack_decode(src, dst=None, block_size=32, verbose=0):
         dst = np.empty((nz, ny, nx*32), dtype=np.uint8)
 
     blocks = (nz + block_size - 1) // block_size
-    for i in range(blocks):
+    if verbose >= 1:
+        iterator = tqdm.tqdm(range(blocks), desc="Bitpack decoding", unit="block")
+    else:
+        iterator = range(blocks)
+    for i in iterator:
         start, end = i*block_size, (i+1)*block_size
         end = min(end, nz)
         lib_bitpacking.decode(src[start:end], dst[start:end], verbose)
@@ -91,7 +95,11 @@ def bitpack_encode(src, dst=None, block_size=32, verbose=0):
         dst = np.empty((nz, ny, nx//32), dtype=np.uint32)
 
     blocks = (nz + block_size - 1) // block_size
-    for i in range(blocks):
+    if verbose >= 1:
+        iterator = tqdm.tqdm(range(blocks), desc="Bitpack encoding", unit="block")
+    else:
+        iterator = range(blocks)
+    for i in iterator:
         start, end = i*block_size, (i+1)*block_size
         end = min(end, nz)
         lib_bitpacking.encode(src[start:end], dst[start:end], verbose)
