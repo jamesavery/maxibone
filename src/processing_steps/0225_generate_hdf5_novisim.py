@@ -30,6 +30,8 @@ if __name__ == "__main__":
     file_path = f'{hdf5_root}/raw/rec_{nx}x{ny}x{nz}_{args.sample}.raw'
     image_output_dir = f'{hdf5_root}/processed/novisim'
 
+    if args.verbose >= 1: print (f'Reading from {file_path}, writing to {image_output_dir}')
+
     os.makedirs(image_output_dir, exist_ok=True)
 
     tomo = np.fromfile(file_path, dtype=np.float32).reshape(nz, ny, nx)
@@ -48,12 +50,17 @@ if __name__ == "__main__":
         plot_middle_planes(tomo, image_output_dir, args.sample)
 
     # Scale to 16-bit
-    tomo_norm = (tomo - tomo.min()) / (tomo.max() - tomo.min())
+    tomomin = tomo.min()
+    tomomax = tomo.max()
+    if args.verbose >= 1: print (f'Scaling to 16 bit - Min: {tomomin}, Max: {tomomax}')
+    tomo_norm = (tomo - tomomin) / (tomomax - tomomin)
     tomo_norm *= 2**16 - 1
     tomo_norm = tomo_norm.astype(np.uint16)
 
     # Plot the histogram
     if args.verbose >= 1:
+        print (f'Plotting histogram')
+
         # Compute histogram of tomo_norm
         hist, bins = np.histogram(tomo_norm, bins=1000, range=(0, 2**16))
         hist[0] = 0
@@ -67,7 +74,7 @@ if __name__ == "__main__":
         peaks, meta = find_peaks(smoothed, height=1000)
         scaled_peaks = peaks * (2**16/1000)
         scaled_peaks = scaled_peaks.astype(int)
-        print (scaled_peaks)
+        print (f'Scaled peaks in the histogram: {scaled_peaks}')
 
         # Plot vertical lines where the peaks are
         plt.vlines(scaled_peaks, 0, smoothed[peaks].astype(int), color='r')
@@ -77,12 +84,13 @@ if __name__ == "__main__":
         scaled_valley = valley * (2**16/1000)
         scaled_valley = scaled_valley.astype(int)
         plt.vlines([scaled_valley], 0, smoothed[valley].astype(int), color='g')
-        print (scaled_valley)
+        print (f'The valley is at {scaled_valley}')
         plt.savefig(f"{image_output_dir}/{args.sample}_histogram.png", bbox_inches='tight')
         plt.clf()
 
     # Print metadata keys and attributes
     if args.verbose >= 1:
+        print ('Printing metadata keys and attributes:')
         with h5py.File(f'{hdf5_root}/hdf5-byte/msb/770c_pag.h5', 'r') as meta:
             print (meta.keys())
             print (meta['subvolume_range'])
@@ -90,12 +98,14 @@ if __name__ == "__main__":
             print (meta['metadata']['subvolume0'].attrs.keys())
 
     # Split into least and most significant bytes
+    if args.verbose >= 1: print (f'Splitting into least and most significant bytes')
     tomo_lsb = tomo_norm & 0xff
     tomo_msb = tomo_norm >> 8
     tomo_lsb = tomo_lsb.astype(np.uint8)
     tomo_msb = tomo_msb.astype(np.uint8)
 
     # Create HDF5 files
+    if args.verbose >= 1: print (f'Creating HDF5 files')
     h5_lsb = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/novisim.h5', 'w')
     h5_msb = h5py.File(f'{hdf5_root}/hdf5-byte/msb/novisim.h5', 'w')
 
