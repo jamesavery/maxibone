@@ -23,9 +23,9 @@ namespace gpu {
                         const uint64_t Nr,
                         const std::tuple<uint64_t, uint64_t> &center,
                         const std::tuple<double, double> &vrange,
-                        const bool verbose) {
+                        const int verbose) {
     #ifdef _OPENACC
-        if (verbose) {
+        if (verbose >= 2) {
             auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
             tm local_tm = *localtime(&now);
             printf("Entered function at %02d:%02d:%02d\n", local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
@@ -50,7 +50,7 @@ namespace gpu {
 
         uint64_t initial_block = std::min(image_length, gpu_block_size);
 
-        if (verbose) {
+        if (verbose >= 2) {
             printf("\nStarting %p: (vmin,vmax) = (%g,%g), (Nx,Ny,Nz,Nr) = (%ld,%ld,%ld,%ld)\n", voxels, vmin, vmax, Nx, Ny, Nz, Nr);
             printf("Offset is (%ld,%ld,%ld)\n", z_start, y_start, x_start);
             printf("Allocating result memory (%ld bytes (%.02f Mbytes))\n", memory_needed, memory_needed/1024./1024.);
@@ -109,7 +109,7 @@ namespace gpu {
 
         auto end = std::chrono::steady_clock::now();
 
-        if (verbose) {
+        if (verbose >= 2) {
             std::chrono::duration<double> diff = end - start;
             printf("Compute took %.04f seconds\n", diff.count());
             auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -133,8 +133,8 @@ namespace gpu {
                          const uint64_t field_bins,
                          const std::tuple<double, double> &vrange,
                          const std::tuple<double, double> &frange,
-                         const bool verbose) {
-        if (verbose) {
+                         const int verbose) {
+        if (verbose >= 2) {
             auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
             tm local_tm = *localtime(&now);
             printf("Entered function at %02d:%02d:%02d\n", local_tm.tm_hour, local_tm.tm_min, local_tm.tm_sec);
@@ -143,7 +143,7 @@ namespace gpu {
         auto [nZ, nY, nX] = voxels_shape;
         auto [nz, ny, nx] = field_shape;
 
-        if (verbose) {
+        if (verbose >= 2) {
             printf("voxels shape: %ld %ld %ld\n", nZ, nY, nX);
             printf("field shape: %ld %ld %ld\n", nz, ny, nx);
         }
@@ -168,7 +168,7 @@ namespace gpu {
 
         uint64_t n_iterations = (image_length + gpu_block_size-1) / gpu_block_size;
 
-        if (verbose) {
+        if (verbose >= 2) {
             printf("voxels shape: (%ld,%ld,%ld)\n", nZ, nY, nX);
             printf("field shape: (%ld,%ld,%ld)\n", nz, ny, nx);
             printf("offset: (%ld,%ld,%ld)\n", z_start, y_start, x_start);
@@ -237,7 +237,7 @@ namespace gpu {
 
         auto end = std::chrono::steady_clock::now();
 
-        if (verbose) {
+        if (verbose >= 2) {
             std::chrono::duration<double> diff = end - start;
             printf("Compute took %.04f seconds\n", diff.count());
             auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -258,7 +258,7 @@ namespace gpu {
                                   const uint64_t field_bins,
                                   const std::tuple<double, double> &vrange,
                                   const std::tuple<double, double> &frange,
-                                  const bool verbose) {
+                                  const int verbose) {
         throw std::runtime_error("Not implemented");
     }
 

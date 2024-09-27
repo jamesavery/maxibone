@@ -67,7 +67,7 @@ def axes_histogram_in_memory(voxels, func, ranges, voxel_bins, verbose):
     else:
         vmin, vmax = ranges
     if verbose >= 1: print ("Entering call", datetime.now())
-    func(voxels, (0,0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
+    func(voxels, (0,0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose)
     if verbose >= 1: print ("Exited call", datetime.now())
 
     return x_bins, y_bins, z_bins, r_bins
@@ -107,7 +107,7 @@ def field_histogram_in_memory(voxels, field, func, ranges, voxel_bins, field_bin
         vrange, frange = ranges
 
     if verbose >= 1: print ("Entering call", datetime.now())
-    func(voxels, field, (0,0,0), bins, vrange, frange, verbose >= 1)
+    func(voxels, field, (0,0,0), bins, vrange, frange, verbose)
     if verbose >= 1: print ("Exited call", datetime.now())
 
     return bins
@@ -453,10 +453,10 @@ def run_out_of_core(sample, scale=1, chunk_size=128, z_offset=0, n_chunks=0,
         voxels, fields = load_chunk(sample, scale, zstart, chunk_size, mask, mask_scale, field_names, field_scale)
 
         for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose >= 1)
+            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose)
 
         for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
-            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), verbose >= 1)
+            field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), verbose)
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack

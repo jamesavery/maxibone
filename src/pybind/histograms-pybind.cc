@@ -25,7 +25,7 @@ namespace python_api {
      * @param np_r_bins The output array for the radial histograms.
      * @param center The YX center of the volume. Used for computing the radial position of each voxel for the radial histogram.
      * @param vrange The value range of the voxels.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void axis_histograms(const np_array<voxel_type> np_voxels,
                          const std::tuple<int64_t,int64_t,int64_t> np_offset,
@@ -35,7 +35,7 @@ namespace python_api {
                          np_array<uint64_t> &np_r_bins,
                          const std::tuple<uint64_t, uint64_t> center,
                          const std::tuple<double, double> vrange,
-                         const bool verbose) {
+                         const int verbose = 0) {
 
         py::buffer_info
             voxels_info = np_voxels.request(),
@@ -76,7 +76,7 @@ namespace python_api {
      * @param np_bins The output array for the histogram.
      * @param vrange The value range of the voxels.
      * @param frange The value range of the fields.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void field_histogram(const np_array<voxel_type> &np_voxels,
                          const np_array<field_type> &np_field,
@@ -84,7 +84,7 @@ namespace python_api {
                          np_array<uint64_t> &np_bins,
                          const std::tuple<double, double> vrange,
                          const std::tuple<double, double> frange,
-                         const bool verbose) {
+                         const int verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
             field_info = np_field.request(),
@@ -118,7 +118,7 @@ namespace python_api {
      * @param np_bins The output array for the histogram.
      * @param vrange The value range of the voxels.
      * @param frange The value range of the fields.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void field_histogram_resample(const np_array<voxel_type> np_voxels,
                         const np_array<field_type> np_field,
@@ -127,7 +127,7 @@ namespace python_api {
                         np_array<uint64_t> &np_bins,
                         const std::tuple<double,double> vrange,
                         const std::tuple<double,double> frange,
-                        const bool verbose) {
+                        const int verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
             field_info = np_field.request(),

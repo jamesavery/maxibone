@@ -33,7 +33,7 @@ namespace NS {
      * @param Nr The number of radial bins.
      * @param center The YX center of the volume. Used for computing the radial position of each voxel for the radial histogram.
      * @param vrange The value range of the voxels.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void axis_histogram(const voxel_type __restrict__* voxels,
                         const shape_t &global_shape,
@@ -47,7 +47,7 @@ namespace NS {
                         const uint64_t Nr,
                         const std::tuple<uint64_t, uint64_t> &center,
                         const std::tuple<double, double> &vrange,
-                        const bool verbose);
+                        const int verbose = 0);
 
     /**
      * Computes a 2D field histogram.
@@ -65,7 +65,7 @@ namespace NS {
      * @param field_bins The number of bins for the field histogram.
      * @param vrange The value range of the voxels.
      * @param frange The value range of the fields.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void field_histogram(const voxel_type *__restrict__ voxels,
                          const field_type *__restrict__ field,
@@ -78,7 +78,7 @@ namespace NS {
                          const uint64_t field_bins,
                          const std::tuple<double, double> &vrange,
                          const std::tuple<double, double> &frange,
-                         const bool verbose);
+                         const int verbose = 0);
 
     /**
      * Computes a 2D field histogram.
@@ -96,7 +96,7 @@ namespace NS {
      * @param field_bins The number of bins for the field histogram.
      * @param vrange The value range of the voxels.
      * @param frange The value range of the fields.
-     * @param verbose Whether to print debug information.
+     * @param verbose The verbosity level. Default is 0.
      */
     void field_histogram_resample(const voxel_type *__restrict__ voxels,
                                   const field_type *__restrict__ field,
@@ -109,7 +109,7 @@ namespace NS {
                                   const uint64_t field_bins,
                                   const std::tuple<double, double> &vrange,
                                   const std::tuple<double, double> &frange,
-                                  const bool verbose);
+                                  const int verbose = 0);
 
 } // namespace NS
 
