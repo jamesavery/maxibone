@@ -25,6 +25,7 @@ namespace NS {
      * @param frange The value range of the fields.
      * @param offset The global offset of the volume. Used for out-of-core processing.
      * @param ranges The shape of the volume. Used for out-of-core processing.
+     * @param verbose The verbosity level. Default is 0.
      */
     void material_prob_justonefieldthx(const py::array_t<voxel_type> &np_voxels,
                    const py::array_t<field_type> &np_field,
@@ -33,7 +34,8 @@ namespace NS {
                    const std::pair<voxel_type, voxel_type> &vrange,
                    const std::pair<field_type, field_type> &frange,
                    const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
-                   const std::tuple<uint64_t, uint64_t, uint64_t> &ranges);
+                   const std::tuple<uint64_t, uint64_t, uint64_t> &ranges,
+                   const int verbose = 0);
 
     /**
      * Perform Otsu thresholding on the bins in `np_bins`.

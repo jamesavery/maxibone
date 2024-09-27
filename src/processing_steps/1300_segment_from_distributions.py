@@ -156,9 +156,10 @@ if __name__ == '__main__':
             n_probs = len(P_axes) + len(P_fields)
             result = np.zeros((zend-zstart,Ny,Nx), dtype=np.uint16)
 
-            material_prob_justonefieldthx(voxels,fields[0],P_fields[0],result,
-                                                (vmin,vmax),(fmin,fmax),
-                                                (zstart,0,0), (zend,Ny,Nx));
+            material_prob_justonefieldthx(voxels,fields[0], P_fields[0], result,
+                                                (vmin,vmax), (fmin,fmax),
+                                                (zstart,0,0), (zend,Ny,Nx),
+                                                args.verbose)
 
             if args.verbose >= 1:
                 red = [255,0,0]

@@ -75,7 +75,8 @@ namespace gpu {
             const std::pair<voxel_type, voxel_type> &vrange,
             const std::pair<field_type, field_type> &frange,
             const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
-            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
+            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges,
+            const int verbose) {
         py::buffer_info
             voxels_info = np_voxels.request(),
             field_info  = np_field.request(),
@@ -103,7 +104,10 @@ namespace gpu {
         auto [v_min, v_max] = vrange;
         auto [f_min, f_max] = frange;
 
-        printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n", v_min, v_max, f_min, f_max);
+        if (verbose >= 2) {
+            printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n", v_min, v_max, f_min, f_max);
+            fflush(stdout);
+        }
 
         #pragma acc data copyin(voxels[0:voxels_info.size], field[0:field_info.size], prob[0:prob_info.size]) copyout(result[0:result_info.size])
         {

@@ -13,6 +13,7 @@ namespace python_api {
      * @param frange The value range of the fields.
      * @param offset The global offset of the volume. Used for out-of-core processing.
      * @param ranges The shape of the volume. Used for out-of-core processing.
+     * @param verbose The verbosity level. Default is 0.
      */
     void material_prob_justonefieldthx(
             const py::array_t<voxel_type> &np_voxels,
@@ -22,8 +23,9 @@ namespace python_api {
             const std::pair<voxel_type, voxel_type> &vrange,
             const std::pair<field_type, field_type> &frange,
             const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
-            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
-        NS::material_prob_justonefieldthx(np_voxels, np_field, np_prob, np_result, vrange, frange, offset, ranges);
+            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges,
+            const int verbose = 0) {
+        NS::material_prob_justonefieldthx(np_voxels, np_field, np_prob, np_result, vrange, frange, offset, ranges, verbose);
     }
 
     /**
@@ -48,6 +50,6 @@ namespace python_api {
 PYBIND11_MODULE(label, m) {
     m.doc() = "Functions for applying material probabilities to voxels, based of the histograms and functions fitted to them. "; // optional module docstring
 
-    m.def("material_prob_justonefieldthx", &python_api::material_prob_justonefieldthx, py::arg("np_voxels").noconvert(), py::arg("np_field").noconvert(), py::arg("np_prob").noconvert(), py::arg("np_result").noconvert(), py::arg("vrange"), py::arg("frange"), py::arg("offset"), py::arg("ranges"));
+    m.def("material_prob_justonefieldthx", &python_api::material_prob_justonefieldthx, py::arg("np_voxels").noconvert(), py::arg("np_field").noconvert(), py::arg("np_prob").noconvert(), py::arg("np_result").noconvert(), py::arg("vrange"), py::arg("frange"), py::arg("offset"), py::arg("ranges"), py::arg("verbose") = 0);
     m.def("otsu", &python_api::otsu, py::arg("np_bins").noconvert(), py::arg("np_result").noconvert(), py::arg("step_size"));
 }

@@ -77,7 +77,8 @@ namespace cpu_par {
             const std::pair<voxel_type, voxel_type> &vrange,
             const std::pair<field_type, field_type> &frange,
             const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
-            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
+            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges,
+            const int verbose) {
 
         py::buffer_info
             voxels_info = np_voxels.request(),
@@ -105,7 +106,10 @@ namespace cpu_par {
         auto [v_min, v_max] = vrange;
         auto [f_min, f_max] = frange;
 
-        printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n", v_min, v_max, f_min, f_max);
+        if (verbose >= 2) {
+            printf("v_min, v_max = %d,%d\nf_min, f_max = %d,%d\n", v_min, v_max, f_min, f_max);
+            fflush(stdout);
+        }
 
         #pragma omp parallel for
         for(size_t i = 0; i < (uint64_t) result_info.size; i++) {

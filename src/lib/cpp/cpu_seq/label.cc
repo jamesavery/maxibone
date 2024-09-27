@@ -19,7 +19,8 @@ namespace cpu_seq {
             const std::pair<voxel_type, voxel_type> &vrange,
             const std::pair<field_type, field_type> &frange,
             const std::tuple<uint64_t, uint64_t, uint64_t> &offset,
-            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges) {
+            const std::tuple<uint64_t, uint64_t, uint64_t> &ranges,
+            const int verbose) {
         throw std::runtime_error("Not implemented");
     }
 
