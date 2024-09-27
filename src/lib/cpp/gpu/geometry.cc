@@ -40,8 +40,9 @@ namespace gpu {
             std::array<float, 6> bbox,
             const matrix4x4 &Muvw,
             output_ndarray<float> image,
-            output_ndarray<int64_t> count) {
-        return cpu_seq::cylinder_projection(edt, C, voxel_size, d_min, d_max, theta_min, theta_max, bbox, Muvw, image, count);
+            output_ndarray<int64_t> count,
+            const int verbose) {
+        return cpu_seq::cylinder_projection(edt, C, voxel_size, d_min, d_max, theta_min, theta_max, bbox, Muvw, image, count, verbose);
     }
 
     void fill_implant_mask(const input_ndarray<mask_type> mask,
@@ -180,8 +181,8 @@ namespace gpu {
         }
     }
 
-    std::array<real_t, 9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm) {
-        return cpu_seq::inertia_matrix(mask, cm);
+    std::array<real_t, 9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm, const int verbose) {
+        return cpu_seq::inertia_matrix(mask, cm, verbose);
     }
 
     void inertia_matrices(const input_ndarray<uint64_t> &mask, const input_ndarray<real_t> &cms, output_ndarray<real_t> &output) {
@@ -208,8 +209,9 @@ namespace gpu {
                     const std::array<real_t, 3> u_axis,
                     const std::array<real_t, 3> v_axis,
                     const std::array<real_t, 4> bbox,
-                    output_ndarray<real_t> plane_samples) {
-        return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples);
+                    output_ndarray<real_t> plane_samples,
+                    const int verbose) {
+        return cpu_seq::sample_plane(voxels, voxel_size, cm, u_axis, v_axis, bbox, plane_samples, verbose);
     }
 
     void zero_outside_bbox(const std::array<real_t, 9> &principal_axes,

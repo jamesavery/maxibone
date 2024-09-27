@@ -192,8 +192,9 @@ namespace NS {
      * @param Muvw The transform from zyx (in um) to U'V'W' cylinder FoR (in um)
      * @param image Probability-weighted volume of (class,theta,U)-voxels
      * @param count Number of (class,theta,U)-voxels
+     * @param verbose The verbosity level. Default is 0.
      */
-    void cylinder_projection(const input_ndarray<float> edt, const input_ndarray<uint8_t> C, float voxel_size, float d_min, float d_max, float theta_min, float theta_max, std::array<float,6> bbox, const matrix4x4 &Muvw, output_ndarray<float>    image, output_ndarray<int64_t> count);
+    void cylinder_projection(const input_ndarray<float> edt, const input_ndarray<uint8_t> C, float voxel_size, float d_min, float d_max, float theta_min, float theta_max, std::array<float,6> bbox, const matrix4x4 &Muvw, output_ndarray<float>    image, output_ndarray<int64_t> count, const int verbose = 0);
 
     /**
      * First step of the implant mask filling.
@@ -231,9 +232,10 @@ namespace NS {
      *
      * @param voxels The given tomography.
      * @param cm The given center of mass.
+     * @param verbose The verbosity level. Default is 0.
      * @returns `array<real_t,9>` The 3x3 inertia matrix.
      */
-    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const std::array<real_t,3> &cm);
+    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &voxels, const std::array<real_t,3> &cm, const int verbose = 0);
 
     /**
      * Computes the inertia matrices of the given tomography based of the given center of masses.
@@ -278,10 +280,11 @@ namespace NS {
      * @param v_axis The second axis of the plane.
      * @param bbox The bounding box of the plane in micrometers.
      * @param plane_samples The output array of sampled values.
+     * @param verbose The verbosity level. Default is 0.
      * @tparam T The element type of the input voxels.
      */
     template <typename T>
-    void sample_plane(const input_ndarray<T> &voxels, const real_t voxel_size, const std::array<real_t, 3> cm, const std::array<real_t, 3> u_axis, const std::array<real_t, 3> v_axis, const std::array<real_t, 4>  bbox, output_ndarray<real_t> plane_samples);
+    void sample_plane(const input_ndarray<T> &voxels, const real_t voxel_size, const std::array<real_t, 3> cm, const std::array<real_t, 3> u_axis, const std::array<real_t, 3> v_axis, const std::array<real_t, 4>  bbox, output_ndarray<real_t> plane_samples, const int verbose = 0);
 
     /**
      * Sets voxels to zero that are outside a bounding box. For each voxel, it calculates its position relative to the center of mass and projects this position onto the principal axes. It then checks if these projections fall outside the specified parameter ranges. If any projection is outside the range, the corresponding voxel value is set to zero.

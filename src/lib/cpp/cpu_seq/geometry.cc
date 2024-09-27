@@ -222,7 +222,8 @@ namespace cpu_seq {
             std::array<float, 6> bbox,
             const matrix4x4 &Muvw,
             output_ndarray<float> image,
-            output_ndarray<int64_t> count){
+            output_ndarray<int64_t> count,
+            const int verbose) {
         UNPACK_NUMPY(C);
         UNPACK_NUMPY(edt);
 
@@ -231,15 +232,16 @@ namespace cpu_seq {
         const auto& [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
 
         real_t
-            //edz = real_t(edt_Nz) / real_t(C_Nz),
+            edz = real_t(edt_Nz) / real_t(C_Nz),
             edy = real_t(edt_Ny) / real_t(C_Ny),
             edx = real_t(edt_Nx) / real_t(C_Nx);
 
-        // TODO DEBUG macro
-        //printf("Segmenting from %g to %g micrometers distance of implant.\n",d_min,d_max);
-        //printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
-        //    U_min,U_max,V_min,V_max,W_min,W_max);
-        //printf("EDT field is (%ld,%ld,%ld)\n",ex,ey,ez);
+        if (verbose >= 2) {
+            printf("Segmenting from %g to %g micrometers distance of implant.\n", d_min, d_max);
+            printf("Bounding box is [U_min,U_max,V_min,V_max,W_min,W_max] = [[%g,%g],[%g,%g],[%g,%g]]\n",
+                U_min, U_max, V_min, V_max, W_min, W_max);
+            printf("EDT field is (%f,%f,%f)\n", edx, edy, edz);
+        }
 
         real_t th_min = 1234, th_max = -1234;
         ssize_t n_shell = 0;
@@ -292,7 +294,9 @@ namespace cpu_seq {
                         auto [U,V,W,c] = hom_transform(Xs, Muvw);
                         n_shell++;
 
-                        // printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n",distance,U,V,W);
+                        if (verbose >= 2) {
+                            printf("distance = %.1f, U,V,W = %.2f,%.2f,%.2f\n", distance, U, V, W);
+                        }
                         if (in_bbox({ {U,V,W} }, bbox)) {
                             real_t theta = std::atan2(V, W);
 
@@ -329,9 +333,12 @@ namespace cpu_seq {
                 }
             }
         }
-        printf("n_shell = %ld, n_shell_bbox = %ld\n",n_shell,n_shell_bbox);
-        printf("theta_min, theta_max = %.2f,%.2f\n",theta_min,theta_max);
-        printf("th_min,       th_max = %.2f,%.2f\n",th_min,th_max);
+
+        if (verbose >= 2) {
+            printf("n_shell = %ld, n_shell_bbox = %ld\n", n_shell, n_shell_bbox);
+            printf("theta_min, theta_max = %.2f,%.2f\n", theta_min, theta_max);
+            printf("th_min,       th_max = %.2f,%.2f\n", th_min, th_max);
+        }
     }
 
     void fill_implant_mask(const input_ndarray<mask_type> mask,
@@ -446,7 +453,7 @@ namespace cpu_seq {
         }
     }
 
-    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm) {
+    std::array<real_t,9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm, const int verbose) {
         UNPACK_NUMPY(mask);
 
         real_t
@@ -454,7 +461,9 @@ namespace cpu_seq {
                      Iyy = 0, Iyx = 0,
                               Ixx = 0;
 
-        print_timestamp("inertia_matrix_serial start");
+        if (verbose >= 2) {
+            print_timestamp("inertia_matrix_serial start");
+        }
 
         BLOCK_BEGIN(mask, reduction(+:Izz, Iyy, Ixx) reduction(+:Izy,Izx,Iyx)) {
 
@@ -476,7 +485,9 @@ namespace cpu_seq {
 
         } BLOCK_END();
 
-        print_timestamp("inertia_matrix_serial end");
+        if (verbose >= 2) {
+            print_timestamp("inertia_matrix_serial end");
+        }
 
         return std::array<real_t,9> {
             Izz, Izy, Izx,
@@ -641,7 +652,8 @@ namespace cpu_seq {
             const std::array<real_t, 3> u_axis,
             const std::array<real_t, 3> v_axis,
             const std::array<real_t, 4> bbox,
-            output_ndarray<real_t> plane_samples) {
+            output_ndarray<real_t> plane_samples,
+            const int verbose) {
         const auto& [umin,umax,vmin,vmax] = bbox; // In micrometers
         UNPACK_NUMPY(voxels);
         ssize_t
@@ -673,14 +685,18 @@ namespace cpu_seq {
                     x = X / voxel_size,
                     y = Y / voxel_size;
 
-                // printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n",u,v,X,Y,Z,int(round(x)),int(round(y)),int(round(z)));
+                if (verbose >= 2) {
+                    printf("u,v = %g,%g -> %.1f,%.1f,%.1f -> %d, %d, %d\n", u, v, X, Y, Z, int(round(x)), int(round(y)), int(round(z)));
+                }
 
                 T value = 0;
                 std::array<float, 6> local_bbox = {0.5f, float(voxels_Nz)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nx)-0.5f};
-                if (in_bbox({{z,y,x}}, local_bbox))
+                if (in_bbox({{z,y,x}}, local_bbox)) {
                     value = (T) std::round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
-                // else
-                //     fprintf(stderr,"Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n",x,y,z,Nx,Ny,Nz);
+                }
+                else if (verbose >= 1) {
+                    fprintf(stderr, "Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n", x, y, z, voxels_Nx, voxels_Ny, voxels_Nz);
+                }
 
                 dat[ui*nv + vj] = value;
             }

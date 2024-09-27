@@ -142,7 +142,7 @@ def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, debug=Tr
     sample_bbox = (-2905., 2905, -1000, 4810.)
     sample_plane(voxels, voxel_size,
                  tuple(center), tuple(v_vec), tuple(w_vec),
-                 sample_bbox, sample)
+                 sample_bbox, sample, 2 if debug else 0)
 
     print (voxel_size, cm, v_vec, w_vec, sample_bbox)
     plt.imshow(sample)
@@ -314,7 +314,7 @@ if __name__ == "__main__":
     ## STEP1A: DIAGONALIZE MOMENT OF INTERTIA MATRIX TO GET PRINCIPAL AXES
     cm    = np.array(center_of_mass(implant))                  # in downsampled-voxel index coordinates
     if args.verbose >= 1: print(f"Center of mass is: {cm}")
-    IM    = np.array(inertia_matrix(implant, cm)).reshape(3,3)
+    IM    = np.array(inertia_matrix(implant, cm, args.verbose)).reshape(3,3)
     if args.verbose >= 1: print (f'IM: {IM}')
     ls,E  = la.eigh(IM)
 
