@@ -202,6 +202,17 @@ namespace cpu_par {
 
         // Rename LUTs, one for each chunk
         for (int64_t i = 0; i < (int64_t) index_tree.size(); i++) {
+            if (verbose >= 1) {
+                if (verbose == 1) {
+                    std::cout << "\r";
+                }
+                std::cout << "Connected components: " << i+1 << " / " << index_tree.size();
+                if (verbose == 1) {
+                    std::cout << std::flush;
+                } else {
+                    std::cout << std::endl;
+                }
+            }
             #pragma omp parallel for
             for (int64_t j = 0; j < (int64_t) index_tree[i].size(); j++) {
                 auto [l, r] = index_tree[i][j];
@@ -256,6 +267,10 @@ namespace cpu_par {
                     n_labels[k] = n_new_labels;
                 }
             }
+        }
+
+        if (verbose == 1) {
+            std::cout << "\rConnected components completed!" << std::endl;
         }
 
         auto cc_end = std::chrono::high_resolution_clock::now();
@@ -334,6 +349,18 @@ namespace cpu_par {
         }
 
         for (int64_t i = 0; i < chunks; i++) {
+            if (verbose >= 1) {
+                if (verbose == 1) {
+                    std::cout << "\r";
+                }
+                std::cout << "Filtering largest: " << i+1 << " / " << chunks;
+                if (verbose == 1) {
+                    std::cout << std::flush;
+                } else {
+                    std::cout << std::endl;
+                }
+            }
+
             int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
 
             auto load_start = std::chrono::high_resolution_clock::now();
@@ -371,6 +398,10 @@ namespace cpu_par {
             if (verbose >= 2) {
                 std::cout << "filter_largest: " << (double) (e_this_chunk_size*sizeof(bool)) / elapsed_filter.count() / 1e9 << " GB/s" << std::endl;
             }
+        }
+
+        if (verbose == 1) {
+            std::cout << "\rFiltering largest completed!" << std::endl;
         }
 
         if (DEBUG) {
@@ -462,6 +493,17 @@ namespace cpu_par {
         int64_t *chunk = (int64_t *) aligned_alloc(b_disk_block_size, b_aligned_chunk_size);
 
         for (int64_t i = 0; i < chunks; i++) {
+            if (verbose >= 1) {
+                if (verbose == 1) {
+                    std::cout << "\r";
+                }
+                std::cout << "Largest component: " << i+1 << " / " << chunks;
+                if (verbose == 1) {
+                    std::cout << std::flush;
+                } else {
+                    std::cout << std::endl;
+                }
+            }
             int64_t e_this_chunk_size = (i == chunks-1) ? e_largest_chunk_size : e_chunk_size;
             assert (e_this_chunk_size <= e_aligned_chunk_size && "Chunk size is larger than aligned chunk size");
 
@@ -488,6 +530,10 @@ namespace cpu_par {
             if (verbose >= 2) {
                 std::cout << "count_sizes: " << (double) (e_this_chunk_size*sizeof(int64_t)) / elapsed_sizes.count() / 1e9 << " GB/s" << std::endl;
             }
+        }
+
+        if (verbose == 1) {
+            std::cout << "\rLargest component completed!" << std::endl;
         }
 
         auto largest_start = std::chrono::high_resolution_clock::now();
@@ -692,7 +738,7 @@ namespace cpu_par {
 
         // TODO parallel where applicable? Do something with scan to get new global labels?
 
-        if (verbose >= 2) {
+        if (verbose >= 3) {
             std::cout << "Relabeling" << std::endl;
         }
 

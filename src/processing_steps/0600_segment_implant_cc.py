@@ -79,16 +79,20 @@ if __name__ == "__main__":
     h5meta.close()
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
-        voxels = np.empty((nz,ny,nx),dtype=np.uint16)
+        voxels = np.empty((nz,ny,nx), dtype=np.uint16)
+        if args.verbose >= 1: print(f"Reading full volume {args.sample} at {args.sample_scale}x")
         load_slice(voxels, f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", (0,0,0), (nz,ny,nx))
         noisy_implant = (voxels > implant_threshold_u16)
         del voxels
+
+        if args.verbose >= 1: print(f"Labelling connected components")
         label, n_features = ndi.label(noisy_implant, output=np.int64)
-        print (n_features)
+        if args.verbose >= 1: print (f"Found {n_features} connected components. Now finding largest.")
         bincnts           = np.bincount(label[label>0],minlength=n_features+1)
         largest_cc_ix     = np.argmax(bincnts)
         implant_mask      = (label == largest_cc_ix)
     else:
+        if args.verbose >= 1: print(f"Labelling connected components in chunks to {intermediate_folder}")
         use_cache = False
 
         if use_cache:
@@ -120,10 +124,12 @@ if __name__ == "__main__":
 
             np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
-        implant_mask = np.zeros((nz,ny,nx),dtype=bool)
+        if args.verbose >= 1: print (f"Finding largest connected component")
+        implant_mask = np.zeros((nz,ny,nx), dtype=bool)
         largest_connected_component(implant_mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
     if args.verbose >= 2:
+        print (f"Plotting middle planes to {plot_dir}")
         plot_middle_planes(implant_mask, plot_dir, args.sample)
 
     output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
