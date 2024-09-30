@@ -99,10 +99,10 @@ if __name__ == "__main__":
                     group_name="implant_solid",
                     datasets={"mask": solid_implant_mask.astype(bool, copy=False)},
                     attributes={"sample": args.sample, "scale": args.sample_scale, "voxel_size": voxel_size})
-    plot_middle_planes(solid_implant_mask, output_image_dir, "solid_implant_mask")
+    plot_middle_planes(solid_implant_mask, output_image_dir, "solid_implant_mask", verbose=args.verbose)
 
     # Compute front mask
-    print ("Computing front mask")
+    if args.verbose >= 1: print ("Computing front mask")
     front_mask = np.zeros_like(solid_implant_mask)
     compute_front_mask(solid_implant_mask, voxel_size, Muvwp_flat, bbox_flat, front_mask)
 
@@ -112,4 +112,4 @@ if __name__ == "__main__":
                     group_name="cut_cylinder_bone",
                     datasets={"mask":front_mask.astype(bool,copy=False)},
                     attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
-    plot_middle_planes(front_mask, output_image_dir, "front_mask")
+    plot_middle_planes(front_mask, output_image_dir, "front_mask", verbose=args.verbose)
