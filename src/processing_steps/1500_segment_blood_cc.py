@@ -32,9 +32,10 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     scales = [32, 16, 8, 4, 2, 1] if args.sample_scale <= 0 else [args.sample_scale]
-    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1, verbose=args.verbose)
     Nz, Ny, Nx, _ = bi["dimensions"]
 
+    scales_iter = tqdm.tqdm(scales, desc= 'Computing connected components') if args.verbose >= 1 else scales
     for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
         data = f'{binary_root}/segmented/{args.field}/P{args.material}/{scale}x/{args.sample}.uint16'
         output_dir = f'{hdf5_root}/masks/{scale}x'
