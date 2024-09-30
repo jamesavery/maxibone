@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     if args.verbose >= 1: os.makedirs(image_output_dir, exist_ok=True)
 
-    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5')
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', args.sample_scale, verbose=args.verbose)
     voxel_size = bi["voxel_size"] * args.sample_scale
     shape = np.array(bi["dimensions"][:3])
     shape //= args.sample_scale
@@ -47,12 +47,14 @@ if __name__ == '__main__':
 
     os.makedirs(output_dir, exist_ok=True)
 
+    if args.verbose >= 1: print (f'Loading the soft tissue probabilities from {soft_path}')
     soft = np.memmap(soft_path, dtype=np.uint16, mode='r').reshape(shape)
 
+    if args.verbose >= 1: print (f'Thresholding the probabilities at {args.threshold}')
     soft_threshed = (soft > args.threshold)
     del soft
 
-    soft_bp = bitpack_encode(soft_threshed)
+    soft_bp = bitpack_encode(soft_threshed, verbose=args.verbose)
     del soft_threshed
 
     # Close, open, then dilate. The sizes are in micrometers
@@ -68,14 +70,14 @@ if __name__ == '__main__':
         print (f'Closing: {closing_voxels}, Opening: {opening_voxels}, Distance: {distance_voxels}')
 
     # Close
-    closed = close_3d(soft_bp, closing_voxels)
+    closed = close_3d(soft_bp, closing_voxels, args.verbose)
 
     # Open
-    opened = open_3d(closed, opening_voxels)
+    opened = open_3d(closed, opening_voxels, args.verbose)
     del closed
 
     # Dilate
-    soft_bp = dilate_3d(opened, distance_voxels)
+    soft_bp = dilate_3d(opened, distance_voxels, args.verbose)
     del opened
 
     if args.verbose >= 1:
@@ -90,8 +92,10 @@ if __name__ == '__main__':
             plt.clf()
         del soft
 
+    if args.verbose >= 1: print (f'Loading the bone probabilities from {bone_path}')
     bone = np.memmap(bone_path, dtype=np.uint16, mode='r').reshape(shape)
 
+    if args.verbose >= 1: print (f'Thresholding the probabilities at {args.threshold}')
     bone_threshed = bone > args.threshold
     del bone
 
@@ -105,8 +109,8 @@ if __name__ == '__main__':
             plt.savefig(f'{image_output_dir}/{args.sample}_bone_{name}.png', bbox_inches='tight')
             plt.clf()
 
-    bone_bp = bitpack_encode(bone_threshed)
-    bone_bp_opened = open_3d(bone_bp, opening_voxels)
+    bone_bp = bitpack_encode(bone_threshed, verbose=args.verbose)
+    bone_bp_opened = open_3d(bone_bp, opening_voxels, args.verbose)
     bone_opened = bitpack_decode(bone_bp_opened, verbose=args.verbose)
     del bone_bp
 
@@ -120,6 +124,7 @@ if __name__ == '__main__':
             plt.savefig(f'{image_output_dir}/{args.sample}_bone_opened_{name}.png', bbox_inches='tight')
             plt.clf()
 
+    if args.verbose >= 1: print (f'Computing the distance field')
     disted_bp = soft_bp & bone_bp_opened
     disted = bitpack_decode(disted_bp, verbose=args.verbose)
 
