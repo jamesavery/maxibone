@@ -46,7 +46,7 @@ if __name__ == '__main__':
     fedt *= cylinder_mask
 
     if args.verbose >= 2:
-        plot_middle_planes(fedt, image_output_dir, f'{args.sample}-edt')
+        plot_middle_planes(fedt, image_output_dir, f'{args.sample}-edt', verbose=args.verbose)
 
     if args.verbose >= 1: print(f"Converting to uint16")
     start = datetime.datetime.now()

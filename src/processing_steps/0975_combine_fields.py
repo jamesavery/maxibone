@@ -49,7 +49,7 @@ if __name__ == '__main__':
     combined *= cylinder_mask
 
     if args.verbose >= 2:
-        plot_middle_planes(combined, image_output_dir, f'{args.sample}-gauss+edt')
+        plot_middle_planes(combined, image_output_dir, f'{args.sample}-gauss+edt', verbose=args.verbose)
 
     if args.verbose >= 1: print(f"Converting to uint16")
     combined = to_int(combined, np.uint16)
