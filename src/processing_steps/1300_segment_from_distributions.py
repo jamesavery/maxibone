@@ -45,7 +45,7 @@ def load_probabilities(path, group, axes_names, field_names, m, verbose):
         The probabilities of the fields.
     '''
 
-    if verbose >= 1: print(f"Reading probabilities from {group} in {path}\n")
+    if verbose >= 2: print(f"Reading probabilities from {group} in {path}\n")
 
     try:
         prob_file = h5py.File(path, 'r')
@@ -77,7 +77,7 @@ def load_value_ranges(path, group, verbose):
         The value ranges.
     '''
 
-    if verbose >= 1: print(f"Reading value_ranges from {group} in {path}\n")
+    if verbose >= 2: print(f"Reading value_ranges from {group} in {path}\n")
 
     try:
         f = h5py.File(path, 'r')
@@ -119,20 +119,22 @@ if __name__ == '__main__':
 
     # TODO scale may not trickle down correctly
     # Iterate over all subvolumes
-    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', args.sample_scale, chunk_size=args.chunk_size, n_chunks=0, z_offset=args.chunk_start)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', args.sample_scale, chunk_size=args.chunk_size, n_chunks=0, z_offset=args.chunk_start, verbose=args.verbose)
     Nz, Ny, Nx = bi['dimensions'][:3]
     axes_names =  [] # ["x", "y", "z", "r"] # For later when we also use axes.
     field_names = [args.field] # TODO: We are currently only using one field.
 
     probs_file = f'{hdf5_root}/processed/probabilities/{args.sample}.h5'
-    for b in tqdm(range(args.chunk_start,args.chunk_start+bi['n_chunks']), desc='segmenting subvolumes'):
+    block_rng = range(args.chunk_start, args.chunk_start+bi['n_chunks'])
+    block_iter = tqdm(block_rng, desc='segmenting subvolumes') if args.verbose >= 1 else block_rng
+    for b in block_iter:
         group_name = f"{args.group}/{args.mask}/"
 
         chunk_size = bi['chunk_size']
         zstart = b*chunk_size
         zend = min(zstart + chunk_size, Nz)
 
-        voxels, fields = load_chunk(args.sample, 1, zstart, chunk_size, args.mask, args.mask_scale, field_names, args.field_scale)
+        voxels, fields = load_chunk(args.sample, 1, zstart, chunk_size, args.mask, args.mask_scale, field_names, args.field_scale, verbose=args.verbose)
         (vmin, vmax), (fmin, fmax) = load_value_ranges(probs_file, group_name, args.verbose)
 
         this_z = zend - zstart
@@ -144,8 +146,8 @@ if __name__ == '__main__':
             combined_zy = np.zeros((this_z,Ny,3), dtype=np.uint8)
             combined_zx = np.zeros((this_z,Nx,3), dtype=np.uint8)
 
-            plot_middle_planes(voxels, plot_dir, f'{b}_voxels')
-            plot_middle_planes(fields[0], plot_dir, f'{b}_fields_{args.field}')
+            plot_middle_planes(voxels, plot_dir, f'{b}_voxels', verbose=args.verbose)
+            plot_middle_planes(fields[0], plot_dir, f'{b}_fields_{args.field}', verbose=args.verbose)
 
         for m in [0,1]:
             output_dir  = f'{binary_root}/segmented/{args.field}/P{m}/1x/'
@@ -168,11 +170,11 @@ if __name__ == '__main__':
                 combined_zx[result[:,Ny//2,:] > 0] = red if m == 0 else yellow
                 combined_zy[result[:,:,Nx//2] > 0] = red if m == 0 else yellow
 
-                plot_middle_planes(result, plot_dir, f'{b}_{args.field}_P{m}')
+                plot_middle_planes(result, plot_dir, f'{b}_{args.field}_P{m}', verbose=args.verbose)
 
             if args.verbose >= 2: print (f'Segmentation has min {result.min()} and max {result.max()}')
 
-            if args.verbose >= 1: print(f"Writing results from block {b}")
+            if args.verbose >= 2: print(f"Writing results from block {b}")
             write_slice(result, output_file, (zstart,0,0), result.shape)
 
         if args.verbose >= 1:
