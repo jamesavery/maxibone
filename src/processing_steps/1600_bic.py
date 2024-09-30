@@ -21,13 +21,14 @@ import os
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)
-    argparser = add_volume(argparser, 'field', 2, 'gauss+edt')
+    argparser = add_volume(argparser, 'field', 2, 'edt')
     argparser = add_volume(argparser, 'mask', 2, 'bone_region')
     argparser.add_argument('-t', '--threshold', action='store', type=int, default=500,
         help='The threshold for the field. Default is 500.')
     args = argparser.parse_args()
 
-    image_output_dir = f"{hdf5_root}/processed/bic/"
+    # TODO add image output dir as a helper function to make #41 easier to implement
+    image_output_dir = f"{hdf5_root}/processed/bic"
     os.makedirs(image_output_dir, exist_ok=True)
 
     if args.verbose >= 1: print (f'Processing {args.sample} with threshold {args.threshold} and scales {args.sample_scale}x, {args.field_scale}x, {args.mask_scale}x (voxels, field, mask)')
@@ -60,11 +61,17 @@ if __name__ == '__main__':
     if args.verbose >= 2:
         plot_middle_planes(blood, f'{image_output_dir}', f'{args.sample}_blood', verbose=args.verbose)
         plot_middle_planes(field, f'{image_output_dir}', f'{args.sample}_field', verbose=args.verbose)
+        plot_middle_planes(mask, f'{image_output_dir}', f'{args.sample}_mask', verbose=args.verbose)
 
     if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
     bic(blood, field, mask, args.threshold * args.sample_scale, bics, args.verbose)
+    # Set nans to 0, as some layers are too far from the implant to have any BIC, and the C++ code sets them to nan.
+    bics[np.isnan(bics)] = 0
+    assert np.all(bics >= 0) and np.all(bics <= 1), f'Found BICs outside of [0, 1]: {bics}'
+
+    if args.verbose >= 1: print (f'Plotting BICs to {image_output_dir}/{args.sample}_bics.pdf')
+    plt.plot(bics); plt.savefig(f"{image_output_dir}/{args.sample}_bics.pdf", bbox_inches='tight'); plt.clf()
 
     if args.verbose >= 1: print (f'Saving BICs to {image_output_dir}')
-    plt.plot(bics); plt.savefig(f"{image_output_dir}/{args.sample}_bics.png", bbox_inches='tight'); plt.clf()
     np.save(f"{image_output_dir}/{args.sample}_bics.npy", bics)
