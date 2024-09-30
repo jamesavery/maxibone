@@ -56,17 +56,23 @@ def label_chunk(i, chunk, chunk_prefix):
 
     return n_features
 
-def largest_cc_of(mask, mask_name):
+def largest_cc_of(sample_name, scale, mask, mask_name, verbose=0):
     '''
     Find the largest connected component of a mask.
     The output is a binary mask with only the largest connected component.
 
     Parameters
     ----------
+    `sample_name` : str
+        The sample name.
+    `scale` : int
+        The scale of the sample.
     `mask` : np.ndarray[bool]
         The mask to find the largest connected component of.
     `mask_name` : str
         The name of the mask.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -84,7 +90,7 @@ def largest_cc_of(mask, mask_name):
     layers_per_core = elements_per_core // layer_size
     n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core))))
     layers_per_chunk = nz // n_chunks
-    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{args.sample_scale}x/"
+    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x/"
     os.makedirs(intermediate_folder, exist_ok=True)
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
@@ -95,7 +101,7 @@ def largest_cc_of(mask, mask_name):
     else:
         start = datetime.datetime.now()
         with ThreadPool(n_cores) as pool:
-            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{args.sample}_")
+            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{sample_name}_")
             chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
             chunks.append(mask[(n_chunks-1) * layers_per_chunk:])
             n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
@@ -107,12 +113,13 @@ def largest_cc_of(mask, mask_name):
         # load uint16, threshold (uint16 > uint8), label (int64), write int64
         total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
         gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
-        print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
+        if verbose >= 1:
+            print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
-        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
+        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample_name}_n_labels.int64")
 
         largest_component = np.zeros((nz, ny, nx), dtype=bool)
-        largest_connected_component(largest_component, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
+        largest_connected_component(largest_component, f"{intermediate_folder}/{sample_name}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), verbose)
 
         return largest_component
 
@@ -133,7 +140,7 @@ if __name__ == "__main__":
 
     if args.verbose >= 1: print(f"Loading {args.sample_scale}x voxels from {binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16")
     voxels  = np.fromfile(f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16",dtype=np.uint16).reshape(implant.shape)
-    plot_middle_planes(voxels, image_output_dir, 'voxels')
+    plot_middle_planes(voxels, image_output_dir, 'voxels', verbose=args.verbose)
 
     if args.verbose >= 1: print (f'Loading FoR values from {hdf5_root}/hdf5-byte/msb/{args.sample}.h5')
     with h5py.File(f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5",'r') as f:
@@ -152,7 +159,7 @@ if __name__ == "__main__":
     if args.verbose >= 1: end = datetime.datetime.now()
     if args.verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
 
-    front_mask = largest_cc_of(front_mask, 'front')
+    front_mask = largest_cc_of(args.sample, args.sample_scale, front_mask, 'front', args.verbose)
     front_part = voxels * front_mask
 
     output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
@@ -169,7 +176,7 @@ if __name__ == "__main__":
                      group_name="implant_shell",
                      datasets={"mask":implant_shell_mask},
                      attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
-    plot_middle_planes(implant_shell_mask, image_output_dir, 'implant-shell-sanity')
+    plot_middle_planes(implant_shell_mask, image_output_dir, 'implant-shell-sanity', verbose=args.verbose)
     del implant_shell_mask
 
     if args.verbose >= 1: print(f"Saving cut_cylinder_air mask to {output_dir}/{args.sample}.h5")
@@ -177,7 +184,7 @@ if __name__ == "__main__":
                      group_name="cut_cylinder_air",
                      datasets={"mask":back_mask},
                      attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
-    plot_middle_planes(back_mask, image_output_dir, 'implant-back-sanity')
+    plot_middle_planes(back_mask, image_output_dir, 'implant-back-sanity', verbose=args.verbose)
     del back_mask
 
     if args.verbose >= 1: print(f"Saving cut_cylinder_bone mask to {output_dir}/{args.sample}.h5")
@@ -185,7 +192,7 @@ if __name__ == "__main__":
                      group_name="cut_cylinder_bone",
                      datasets={"mask":front_mask},
                      attributes={"sample":args.sample, "scale":args.sample_scale, "voxel_size":voxel_size})
-    plot_middle_planes(front_mask, image_output_dir, 'implant-front-sanity')
+    plot_middle_planes(front_mask, image_output_dir, 'implant-front-sanity', verbose=args.verbose)
     del front_mask
 
     front_part_implanted = front_part.copy()
@@ -210,7 +217,7 @@ if __name__ == "__main__":
         plt.plot(bins[1:], hist)
         plt.savefig(f'{image_output_dir}/bone_histogram.png', bbox_inches='tight')
         plt.clf()
-    print (f'peaks: {peaks}')
+        print (f'peaks: {peaks}')
 
     two_largest_peaks = peaks[np.argsort(info['peak_heights'])[::-1][:2]]
     p1, p2 = sorted(two_largest_peaks)
@@ -219,7 +226,7 @@ if __name__ == "__main__":
 
     bone_mask1 = front_part > midpoint
     del front_part
-    plot_middle_planes(bone_mask1, image_output_dir, 'implant-bone1-sanity')
+    plot_middle_planes(bone_mask1, image_output_dir, 'implant-bone1-sanity', verbose=args.verbose)
 
     if 'novisim' in args.sample:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 15 # micrometers
@@ -257,7 +264,7 @@ if __name__ == "__main__":
         bone_region_mask = bone_region_tmp.astype(bool)
     del bone_region_tmp
 
-    bone_region_mask = largest_cc_of(bone_region_mask, 'bone_region')
+    bone_region_mask = largest_cc_of(args.sample, args.sample_scale, bone_region_mask, 'bone_region', args.verbose)
 
     if args.verbose >= 2:
         if bitpacked:
@@ -267,12 +274,12 @@ if __name__ == "__main__":
         voxels_implanted = voxels.copy()
         voxels_implanted[dilated_implant_unpacked == 0] = 0
 
-        plot_middle_planes(voxels_implanted, image_output_dir, 'implant-dilated-sanity')
+        plot_middle_planes(voxels_implanted, image_output_dir, 'implant-dilated-sanity', verbose=args.verbose)
 
-    plot_middle_planes(bone_region_mask, image_output_dir, 'implant-bone-sanity')
+    plot_middle_planes(bone_region_mask, image_output_dir, 'implant-bone-sanity', verbose=args.verbose)
 
     voxels[~bone_region_mask] = 0
-    plot_middle_planes(voxels, image_output_dir, 'voxels-boned')
+    plot_middle_planes(voxels, image_output_dir, 'voxels-boned', verbose=args.verbose)
 
     if args.verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{args.sample}.h5")
     update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
