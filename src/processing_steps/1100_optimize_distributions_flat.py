@@ -173,9 +173,9 @@ if __name__ == '__main__':
     dmx    = np.sqrt(np.ones_like(bmx)*2)
     goodix  = amx>0
 
-    print(f"Optimizing distributions for {args.field} with {lab.max()} materials")
+    if args.verbose >= 1: print(f"Optimizing distributions for {args.field} with {lab.max()} materials")
 
-    if (args.verbose >= 3):
+    if args.verbose >= 3:
         plt.ion()
         fig = plt.figure(figsize=(15,15))
         ax = fig.add_subplot(111)
@@ -201,7 +201,7 @@ if __name__ == '__main__':
         if (n > 0):
             abcd0 = np.array([amx[ms,i], bmx[ms,i], cmx[ms,i], dmx[ms,i]]).flatten()
 
-            if (args.verbose >= 2):
+            if args.verbose >= 2:
                 model = powers(vs, abcd0)
                 line1.set_ydata(np.sum(model, axis=0))
                 line2.set_ydata(hist[i])
@@ -210,7 +210,7 @@ if __name__ == '__main__':
                 fig.canvas.draw()
                 fig.canvas.flush_events()
 
-            if(args.verbose >= 3):
+            if args.verbose >= 3:
                 ax.set_title(f"x = {x}")
                 line2.set_ydata(hist[i])
 
@@ -233,7 +233,8 @@ if __name__ == '__main__':
             abcd, success = opt_result['x'], opt_result['success']
 
             if success:
-                print(f"Histogram at x={x} converged successfully for materials {ms}.")
+                if args.verbose >= 1: print(f"Histogram at x={x} converged successfully for materials {ms}.")
+
                 ABCD    += [abcd]
                 ABCD_ms += [ms]
                 ABCD_xs += [x]
@@ -244,9 +245,9 @@ if __name__ == '__main__':
                     good_xs[m] += [x]
                     good_is[m] += [i]
                     ABCDm[m]   += [abcd.reshape(4,n)[:,im]]
-                    print(f"ABCDm[{m}]    += {[abcd.reshape(4,n)[:,im]].copy()}")
+                    if args.verbose >= 1: print(f"ABCDm[{m}]    += {[abcd.reshape(4,n)[:,im]].copy()}")
 
-            if(args.verbose >= 5):
+            if args.verbose >= 5:
                 colors = ['r', 'orange']
                 lines  = [line3, line4]
                 model = powers(vs, abcd)
@@ -279,7 +280,7 @@ if __name__ == '__main__':
         hist_modeled[gi] = np.sum(model, axis=0)
         hist_m[ms, gi] = model
 
-    if (args.verbose >= 6):
+    if args.verbose >= 6:
         fig = plt.figure(figsize=(10,10))
         axarr = fig.subplots(2,2)
         fig.suptitle(f'{args.sample} {args.region_mask}') # or plt.suptitle('Main title')
