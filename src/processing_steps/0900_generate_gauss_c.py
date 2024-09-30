@@ -58,7 +58,7 @@ if __name__ == '__main__':
         print(f"Implant mask has shape {(nz,ny,nx)}")
 
     if args.verbose >= 2:
-        plot_middle_planes(implant_mask, output_image_dir, f'{args.sample}-mask')
+        plot_middle_planes(implant_mask, output_image_dir, f'{args.sample}-mask', verbose=args.verbose)
 
     kernel = gauss_kernel(sigma_voxels)
 
@@ -114,8 +114,8 @@ if __name__ == '__main__':
     cylinder_mask = generate_cylinder_mask(nx)
 
     if args.verbose >= 2:
-        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss')
-        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss-nonzero', lambda x: (np.abs(x) != 0).astype(np.uint8))
+        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss', verbose=args.verbose)
+        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss-nonzero', lambda x: (np.abs(x) != 0).astype(np.uint8), args.verbose)
 
     if args.verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{args.sample}.npy")
     np.save(f'{output_dir}/{args.sample}.npy', result*cylinder_mask)
@@ -128,12 +128,13 @@ if __name__ == '__main__':
             control[implant_mask] = 1 # Illuminate
         control = np.floor(control * np.iinfo(result_type).max).astype(result_type)
         ndimage_time = timeit.default_timer() - start
-        print (f'ndimage edition took {ndimage_time:.02f} seconds')
-        print (f'C++ edition is {ndimage_time/diffusion_time:.02f} times faster')
+        if args.verbose >= 1:
+            print (f'ndimage edition took {ndimage_time:.02f} seconds')
+            print (f'C++ edition is {ndimage_time/diffusion_time:.02f} times faster')
         np.save(f'{output_dir}/{args.sample}_ndimage.npy',control)
 
         if args.verbose >= 2:
-            plot_middle_planes(control, output_image_dir, f'{args.sample}-control')
+            plot_middle_planes(control, output_image_dir, f'{args.sample}-control', verbose=args.verbose)
 
         if result_type == np.uint8 or result_type == np.uint16:
             diff = result.astype(np.int32) - control.astype(np.int32)
@@ -142,14 +143,15 @@ if __name__ == '__main__':
         diff_abs = np.abs(diff)
 
         if args.verbose >= 2:
-            plot_middle_planes(diff, output_image_dir, f'{args.sample}-diff')
-            plot_middle_planes(diff_abs, output_image_dir, f'{args.sample}-diff-abs')
+            plot_middle_planes(diff, output_image_dir, f'{args.sample}-diff', verbose=args.verbose)
+            plot_middle_planes(diff_abs, output_image_dir, f'{args.sample}-diff-abs', verbose=args.verbose)
 
         diff_sum = diff_abs.sum()
         diff_max = diff_abs.max()
         diff_mean = diff_abs.mean()
 
-        print (f'Total difference: {diff_sum}')
-        print (f'Max abs difference: {diff_max}')
-        print (f'Min and max difference: {diff.min()} {diff.max()}')
-        print (f'Mean difference: {diff_mean}')
+        if args.verbose >= 1:
+            print (f'Total difference: {diff_sum}')
+            print (f'Max abs difference: {diff_max}')
+            print (f'Min and max difference: {diff.min()} {diff.max()}')
+            print (f'Mean difference: {diff_mean}')
