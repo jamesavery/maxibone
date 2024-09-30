@@ -106,7 +106,7 @@ def apply_otsu(bins, name, debug_output):
 
     return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
-def extract_probabilities(labeled, axes_names, field_names, debug_output):
+def extract_probabilities(labeled, axes_names, field_names, debug_output, verbose):
     '''
     Extract the probabilities for each row of the histograms.
 
@@ -120,6 +120,8 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output):
         The names of the field histograms.
     `debug_output` : str
         The output folder for debug images.
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -127,15 +129,17 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output):
         A list of the probabilities for each row of the histograms. Each element is a tuple containing the output of `apply_otsu`.
     '''
 
-    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', debug_output) for name in tqdm(axes_names, desc='Computing from axes')]
-    for name in tqdm(field_names, desc='Computing from fields'):
+    axes_rng = tqdm(axes_names, desc='Computing from axes') if verbose >= 1 else axes_names
+    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', debug_output) for name in axes_rng]
+    field_rng = tqdm(field_names, desc='Computing from fields') if verbose >= 1 else field_names
+    for name in field_rng:
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
         Ps.append(apply_otsu(bins, f'field_bins_{name}', debug_output))
 
     return Ps
 
-def save_probabilities(Ps, sample, subbins, value_ranges):
+def save_probabilities(Ps, sample, subbins, value_ranges, verbose):
     '''
     Save the probabilities to an HDF5 file.
 
@@ -149,6 +153,8 @@ def save_probabilities(Ps, sample, subbins, value_ranges):
         The number of subbins.
     `value_ranges` : dict
         The value ranges of the histograms
+    `verbose` : int
+        The verbosity level.
 
     Returns
     -------
@@ -156,6 +162,7 @@ def save_probabilities(Ps, sample, subbins, value_ranges):
     '''
 
     output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
+    if verbose >= 1: print(f'Saving probabilities to {output_path}')
 
     update_hdf5(
         output_path,
@@ -198,8 +205,10 @@ if __name__ == '__main__':
     pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
 
     subbins_str = f'-{args.subbins}' if args.subbins is not None else ''
-    bins = np.load(f'{hdf5_root}/processed/histograms/{args.sample}/bins-{args.subbins}.npz')
+    input_path = f'{hdf5_root}/processed/histograms/{args.sample}/bins{subbins_str}.npz'
+    if args.verbose >= 1: print(f'Loading bins from {input_path}')
+    bins = np.load(input_path)
     axes_names = [name.split('_bins')[0] for name in bins.keys() if '_bins' in name and 'field' not in name]
     field_names = bins['field_names']
-    Ps = extract_probabilities(bins, axes_names, field_names, debug_output)
-    save_probabilities(Ps, args.sample, args.subbins, bins['value_ranges'])
+    Ps = extract_probabilities(bins, axes_names, field_names, debug_output, args.verbose)
+    save_probabilities(Ps, args.sample, args.subbins, bins['value_ranges'], args.verbose)
