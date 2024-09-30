@@ -40,7 +40,7 @@ def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_m
     `prob_method` : str
         Method used to compute the probabilities.
     `verbose` : int
-        Verbosity level.
+        The verbosity level.
 
     Returns
     -------
@@ -221,11 +221,11 @@ if __name__ == '__main__':
             plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_long_tail.png", bbox_inches='tight')
             plt.clf()
 
-        if m==1:
+        if m == 1:
             Cm = piecewisecubic((pcc[0], bins[0]), all_xs)
             long_tail |= all_vs[NA,:] <= Cm[:,NA]
 
-        if m==0:
+        if m == 0:
             Cp = piecewisecubic((pcc[1], bins[1]), all_xs)
             print (all_vs[NA,:].shape, Cp[:,NA].shape)
             long_tail |= all_vs[NA,:] >= Cp[:,NA]
@@ -240,8 +240,8 @@ if __name__ == '__main__':
         plt.clf()
 
     for m in ms:
-        P_m[m]    = hist_m[m] / np.maximum(hist + (hist==0), hist_modeled)
-        P_m[m]    = ndi.gaussian_filter(P_m[m], 10, mode='constant', cval=0)
+        P_m[m] = hist_m[m] / np.maximum(hist + (hist==0), hist_modeled)
+        P_m[m] = ndi.gaussian_filter(P_m[m], 10, mode='constant', cval=0)
 
     P_modeled = np.minimum(np.sum(P_m, axis=0), 1)
 
