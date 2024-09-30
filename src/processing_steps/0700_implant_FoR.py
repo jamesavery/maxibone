@@ -32,38 +32,39 @@ import vedo.pointcloud as pc
 vaxis = { 'z' : np.array((0,0,1.)), 'y' : np.array((0,-1.,0)), 'z2' : np.array((0,0,1.)) }
 daxis = { 'z' : np.array([-1,1,0]), 'y' : np.array([0,0,1]),   'z2' : np.array([-1.5,0,0]) }
 
-def figure_FoR_UVW(debug=2):
+def figure_FoR_UVW(verbose=2):
     '''
     This function plots the implant in the UVW frame of reference.
 
     Parameters
     ----------
-    `debug` : int
-        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if debug >= 2:
+    if verbose >= 2:
         vol = vedo.Volume(implant)
         vol.alpha([0, 0, 0.05, 0.2])
         u_arrow = vedo.Arrow(cm[::-1], cm[::-1] + 1 / np.sqrt(ls[0] / ls[2]) * 100 * u_vec[::-1], c='r', s=0.7)
         v_arrow = vedo.Arrow(cm[::-1], cm[::-1] + 1 / np.sqrt(ls[1] / ls[2]) * 100 * v_vec[::-1], c='g', s=0.7)
         w_arrow = vedo.Arrow(cm[::-1], cm[::-1] +                              100 * w_vec[::-1], c='b', s=0.7)
 
-        for axis in vaxis.keys():
-            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-            pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
-                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                'focalPoint': (nz/2, ny/2, nx/2),
-                'viewup': -vaxis[axis]
-            })
+        if verbose == 3 or verbose == 4:
+            for axis in vaxis.keys():
+                pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+                pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
+                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                    'focalPoint': (nz/2, ny/2, nx/2),
+                    'viewup': -vaxis[axis]
+                })
 
-            pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
+                pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
 
-        if debug >= 3:
+        if verbose == 2 or verbose == 4:
             pl = vedo.Plotter(offscreen=False, interactive=True)
             pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
                 'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
@@ -72,21 +73,21 @@ def figure_FoR_UVW(debug=2):
             })
 
 # TODO: Fix lengths (voxel_size times...)
-def figure_FoR_UVWp(debug=2):
+def figure_FoR_UVWp(verbose=2):
     '''
     This function plots the implant in the UVWp frame of reference.
 
     Parameters
     ----------
-    `debug` : int
-        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if debug >= 2:
+    if verbose >= 2:
         implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
         pts = pc.Points(implant_uvwps[:,:3])
 
@@ -94,20 +95,21 @@ def figure_FoR_UVWp(debug=2):
         v_arrow = vedo.Arrow([0,0,0], 1/np.sqrt(ls[1] / ls[2]) * 100 * v_vec[::-1],       c='g', s=0.7)
         w_arrow = vedo.Arrow([0,0,0],                            100 * w_vec[::-1],       c='b', s=0.7)
 
-        pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-        for axis in vaxis.keys():
-            pl.show([pts, u_arrow, v_arrow, w_arrow], camera={
-                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                'focalPoint': (nz/2, ny/2, nx/2),
-                'viewup': -vaxis[axis]
-            })
+        if verbose == 3 or verbose == 4:
+            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+            for axis in vaxis.keys():
+                pl.show([pts, u_arrow, v_arrow, w_arrow], camera={
+                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                    'focalPoint': (nz/2, ny/2, nx/2),
+                    'viewup': -vaxis[axis]
+                })
 
-            pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
+                pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
 
-        if debug >= 3:
+        if verbose == 2 or verbose == 4:
             vedo.show([pts, u_arrow, v_arrow, w_arrow], interactive=True)
 
-def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, debug=True):
+def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, verbose=2):
     '''
     This function plots the circle that best fits the implant in the UVWp frame of reference.
 
@@ -125,8 +127,8 @@ def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, debug=Tr
         Radius of the circle.
     `implant_bbox` : list[float]
         Bounding box of the implant.
-    `debug` : bool
-        Whether to print debug information.
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
@@ -142,86 +144,96 @@ def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, debug=Tr
     sample_bbox = (-2905., 2905, -1000, 4810.)
     sample_plane(voxels, voxel_size,
                  tuple(center), tuple(v_vec), tuple(w_vec),
-                 sample_bbox, sample, 2 if debug else 0)
+                 sample_bbox, sample, verbose)
 
-    print (voxel_size, cm, v_vec, w_vec, sample_bbox)
-    plt.imshow(sample)
-    plt.savefig(f'{image_output_dir}/sample_plane_check.png', bbox_inches='tight')
-    plt.clf()
+    if verbose >= 1: print (voxel_size, cm, v_vec, w_vec, sample_bbox)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.imshow(sample.T[::-1], extent=sample_bbox, cmap='RdYlBu')
+    if verbose >= 2:
+        plt.imshow(sample)
+        if verbose == 2 or verbose == 4:
+            plt.show()
+        if verbose == 3 or verbose == 4:
+            plt.savefig(f'{image_output_dir}/sample_plane_check.png', bbox_inches='tight')
+        plt.clf()
 
-    circle_color = colorConverter.to_rgba('green', alpha=0.2)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.imshow(sample.T[::-1], extent=sample_bbox, cmap='RdYlBu')
 
-    p0 = np.array((    0, W_max))
-    pb = np.array((    0, W_min))
-    p1 = np.array((V_min, W_min))
-    p2 = np.array((V_max, W_min))
+        circle_color = colorConverter.to_rgba('green', alpha=0.2)
 
-    m1, m2 = (p0+p1) / 2, (p0+p2) / 2
+        p0 = np.array((    0, W_max))
+        pb = np.array((    0, W_min))
+        p1 = np.array((V_min, W_min))
+        p2 = np.array((V_max, W_min))
 
-    ax.add_patch(Circle((0,0), radius*1.01, ec='black',fc=circle_color))
-    ax.add_patch(Circle(p1,    radius/40,              fc='purple'))
-    ax.add_patch(Circle(p2,    radius/40,              fc='purple'))
-    ax.add_patch(Circle(p0,    radius/40,              fc='blue'))
-    ax.add_patch(Circle(pb,    radius/40,              fc=(0, 0, 1, 0.2)))
-    ax.add_patch(Circle((0,0), radius/20,              fc='black'))
+        m1, m2 = (p0+p1) / 2, (p0+p2) / 2
 
-    ax.add_line(Line2D([p0[0],p1[0]], [p0[1],p1[1]], c='red'))
-    ax.add_line(Line2D([p0[0],p2[0]], [p0[1],p2[1]], c='red'))
+        ax.add_patch(Circle((0,0), radius*1.01, ec='black',fc=circle_color))
+        ax.add_patch(Circle(p1,    radius/40,              fc='purple'))
+        ax.add_patch(Circle(p2,    radius/40,              fc='purple'))
+        ax.add_patch(Circle(p0,    radius/40,              fc='blue'))
+        ax.add_patch(Circle(pb,    radius/40,              fc=(0, 0, 1, 0.2)))
+        ax.add_patch(Circle((0,0), radius/20,              fc='black'))
 
-    ax.add_line(Line2D([m1[0]*1.05,0], [m1[1]*1.05,0], c='green'))
-    ax.add_line(Line2D([m2[0]*1.05,0], [m2[1]*1.05,0], c='green'))
+        ax.add_line(Line2D([p0[0],p1[0]], [p0[1],p1[1]], c='red'))
+        ax.add_line(Line2D([p0[0],p2[0]], [p0[1],p2[1]], c='red'))
 
-    fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300, bbox_inches='tight')
+        ax.add_line(Line2D([m1[0]*1.05,0], [m1[1]*1.05,0], c='green'))
+        ax.add_line(Line2D([m2[0]*1.05,0], [m2[1]*1.05,0], c='green'))
 
-    if debug:
-        plt.show()
+        if verbose == 1 or verbose == 3:
+            plt.show()
+        if verbose == 2 or verbose == 3:
+            fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300, bbox_inches='tight')
+        plt.clf()
 
-def figure_FoR_profiles(debug):
+def figure_FoR_profiles(verbose=2):
     '''
     This function plots the profiles of the implant in the UVWp frame of reference.
 
     Parameters
     ----------
-    `debug` : bool
-        Whether to print debug information.
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    fig1 = plt.figure()
-    ax1 = fig1.add_subplot(111)
-    ax1.plot((Up_bins[1:] + Up_bins[:-1]) / 2, Up_integrals)
-    fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png", bbox_inches='tight')
+    if verbose >= 2:
+        fig1 = plt.figure()
+        ax1 = fig1.add_subplot(111)
+        ax1.plot((Up_bins[1:] + Up_bins[:-1]) / 2, Up_integrals)
+        if verbose == 3 or verbose == 4:
+            fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png", bbox_inches='tight')
 
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111)
-    ax2.plot((theta_bins[1:] + theta_bins[:-1]) / 2, theta_integrals)
-    fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png", bbox_inches='tight')
+        fig2 = plt.figure()
+        ax2 = fig2.add_subplot(111)
+        ax2.plot((theta_bins[1:] + theta_bins[:-1]) / 2, theta_integrals)
+        if verbose == 3 or verbose == 4:
+            fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png", bbox_inches='tight')
 
-    if debug:
-        plt.show()
+        if verbose == 2 or verbose == 4:
+            plt.show()
+        plt.clf()
 
-def figure_FoR_cylinder(debug=2):
+def figure_FoR_cylinder(verbose=2):
     '''
     This function plots the cylinder that best fits the implant in the UVWp frame of reference.
 
     Parameters
     ----------
-    `debug` : int
-        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if debug >= 2:
+    if verbose >= 2:
         center_line = vedo.Cylinder((C1+C2) / 2, r=implant_radius_voxels/20, height=implant_length_voxels, axis=(C2-C1), alpha=1, c='r')
         cylinder    = vedo.Cylinder((C1+C2) / 2, r=implant_radius_voxels,    height=implant_length_voxels, axis=(C2-C1), alpha=0.3)
 
@@ -232,20 +244,21 @@ def figure_FoR_cylinder(debug=2):
         vol = vedo.Volume(implant)
         vol.alpha([0, 0, 0.05, 0.1])
 
-        pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-        for axis in vaxis.keys():
-            pl.show([vol, center_line, Vp_arrow, Wp_arrow, cylinder], camera={
-                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                'focalPoint': (nz/2, ny/2, nx/2),
-                'viewup': -vaxis[axis]
-            })
+        if verbose == 3 or verbose == 4:
+            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+            for axis in vaxis.keys():
+                pl.show([vol, center_line, Vp_arrow, Wp_arrow, cylinder], camera={
+                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                    'focalPoint': (nz/2, ny/2, nx/2),
+                    'viewup': -vaxis[axis]
+                })
 
-            pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
+                pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
 
-        if debug >= 3:
+        if verbose == 2 or verbose == 4:
             vedo.show([vol, cylinder, Up_arrow, Vp_arrow, Wp_arrow], interactive=True)
 
-def figure_FoR_voxels(name, voxels, debug=2):
+def figure_FoR_voxels(name, voxels, verbose=2):
     '''
     This function plots the voxels in the UVWp frame of reference.
 
@@ -255,28 +268,30 @@ def figure_FoR_voxels(name, voxels, debug=2):
         Name of the output image.
     `voxels` : numpy.array[uint8]
         Voxels to plot.
-    `debug` : int
-        Debug level. 0: No debug, 1: Show plots, 2: Save plots, 3: Show and save plots
+    `verbose` : int
+        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if debug >= 2:
+    if verbose >= 2:
         vol = vedo.Volume(voxels)
         vol.alpha([0,0,0.05,0.1])
 
         pl  = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-        for axis in vaxis.keys():
-            pl.show([vol], camera={
-                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                'focalPoint': (nz/2, ny/2, nx/2),
-                'viewup': -vaxis[axis]
-            })
-            pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
+        if verbose == 3 or verbose == 4:
+            for axis in vaxis.keys():
+                pl.show([vol], camera={
+                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                    'focalPoint': (nz/2, ny/2, nx/2),
+                    'viewup': -vaxis[axis]
+                })
 
-        if debug >= 3:
+                pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
+
+        if verbose == 2 or verbose == 4:
             vedo.show([vol], interactive=True)
 
 if __name__ == "__main__":
@@ -300,11 +315,11 @@ if __name__ == "__main__":
     voxels = np.fromfile(f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", dtype=np.uint16).reshape(implant.shape)
 
     if args.verbose >= 1: print(f'Plotting sanity images')
-    plot_middle_planes(implant, image_output_dir, 'implant-sanity')
-    plot_middle_planes(voxels, image_output_dir, 'voxels-sanity')
+    plot_middle_planes(implant, image_output_dir, 'implant-sanity', verbose=args.verbose)
+    plot_middle_planes(voxels, image_output_dir, 'voxels-sanity', verbose=args.verbose)
     voxels_without_implant = voxels.copy()
     voxels_without_implant[implant.astype(bool)] = 0
-    plot_middle_planes(voxels_without_implant, image_output_dir, 'voxels-without-implant')
+    plot_middle_planes(voxels_without_implant, image_output_dir, 'voxels-without-implant', verbose=args.verbose)
     del voxels_without_implant
 
     nz,ny,nx = implant.shape
@@ -485,7 +500,7 @@ if __name__ == "__main__":
 
     # Voxel-image-shaped stuff: This is the part sthat should only be done for coarse resolution (>= 8x)
     zyxs = coordinate_image(implant.shape)
-    print (cm)
+    if args.verbose >= 1: print (cm)
     uvws = (zyxs - cm) @ E                                   # raw voxel-scale relative to center of mass
     UVWs = (uvws - w0v) * voxel_size                         # Micrometer scale relative to backplane-center
     Us, Vs, Ws = UVWs[...,0], UVWs[...,1], UVWs[...,2]       # UVW physical image coordinates
