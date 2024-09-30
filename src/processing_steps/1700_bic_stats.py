@@ -28,6 +28,7 @@ ranges = {
 if __name__ == '__main__':
     args = default_parser(__doc__).parse_args()
 
+    if args.verbose >= 1: print (f'Loading BICs for {hdf5_root}/processed/bic/{args.sample}_bics.npy')
     bics = np.load(f'{hdf5_root}/processed/bic/{args.sample}_bics.npy')
 
     range = ranges[args.sample] // args.sample_scale
