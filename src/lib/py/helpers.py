@@ -197,7 +197,7 @@ def circle_center(p0, p1, p2):
 
     return c1
 
-def close_3d(image, r):
+def close_3d(image, r, verbose=0):
     '''
     Apply an closing operation to a 3D image with a spherical structuring element of radius `r`.
     If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
@@ -208,6 +208,8 @@ def close_3d(image, r):
         The image to apply the closing operation to.
     `r` : int
         The radius of the structuring element.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -216,9 +218,9 @@ def close_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked, lib_morphology.erode_3d_sphere_bitpacked])
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked, lib_morphology.erode_3d_sphere_bitpacked], verbose)
     else:
-        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere, lib_morphology.erode_3d_sphere])
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere, lib_morphology.erode_3d_sphere], verbose)
 
 def commandline_args(defaults):
     '''
@@ -315,7 +317,7 @@ def coordinate_image(shape, verbose=0):
 
     return zyxs
 
-def dilate_3d(image, r):
+def dilate_3d(image, r, verbose=0):
     '''
     Apply an dilation operation to a 3D image with a spherical structuring element of radius `r`.
     If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
@@ -326,6 +328,8 @@ def dilate_3d(image, r):
         The image to apply the dilation operation to.
     `r` : int
         The radius of the structuring element.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -334,11 +338,11 @@ def dilate_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked])
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere_bitpacked], verbose)
     else:
-        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere])
+        return morph_3d(image, r, [lib_morphology.dilate_3d_sphere], verbose)
 
-def erode_3d(image, r):
+def erode_3d(image, r, verbose=0):
     '''
     Apply an erosion operation to a 3D image with a spherical structuring element of radius `r`.
     If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
@@ -349,6 +353,8 @@ def erode_3d(image, r):
         The image to apply the erosion operation to.
     `r` : int
         The radius of the structuring element.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -357,9 +363,9 @@ def erode_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked])
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked], verbose)
     else:
-        return morph_3d(image, r, [lib_morphology.erode_3d])
+        return morph_3d(image, r, [lib_morphology.erode_3d], verbose)
 
 def gauss_kernel(sigma):
     '''
@@ -639,7 +645,7 @@ def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_n
 
     return voxels, fields
 
-def morph_3d(image, r, fs):
+def morph_3d(image, r, fs, verbose=0):
     '''
     Applies consecutive 3D spherical morphology operation (`fs`) of radius `r` to the image `img`.
     It is a generic function used to build `open_3d` and `close_3d`.
@@ -657,6 +663,8 @@ def morph_3d(image, r, fs):
         The radius of the morphological operation.
     `fs` : list[function]
         The morphological operations to apply.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -675,7 +683,8 @@ def morph_3d(image, r, fs):
 
     # Apply the functions
     for f in fs:
-        for _ in range(rmins):
+        rep_iter = tqdm.tqdm(range(rmins), desc=f"Applying {f.__name__} {rmins} times", unit="iteration") if verbose >= 2 else range(rmins)
+        for _ in rep_iter:
             f(I1, rmin, I2)
             I1, I2 = I2, I1
         if rrest > 0:
@@ -713,7 +722,7 @@ def normalize(A, value_range, nbits=16, dtype=np.uint16):
 
     return (A != 0) * ((((A-vmin) / (vmax-vmin)) * (2**nbits-1)).astype(dtype)+1)
 
-def open_3d(image, r):
+def open_3d(image, r, verbose=0):
     '''
     Apply an opening operation to a 3D image with a spherical structuring element of radius `r`.
     If the image is of type `np.uint32`, this function assumes that the image is bitpacked and uses the bitpacked morphology operations.
@@ -724,6 +733,8 @@ def open_3d(image, r):
         The image to apply the opening operation to.
     `r` : int
         The radius of the structuring element.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -732,9 +743,9 @@ def open_3d(image, r):
     '''
 
     if image.dtype == np.uint32:
-        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked, lib_morphology.dilate_3d_sphere_bitpacked])
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere_bitpacked, lib_morphology.dilate_3d_sphere_bitpacked], verbose)
     else:
-        return morph_3d(image, r, [lib_morphology.erode_3d_sphere, lib_morphology.dilate_3d_sphere])
+        return morph_3d(image, r, [lib_morphology.erode_3d_sphere, lib_morphology.dilate_3d_sphere], verbose)
 
 def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose=0):
     '''
