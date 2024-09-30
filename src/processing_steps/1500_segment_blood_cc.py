@@ -26,7 +26,7 @@ import tqdm
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__, 0)
-    argparser = add_volume(argparser, 'field')
+    argparser = add_volume(argparser, 'field', 2, 'gauss+edt')
     argparser.add_argument('-m', '--material', action='store', type=int, default=0,
         help='The material to segment. Default is 0, which should be soft tissue.')
     args = argparser.parse_args()
