@@ -18,7 +18,7 @@ import os
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)
-    argparser = add_volume(argparser, 'field')
+    argparser = add_volume(argparser, 'field', 2, 'gauss+edt')
     argparser.add_argument('-d', '--distance', action='store', type=int, default=20,
         help='The distance threshold (in micrometers) for the distance field. Default is 20.')
     argparser.add_argument('-t', '--threshold', action='store', type=int, default=0,
