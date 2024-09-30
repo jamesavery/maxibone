@@ -106,7 +106,7 @@ def bitpack_encode(src, dst=None, block_size=32, verbose=0):
 
     return dst
 
-def chunk_info(h5meta_filename, scale, chunk_size=0, n_chunks=0, z_offset=0):
+def chunk_info(h5meta_filename, scale, chunk_size=0, n_chunks=0, z_offset=0, verbose=0):
     '''
     Returns information about the chunks in a volume-matched dataset. It is used for loading chunks in the `load_chunk` function.
 
@@ -122,6 +122,8 @@ def chunk_info(h5meta_filename, scale, chunk_size=0, n_chunks=0, z_offset=0):
         The number of chunks to load. If 0, all chunks are loaded.
     `z_offset` : int
         The offset in the z-dimension to start loading chunks.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -130,7 +132,7 @@ def chunk_info(h5meta_filename, scale, chunk_size=0, n_chunks=0, z_offset=0):
 
     '''
 
-    print(f"Opening {h5meta_filename}")
+    if verbose >= 2: print(f"Opening {h5meta_filename}")
     with h5py.File(h5meta_filename, 'r') as h5meta:
         vm_shifts  = h5meta["volume_matching_shifts"][:]
         Nz, Ny, Nx = h5meta['voxels'].shape
@@ -562,7 +564,7 @@ def h5meta_info_volume_matched(sample):
 
         return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
 
-def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_names, field_scale):
+def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_names, field_scale, verbose = 0):
     '''
     Load a chunk of voxels and fields from the binary and HDF5 files.
     The chunk is loaded at the given offset and has the given size.
@@ -588,6 +590,8 @@ def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_n
         The names of the fields to load.
     `field_scale` : int
         The scale of the fields.
+    `verbose` : int
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -611,15 +615,18 @@ def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_n
     fields = np.zeros((Nfields, chunk_size//field_scale, fNy, fNx), dtype=np.uint16)
 
     if mask_name is not None:
-        for i in tqdm.tqdm(range(1),f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5"):
+        mask_iter = tqdm.tqdm(range(1), f"Loading {mask_name} mask from {hdf5_root}/masks/{mask_scale}x/{sample}.h5") if verbose >= 2 else range(1)
+        for i in mask_iter:
             with h5py.File(f"{hdf5_root}/masks/{mask_scale}x/{sample}.h5","r") as h5mask:
                 mask = h5mask[mask_name]["mask"][offset//mask_scale_relative:offset//mask_scale_relative + chunk_size//mask_scale_relative]
 
-    for i in tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True):
+    voxels_iter = tqdm.tqdm(range(1),f"Loading {voxels.shape} voxels from {binary_root}/voxels/{scale}x/{sample}.uint16", leave=True) if verbose >= 2 else range(1)
+    for i in voxels_iter:
         # TODO: Don't use 3 different methods for load/store
         lib_io.load_slice(voxels, f'{binary_root}/voxels/{scale}x/{sample}.uint16', (offset, 0, 0), (chunk_size, Ny, Nx))
 
-    for i in tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True):
+    fields_iter = tqdm.tqdm(range(Nfields),f"Loading {binary_root}/fields/implant-{field_names}/{field_scale}x/{sample}.npy",leave=True) if verbose >= 2 else range(Nfields)
+    for i in fields_iter:
         fi = np.load(f"{binary_root}/fields/implant-{field_names[i]}/{field_scale}x/{sample}.npy", mmap_mode='r')
         fields[i,:] = fi[offset//field_scale:offset//field_scale + chunk_size//field_scale]
 
@@ -755,7 +762,7 @@ def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose
 
     assert len(tomo.shape) == 3
 
-    if verbose >= 1: print(f"Plotting middle planes {prefix} of {tomo.shape} volume to {output_dir}")
+    if verbose >= 2: print(f"Plotting middle planes {prefix} of {tomo.shape} volume to {output_dir}")
 
     nz, ny, nx = tomo.shape
     names = ['yx', 'zx', 'zy']
