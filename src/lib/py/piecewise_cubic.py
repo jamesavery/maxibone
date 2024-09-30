@@ -11,13 +11,13 @@ Scheme:
            A list of N+1 borders   [X0,X1,....,X_N]
 
 This file generalizes the 2-segment method given in cubic2.py to an arbitrary number of segments.
-           / f1(x) = A1 + B1*(x-X0) + C1*(x-X0)**2 + D1*(x-X0)**3          if x>=X0 & x<=X1
+           // f1(x) = A1 + B1*(x-X0) + C1*(x-X0)**2 + D1*(x-X0)**3          if x>=X0 & x<=X1
     f(x) = |
-           | f2(x) = f1(X1) + f1'(X1)*(x-X2) + C2*(x-X2)**2 + D2*(x-X2)**3 if x>=X1 & x<=X2
+           |  f2(x) = f1(X1) + f1'(X1)*(x-X2) + C2*(x-X2)**2 + D2*(x-X2)**3 if x>=X1 & x<=X2
            |
-           | f3(x) = f2(X2) + f2'(X2)*(x-X3) + C2*(x-X3)**2 + D2*(x-X3)**3 if x>=X2 & x<=X3
-           |   ...
-           \ f_N(x) = f_{N-1}(X_{N-1}) + f'_{N-1}(X_{N-1})*(x-X_N) + C_N*(x-X_N)**2 + D_N*(x-X_N)**3
+           |  f3(x) = f2(X2) + f2'(X2)*(x-X3) + C2*(x-X3)**2 + D2*(x-X3)**3 if x>=X2 & x<=X3
+           |    ...
+           \\ f_N(x) = f_{N-1}(X_{N-1}) + f'_{N-1}(X_{N-1})*(x-X_N) + C_N*(x-X_N)**2 + D_N*(x-X_N)**3
                                                                            if x>=X_{N-1} & x<= X_N
 
 We still want to set up a linear least squares system of equations that implicitly obeys the two exact conditions (so they are not weakened by the least squares approximation to the over-determined system).
