@@ -694,7 +694,7 @@ namespace cpu_seq {
                 if (in_bbox({{z,y,x}}, local_bbox)) {
                     value = (T) std::round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
                 }
-                else if (verbose >= 1) {
+                else if (verbose >= 2) {
                     fprintf(stderr, "Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n", x, y, z, voxels_Nx, voxels_Ny, voxels_Nz);
                 }
 
