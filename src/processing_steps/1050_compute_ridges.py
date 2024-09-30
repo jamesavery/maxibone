@@ -20,6 +20,8 @@ from scipy.ndimage import gaussian_filter1d
 from skimage.morphology import skeletonize
 import time
 
+# TODO At some point, move away from global variables.
+
 def batch():
     '''
     Processes the histograms in batch mode. The histograms are stored in the output folder specified in command line arguments.
@@ -61,7 +63,7 @@ def batch():
 
         np.savez(f'{args.output}/{sample}_labeled', **tmp)
 
-        if args.verbose:
+        if args.verbose >= 1:
             print (f'Processed {sample}')
 
 def load_config(filename):
@@ -346,7 +348,7 @@ def process_contours(hist, rng: _range, config):
     contours_filtered = [contours[i] for i, size in enumerate(contours_sizes) if size > config['min contour size']]
     result = np.zeros((rng.y.stop-rng.y.start, rng.x.stop-rng.x.start), np.uint8)
     bounding_boxes = [cv2.boundingRect(c) for c in contours_filtered]
-    print (len(contours_filtered), len(bounding_boxes))
+    if args.verbose >= 2: print (len(contours_filtered), len(bounding_boxes))
     (contours_filtered, _) = zip(*sorted(zip(contours_filtered, bounding_boxes), key=lambda b:b[1][0]))
     for i in np.arange(len(contours_filtered)):
         result = cv2.drawContours(result, contours_filtered, i, int(i+1), -1)
@@ -486,7 +488,7 @@ def process_with_box(hist, rng: _range, selected_line, scale_x, scale_y, partial
     box_y_start = int(rng.y.start * scale_y)
     box_x_stop = int(rng.x.stop * scale_x)
     box_y_stop = int(rng.y.stop * scale_y)
-    print (partial_size)
+    if args.verbose >= 2: print (partial_size)
     resized = cv2.resize(display, partial_size)
     colored = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
     colored = cv2.rectangle(colored, (box_x_start, box_y_start), (box_x_stop, box_y_stop), (0, 255, 0), 1)
@@ -605,14 +607,14 @@ def gui():
             gx = int(lx * (1./scale_x)) if y < sizey // height_factor else int(rng.x.start + lx * (1./(pwidth / rwidth)))
             gy = int(ly * (1./scale_y)) if y < sizey // height_factor else int(rng.y.start + ly * (1./(pheight / rheight)))
             if (event == cv2.EVENT_LBUTTONDOWN):
-                print ('down', gx, gy)
+                if args.verbose >= 2: print ('down', gx, gy)
                 mx = gx
                 my = gy
             elif (event == cv2.EVENT_LBUTTONUP):
-                print ('up', gx, gy)
+                if args.verbose >= 2: print ('up', gx, gy)
                 if abs(mx-gx) < dead_zone and abs(my-gy) < dead_zone:
                     cv2.setTrackbarPos('line', 'Histogram lines', gy)
-                    print ('Set line', y, ly, gy)
+                    if args.verbose >= 2: print ('Set line', y, ly, gy)
                     #update(42)
                 else:
                     mx, gx = sorted((mx,gx))
@@ -621,10 +623,10 @@ def gui():
                     cv2.setTrackbarPos('range stop x', 'Histogram lines', gx)
                     cv2.setTrackbarPos('range start y', 'Histogram lines', my)
                     cv2.setTrackbarPos('range stop y', 'Histogram lines', gy)
-                    print ('Set bounds', mx, my, gy, gy)
+                    if args.verbose >= 2: print ('Set bounds', mx, my, gy, gy)
                     update(force=True)
             elif (event == cv2.EVENT_MBUTTONDOWN):
-                print ('reset bounding box')
+                if args.verbose >= 2: print ('reset bounding box')
                 hist_shape = hists[cv2.getTrackbarPos('bins', 'Histogram lines')].shape
                 cv2.setTrackbarPos('range start x', 'Histogram lines', 0)
                 cv2.setTrackbarPos('range stop x', 'Histogram lines', hist_shape[1]-1)
@@ -653,7 +655,7 @@ def gui():
 
         times = []
         modified = update_config() or force
-        print ('----- ready', ready, modified, force)
+        if args.verbose >= 2: print ('----- ready', ready, modified, force)
         if not ready or not modified:
             return
         times.append(('init',time.time()))
@@ -789,7 +791,7 @@ def gui():
 
         for i in range(1, len(times)):
             label, tim = times[i]
-            print (label, tim - times[i-1][1])
+            if args.verbose >= 2: print (label, tim - times[i-1][1])
 
     def update_config():
         '''
@@ -810,10 +812,10 @@ def gui():
         for entry in config.keys():
             tmp = config[entry]
             config[entry] = cv2.getTrackbarPos(entry, 'Histogram lines')
-            print (entry, tmp, config[entry])
+            if args.verbose >= 2: print (entry, tmp, config[entry])
             changed = changed or (tmp != config[entry])
 
-        if changed: print ('Changed!');
+        if changed and args.verbose >= 2: print ('Changed!');
 
         return changed
 
