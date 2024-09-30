@@ -66,9 +66,9 @@ def axes_histogram_in_memory(voxels, func, ranges, voxel_bins, verbose):
         vmin, vmax = masked_minmax(voxels)
     else:
         vmin, vmax = ranges
-    if verbose >= 1: print ("Entering call", datetime.now())
+    if verbose >= 2: print ("Entering call", datetime.now())
     func(voxels, (0,0,0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose)
-    if verbose >= 1: print ("Exited call", datetime.now())
+    if verbose >= 2: print ("Exited call", datetime.now())
 
     return x_bins, y_bins, z_bins, r_bins
 
@@ -106,9 +106,9 @@ def field_histogram_in_memory(voxels, field, func, ranges, voxel_bins, field_bin
     else:
         vrange, frange = ranges
 
-    if verbose >= 1: print ("Entering call", datetime.now())
+    if verbose >= 2: print ("Entering call", datetime.now())
     func(voxels, field, (0,0,0), bins, vrange, frange, verbose)
-    if verbose >= 1: print ("Exited call", datetime.now())
+    if verbose >= 2: print ("Exited call", datetime.now())
 
     return bins
 
@@ -136,7 +136,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
     '''
 
     tolerance = 1e-5
-    print ('Running sequential CPU version')
+    if verbose >= 1: print ('Axes: Running sequential CPU version')
     schx, schy, schz, schr = axes_histogram_in_memory(voxels, axis_histogram_seq_cpu, ranges, voxel_bins, verbose)
 
     # Check that the sequential CPU version produced any results
@@ -144,7 +144,7 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
     if (schx.sum() > 0 and schy.sum() > 0 and schz.sum() > 0 and schr.sum() > 0):
         seq_cpu_verified = True
 
-    print ('Running parallel CPU version')
+    if verbose >= 1: print ('Axes: Running parallel CPU version')
     pchx, pchy, pchz, pchr = axes_histogram_in_memory(voxels, axis_histogram_par_cpu, ranges, voxel_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pchx), np.uint8)).save(f"{outpath}/xb_verification.png")
@@ -161,12 +161,14 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
     if (dx < tolerance and dy < tolerance and dz < tolerance and dr < tolerance):
         par_cpu_verified = True
     else:
+        print ('Parallel CPU version did not match sequential CPU version.')
         print (f'diff x = {dx}')
         print (f'diff y = {dy}')
         print (f'diff z = {dz}')
         print (f'diff r = {dr}')
+        print ('---------------------------------')
 
-    print ('Running parallel GPU version')
+    if verbose >= 1: print ('Axes: Running parallel GPU version')
     pghx, pghy, pghz, pghr = axes_histogram_in_memory(voxels, axis_histogram_par_gpu, ranges, voxel_bins, verbose)
 
     dx = np.abs(schx - pghx).sum()
@@ -178,14 +180,16 @@ def verify_axes_histogram(voxels, ranges, outpath, voxel_bins, verbose):
     if (dx < tolerance and dy < tolerance and dz < tolerance and dr < tolerance):
         par_gpu_verified = True
     else:
+        print ('Parallel GPU version did not match sequential CPU version.')
         print (f'diff x = {dx}')
         print (f'diff y = {dy}')
         print (f'diff z = {dz}')
         print (f'diff r = {dr}')
+        print ('---------------------------------')
 
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
     if verified:
-        print ('Both parallel CPU and GPU matched sequential CPU version')
+        if verbose >= 1: print ('Axes: Both parallel CPU and GPU matched sequential CPU version')
 
     return verified
 
@@ -217,7 +221,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bin
     '''
 
     tolerance = 1e-5
-    print ('Running sequential CPU version')
+    if verbose >= 1: print ('Field - Running sequential CPU version')
     sch = field_histogram_in_memory(voxels, field, field_histogram_seq_cpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(sch), np.uint8)).save(f"{outpath}/field_verification_seq_cpu.png")
@@ -227,7 +231,7 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bin
     if (sch.sum() > 0):
         seq_cpu_verified = True
 
-    print ('Field - Running parallel CPU version')
+    if verbose >= 1: print ('Field - Running parallel CPU version')
     pch = field_histogram_in_memory(voxels, field, field_histogram_par_cpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pch), np.uint8)).save(f"{outpath}/field_verification_par_cpu.png")
@@ -238,9 +242,11 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bin
     if (d < tolerance):
         par_cpu_verified = True
     else:
+        print ('Parallel CPU version did not match sequential CPU version.')
         print (f'par cpu diff = {d}')
+        print ('---------------------------------')
 
-    print ('Field - Running parallel GPU version')
+    if verbose >= 1: print ('Field - Running parallel GPU version')
     pgh = field_histogram_in_memory(voxels, field, field_histogram_par_gpu, ranges, voxel_bins, field_bins, verbose)
 
     Image.fromarray(to_int(row_normalize(pgh), np.uint8)).save(f"{outpath}/field_verification_gpu.png")
@@ -251,10 +257,12 @@ def verify_field_histogram(voxels, field, ranges, outpath, voxel_bins, field_bin
     if (d < tolerance):
         par_gpu_verified = True
     else:
+        print ('Parallel GPU version did not match sequential CPU version.')
         print (f'gpu diff = {d}')
+        print ('---------------------------------')
 
     verified = seq_cpu_verified and par_cpu_verified and par_gpu_verified
-    if verified:
+    if verified and verbose >= 1:
         print ('Field: Both parallel CPU and GPU matched sequential CPU version')
 
     return verified
@@ -283,7 +291,7 @@ def benchmark_axes_histograms(voxels, ranges, voxel_bins, runs, verbose):
 
     # TODO Move benchmarking out of this script.
     print()
-    print('----- Benchmarking -----')
+    print('----- Benchmarking axes histograms -----')
     print()
     seq_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, axis_histogram_seq_cpu, ranges, voxel_bins, verbose), number=1)
     par_cpu = timeit.timeit(lambda: axes_histogram_in_memory(voxels, axis_histogram_par_cpu, ranges, voxel_bins, verbose), number=runs)
@@ -325,7 +333,7 @@ def benchmark_field_histograms(voxels, field, ranges, voxel_bins, field_bins, ru
     '''
 
     print()
-    print('----- Benchmarking -----')
+    print('----- Benchmarking field histograms -----')
     print()
     seq_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, field_histogram_seq_cpu, ranges, voxel_bins, field_bins, verbose), number=1)
     par_cpu = timeit.timeit(lambda: field_histogram_in_memory(voxels, field, field_histogram_par_cpu, ranges, voxel_bins, field_bins, verbose), number=runs)
