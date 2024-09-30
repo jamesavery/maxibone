@@ -35,12 +35,12 @@ if __name__ == '__main__':
     bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1)
     Nz, Ny, Nx, _ = bi["dimensions"]
 
-    for args.sample_scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
-        data = f'{binary_root}/segmented/{args.field}/P{args.material}/{args.sample_scale}x/{args.sample}.uint16'
-        output_dir = f'{hdf5_root}/masks/{args.sample_scale}x'
+    for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
+        data = f'{binary_root}/segmented/{args.field}/P{args.material}/{scale}x/{args.sample}.uint16'
+        output_dir = f'{hdf5_root}/masks/{scale}x'
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        nz, ny, nx = Nz // args.sample_scale, Ny // args.sample_scale, Nx // args.sample_scale
-        voxel_size = bi["voxel_size"]*args.sample_scale
+        nz, ny, nx = Nz // scale, Ny // scale, Nx // scale
+        voxel_size = bi["voxel_size"]*scale
 
         if args.verbose >= 1:
             plot_dir = f"{hdf5_root}/processed/blood_mask/"
@@ -66,7 +66,7 @@ if __name__ == '__main__':
             largest_cc = np.argmax(counts)
             mask = (label == largest_cc)
         else:
-            intermediate_folder = f"/tmp/maxibone/labels_blood/{args.sample_scale}x/"
+            intermediate_folder = f"/tmp/maxibone/labels_blood/{scale}x/"
             os.makedirs(intermediate_folder, exist_ok=True)
 
             def label_chunk(i, chunk_size, chunk_prefix):
@@ -76,7 +76,7 @@ if __name__ == '__main__':
                 voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
                 load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
                 if args.verbose >= 3:
-                    plot_middle_planes(voxel_chunk, plot_dir, f'{args.sample}_{args.sample_scale}_{i}_voxels')
+                    plot_middle_planes(voxel_chunk, plot_dir, f'{args.sample}_{scale}_{i}_voxels')
                 label, n_features = ndi.label(voxel_chunk, output=np.int64)
                 del voxel_chunk
                 label.tofile(f'{chunk_prefix}{i}.int64')
@@ -100,13 +100,13 @@ if __name__ == '__main__':
             largest_connected_component(mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
         if args.verbose >= 1:
-            plot_middle_planes(mask, plot_dir, f'{args.sample}_{args.sample_scale}_{args.field}_mask')
+            plot_middle_planes(mask, plot_dir, f'{args.sample}_{scale}_{args.field}_mask', verbose=args.verbose)
 
         update_hdf5(f"{output_dir}/{args.sample}.h5",
                     group_name=f"blood",
                     datasets={'mask':mask},
                     attributes={
-                        'scale': args.sample_scale,
+                        'scale': scale,
                         'voxel_size': voxel_size,
                         'sample': args.sample,
                         'name': "blood_mask"
