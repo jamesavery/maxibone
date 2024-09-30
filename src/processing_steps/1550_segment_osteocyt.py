@@ -30,6 +30,7 @@ if __name__ == '__main__':
     sample_path = f'{mask_dir}/{args.sample}.h5'
 
     # Load the blood mask
+    if args.verbose >= 1: print (f"Loading blood mask from {sample_path}")
     with h5py.File(f"{sample_path}", 'r') as f:
         blood_mask = f['blood']['mask'][:]
         Nz, Ny, Nx = blood_mask.shape
@@ -40,13 +41,14 @@ if __name__ == '__main__':
         raise ValueError(f"Voxel volume for scale {args.sample_scale} is {voxel_volume}, which is larger than the maximum osteocyte volume {osteocyte_Vmax}. Please run on a finer scale.")
 
     # Load and threshold the soft tissue mask
+    if args.verbose >= 1: print (f"Loading soft tissue mask from {sample_path}")
     voxels = np.memmap(f'{hdf5_root}/binary/segmented/gauss+edt/P0/{args.sample_scale}x/{args.sample}.uint16', dtype='uint16', mode='r', shape=(Nz, Ny, Nx))
     as_mask = voxels > 0
     as_mask *= ~blood_mask
 
     # Label the potential osteocytes
     hole_id, num_holes = ndi.label(as_mask, output=np.uint64) # TODO out-of-core
-    if args.verbose > 0:
+    if args.verbose >= 1:
         print (f"Found {num_holes} potential osteocytes")
 
     # Compute the volumes and sort out unrealistic osteocytes
@@ -56,7 +58,7 @@ if __name__ == '__main__':
     small_unknown = volumes < osteocyte_Vmin
     large_unknown = volumes > osteocyte_Vmax
     osteocyte_sized = (volumes >= osteocyte_Vmin) & (volumes <= osteocyte_Vmax)
-    if args.verbose > 0:
+    if args.verbose >= 1:
         print (f"Found {np.sum(small_unknown)} small and {np.sum(large_unknown)} large osteocytes")
         print (f"Found {np.sum(osteocyte_sized)} potential osteocytes")
 
@@ -71,7 +73,7 @@ if __name__ == '__main__':
     weirdly_long = (a / c) > 3
     nans = np.isnan(a) | np.isnan(b) | np.isnan(c)
     weirdly_long |= nans
-    if args.verbose > 0:
+    if args.verbose >= 1:
         print (f"Found {np.sum(weirdly_long)} weirdly long osteocytes")
 
     # Test that the osteocytes are not too different from the best ellipsoid
@@ -80,7 +82,7 @@ if __name__ == '__main__':
     outside_ellipsoid(hole_id, cms, abc, ellipsoid_errors)
     ellipsoid_error_threshold = .3 * 1e9
     weirdly_shaped = (ellipsoid_errors / ellipsoid_volumes) > ellipsoid_error_threshold
-    if args.verbose > 0:
+    if args.verbose >= 1:
         print (f"Found {np.sum(weirdly_shaped)} weirdly shaped osteocytes")
         print (f'Plotting histogram of ellipsoid errors to {plot_dir}/')
         errors = ellipsoid_errors[1:] / ellipsoid_volumes[1:]
@@ -95,12 +97,12 @@ if __name__ == '__main__':
     # Final osteocyte segmentation
     osteocyte_segments = np.argwhere(osteocyte_sized & (~weirdly_long) & (~weirdly_shaped)).flatten().astype(np.uint64)
     osteocyte_mask = hole_id.copy()
-    if args.verbose > 0:
+    if args.verbose >= 1:
         print (f"Found {len(osteocyte_segments)} osteocytes")
 
     where_in(osteocyte_mask, osteocyte_segments)
 
-    if args.verbose > 0:
+    if args.verbose >= 1:
         # Plot the debug images
         red = [255,0,0]
         yellow = [255,255,0]
