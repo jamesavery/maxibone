@@ -69,7 +69,9 @@ if __name__ == "__main__":
     voxels32x = np.empty((Nz//32, Ny//32, Nx//32), dtype=T)
     voxels    = [voxels2x, voxels4x, voxels8x, voxels16x, voxels32x]
 
-    for z in tqdm.tqdm(range(0, Nz, args.chunk_size), f"{args.sample}: Reading and scaling {args.chunk_size}-layer chunks"):
+    chunk_rng = range(0, Nz, args.chunk_size)
+    chunk_iter = tqdm.tqdm(chunk_rng, f"{args.sample}: Reading and scaling {args.chunk_size}-layer chunks") if args.verbose >= 1 else chunk_rng
+    for z in chunk_iter:
         zend = min(z+args.chunk_size, Nz)
         chunk_items = (zend-z) * Ny * Nx
         # TODO Use lib calls instead of fromfile
@@ -107,7 +109,9 @@ if __name__ == "__main__":
 
     if args.verbose >= 1: print(f"Allocating {(Nz//2,Ny//2,Nx//2)}={Nz//2*Ny//2*Nx//2} {args.dtype} for voxels2x on GPU")
 
-    for i in tqdm.tqdm(range(len(scales)), f"{args.sample}: Downscaling to all smaller scales: {scales[2:]}"):
+    scales_rng = range(len(scales))
+    scales_iter = tqdm.tqdm(scales_rng, f"{args.sample}: Downscaling to all smaller scales: {scales[2:]}") if args.verbose >= 1 else scales_rng
+    for i in scales_iter:
         output_dir = f"{output_root}/{scales[i]}x/"
         pathlib.Path(f"{output_dir}").mkdir(parents=True, exist_ok=True)
         if args.verbose >= 1: print(f"Writing out scale {scales[i]}x {(voxels[i].shape)} to {output_dir}/{args.sample}.{args.dtype}")
