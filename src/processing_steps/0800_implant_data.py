@@ -70,14 +70,16 @@ if __name__ == "__main__":
     mask = np.zeros((args.chunk_size,ny,nx), np.uint8)
     thetas = np.zeros((2,), np.float32)
 
-    for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask pre"):
+    pre_iter = tqdm.tqdm(range(n_blocks), desc="Precomputing implant data") if args.verbose >= 1 else range(n_blocks)
+    for i in pre_iter:
         z0 = i * args.chunk_size
         z1 = (i+1) * args.chunk_size
         if z1 > nz: z1 = nz
         mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
         fill_implant_mask_pre(mask[:z1-z0], z0*ny*nx, voxel_size, bbox_flat, Muvwp_flat, thetas, rsqr_maxs)
 
-    for i in tqdm.tqdm(range(n_blocks), desc="Filling implant mask"):
+    fill_iter = tqdm.tqdm(range(n_blocks), desc="Filling implant mask") if args.verbose >= 1 else range(n_blocks)
+    for i in fill_iter:
         z0 = i*args.chunk_size
         z1 = (i+1)*args.chunk_size
         if z1 > nz: z1 = nz
