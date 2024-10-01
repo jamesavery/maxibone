@@ -45,16 +45,20 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose):
 
     # Shifts smaller than the overlap overlap with shift
     slice_size = voxels_top.shape[1] * voxels_top.shape[2] # Normalize by number of voxels (to make sums_lt and sums_ge comparable)
+    rng_lt = range(2, overlap)
+    iter_lt = tqdm.tqdm(rng_lt, f"Matchings shifted 0 to {overlap}") if verbose >= 1 else rng_lt
     sums_lt = jp.array( [ jp.sum(((voxels_top[-shift:] - voxels_bot[0:shift]) / (shift * slice_size))**2)
-                          for shift in tqdm.tqdm(range(2, overlap), f"Matchings shifted 0 to {overlap}")] )
+                          for shift in iter_lt] )
 
     # Shifts larger than the overlap overlap with overlap
+    rng_ge = range(0, max_shift-overlap)
+    iter_ge = tqdm.tqdm(rng_ge, f"Matchings shifted {overlap} to {max_shift}") if verbose >= 1 else rng_ge
     sums_ge = jp.array( [ jp.sum(((voxels_top[-overlap:] - voxels_bot[shift:shift+overlap]) / (overlap * slice_size))**2)
-                          for shift in tqdm.tqdm(range(0, max_shift-overlap), f"Matchings shifted {overlap} to {max_shift}")] )
+                          for shift in iter_ge] )
 
     if verbose >= 1:
-        print("sums_lt=",sums_lt)
-        print("sums_ge=",sums_ge)
+        print("sums_lt=", sums_lt)
+        print("sums_ge=", sums_ge)
 
     sums = jp.concatenate([sums_lt, sums_ge])
     result = jp.argmin( sums ), jp.sqrt(sums.min())
