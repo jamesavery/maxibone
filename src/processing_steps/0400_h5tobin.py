@@ -85,7 +85,9 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
 
     total = 0 # Will be set in the first iteration
     written = 0
-    for i in tqdm(range(Nvols), desc=f'Loading {sample} from HDF5 and writing binary'):
+    nvol_rng = range(Nvols)
+    nvol_iter = tqdm(nvol_rng, desc=f'Loading {sample} from HDF5 and writing binary') if verbose >= 1 else nvol_rng
+    for i in nvol_iter:
         subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         combined = (subvolume_msb << 8) | subvolume_lsb
