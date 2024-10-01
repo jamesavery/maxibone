@@ -42,7 +42,7 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     epilog='For more information, please visit github.com/jamesavery/maxibone'
     parser = argparse.ArgumentParser(description=description, epilog=epilog, formatter_class=argparse.RawTextHelpFormatter)
 
-    parser = add_volume(parser, 'sample', default_scale, '770c_pag', (None, '?'))
+    parser = add_volume(parser, 'sample', default_scale, None, (None, '?'))
     parser.add_argument('-c', '--chunk-size', action='store', type=int, default=64,
         help='The size of the z-axis of the chunks to be processed. Default is 64.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
@@ -76,8 +76,9 @@ def add_volume(parser, name, default_scale=1, default_name='', nargs=('?', '?'))
         The parser with the volume argument added.
     '''
 
+    default_desc = '' if default_name is None or default_name == '' else f'Default is {default_name}.'
     parser.add_argument(f'{name}', action='store', type=str, default=default_name, nargs=nargs[0],
-        help=f'The name of the {name} volume to be processed. Default is {default_name}.')
+        help=f'The name of the {name} volume to be processed. {default_desc}')
     parser.add_argument(f'{name}_scale', action='store', type=int, default=default_scale, nargs=nargs[1],
         help=f'The scale of the {name} volume to be processed. Default is {default_scale}.')
 
