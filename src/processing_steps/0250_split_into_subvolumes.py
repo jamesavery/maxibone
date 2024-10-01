@@ -30,7 +30,8 @@ if __name__ == "__main__":
         input_h5 = h5py.File(input_h5_name, "r")
         voxels = input_h5['voxels']
 
-        for i in tqdm.tqdm(range(subvolume_dimensions.shape[0]), desc=f"Splitting {byts}"):
+        subvolume_iter = tqdm.tqdm(range(subvolume_dimensions.shape[0]), desc=f"Splitting {byts}") if args.verbose >= 1 else range(subvolume_dimensions.shape[0])
+        for i in subvolume_iter:
             # Get the dimensions for this subvolume
             Nz, _, _ = subvolume_dimensions[i]
             z_offset = sum(subvolume_dimensions[:i,0])
