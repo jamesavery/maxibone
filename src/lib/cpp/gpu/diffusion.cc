@@ -985,7 +985,7 @@ namespace gpu {
         // TODO Oventstaaende kan kombineres med rolling buffer, saa man ikke skal overfoerer al data hver gang. Fordi jeg havde tanken med at man kun skulle overfoerer naboer der roer ved den man roer ved, men det er jo ikke helt tilfaeldet, fordi man skal ogsaa overfoerer dem som roer ved dem der roerer. Saa altsaa istedet for 6 naboer i 3d, saa er det 25 naboer. Men med rolling buffer, saa er det i 3d kun 9 nye naboer der skal med over, ikke alle 25 + den man arbejder med. Det burde kunne reducerer dataoverfoerslen betydeligt. Det eneste irreterende er at man skal enten have index for hvilke blokker der relaterer sig til hvilke, eller ogsaa skal man lave copy. Men copy goer jo ikke lige saa ondt, saa laenge at det er inde paa device. Plus, blokkene er store nok til at alt bliver coalesced, hvilket giver god performance.
 
         if (verbose >= 1) {
-            std::cout << "Converting uint8 to float" << std::endl;
+            std::cout << "Converting uint8 to float";
         }
 
         // Should be faster on CPU, compared to GPU, since the data has to come back to the CPU anyways due to the size. For in-memory, the GPU version is faster, since the transfer back can be avoided.
@@ -1004,6 +1004,10 @@ namespace gpu {
                     buf0[dst_index] = z_valid && y_valid && x_valid && voxels[src_index] ? 1.0f : 0.0f;
                 }
             }
+        }
+
+        if (verbose >= 1) {
+            std::cout << "\rConverting uint8 to float is complete!" << std::endl;
         }
 
         #pragma omp parallel num_threads(n_devices * n_streams) shared(voxels, buf0, buf1, output) firstprivate(kernel, kernel_size, total_shape, global_shape, global_shape_padded, blocks_shape, repititions, radius, total_size, global_size_padded)
