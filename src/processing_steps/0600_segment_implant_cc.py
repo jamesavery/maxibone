@@ -56,12 +56,12 @@ if __name__ == "__main__":
     memory_per_core  = available_memory // n_cores
     elements_per_core = memory_per_core // 8 # 8 bytes per element
     layers_per_core = elements_per_core // layer_size
-    n_chunks = int(2**np.ceil(np.log2(nz // layers_per_core)))
+    n_chunks = int(2**np.ceil(np.log2(nz // layers_per_core))) if nz > layers_per_core else 1
     layers_per_chunk = nz // n_chunks
     chunk_size_elements = layers_per_chunk * layer_size
     chunk_size_bytes = chunk_size_elements * 8
 
-    if args.verbose >= 1: print(f"""
+    if args.verbose >= 2: print(f"""
         Reading metadata from {meta_filename}.
         volume_matching_shifts = {vm_shifts}
         Implant threshold {implant_threshold} -> {implant_threshold_u16} as uint16
@@ -79,8 +79,8 @@ if __name__ == "__main__":
     h5meta.close()
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
-        voxels = np.empty((nz,ny,nx), dtype=np.uint16)
         if args.verbose >= 1: print(f"Reading full volume {args.sample} at {args.sample_scale}x")
+        voxels = np.empty((nz,ny,nx), dtype=np.uint16)
         load_slice(voxels, f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", (0,0,0), (nz,ny,nx))
         noisy_implant = (voxels > implant_threshold_u16)
         del voxels
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             # load uint16, threshold (uint16 > uint8), label (int64), write int64
             total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
             gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
-            print (f'Loading and labelling took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
+            if args.verbose >= 1: print (f'Loading and labelling took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
 
             np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{args.sample}_n_labels.int64")
 
@@ -130,6 +130,7 @@ if __name__ == "__main__":
 
     if args.verbose >= 2:
         print (f"Plotting middle planes to {plot_dir}")
+        # TODO plotting is its own thing, shouldn't be related to verbose.
         plot_middle_planes(implant_mask, plot_dir, args.sample)
 
     output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
@@ -137,7 +138,11 @@ if __name__ == "__main__":
     if args.verbose >= 1: print(f"Writing largest connected component to {output_dir}/{args.sample}.h5")
 
     update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
-                    group_name="implant",
-                    datasets={'mask': implant_mask},
-                    attributes={'scale': args.sample_scale, 'voxel_size': voxel_size,
-                                'sample': args.sample, 'name': "implant_mask"})
+        group_name = "implant",
+        datasets = { 'mask': implant_mask },
+        attributes = {
+            'scale': args.sample_scale,
+            'voxel_size': voxel_size,
+            'sample': args.sample,
+            'name': "implant_mask"
+        })
