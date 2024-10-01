@@ -90,7 +90,7 @@ def largest_cc_of(sample_name, scale, mask, mask_name, verbose=0):
     layers_per_core = elements_per_core // layer_size
     n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core))))
     layers_per_chunk = nz // n_chunks
-    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x/"
+    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x"
     os.makedirs(intermediate_folder, exist_ok=True)
 
     if layers_per_chunk == 0 or layers_per_chunk >= nz:
@@ -126,7 +126,7 @@ def largest_cc_of(sample_name, scale, mask, mask_name, verbose=0):
 if __name__ == "__main__":
     args = default_parser(__doc__, default_scale=4).parse_args()
 
-    image_output_dir = f"{hdf5_root}/processed/bone_region/{args.sample}/{args.sample_scale}x/"
+    image_output_dir = f"{hdf5_root}/processed/bone_region/{args.sample}/{args.sample_scale}x"
     if args.verbose >= 1: print(f"Storing all debug-images to {image_output_dir}")
     pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     front_mask = largest_cc_of(args.sample, args.sample_scale, front_mask, 'front', args.verbose)
     front_part = voxels * front_mask
 
-    output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
+    output_dir = f"{hdf5_root}/masks/{args.sample_scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     if args.verbose >= 1: print(f"Saving implant_solid mask to {output_dir}/{args.sample}.h5")
     update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
@@ -236,27 +236,27 @@ if __name__ == "__main__":
     opening_voxels = 2 * int(round(opening_diameter / (2 * voxel_size))) + 1 # Scale & ensure odd length
     implant_dilate_voxels = 2 * int(round(implant_dilate_diameter / (2 * voxel_size))) + 1 # Scale & ensure odd length
     bitpacked = nx % 32 == 0
+    print_progress = 2 if args.verbose >= 1 else 0
     if bitpacked:
         bone_region_tmp = bitpack_encode(bone_mask1, verbose=args.verbose)
     else:
         bone_region_tmp = bone_mask1.astype(np.uint8)
     del bone_mask1
 
-    for i in tqdm.tqdm(range(1),f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels."):
-        bone_region_tmp = close_3d(bone_region_tmp, closing_voxels // 2)
+    if args.verbose >= 1: print (f"Closing with sphere of diameter {closing_diameter} micrometers, {closing_voxels} voxels.")
+    bone_region_tmp = close_3d(bone_region_tmp, closing_voxels // 2, verbose=print_progress)
 
-    for i in tqdm.tqdm(range(1),f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels."):
-        bone_region_tmp = open_3d(bone_region_tmp, opening_voxels // 2)
+    if args.verbose >= 1: print (f"Opening with sphere of diameter {opening_diameter} micrometers, {opening_voxels} voxels.")
+    bone_region_tmp = open_3d(bone_region_tmp, opening_voxels // 2, verbose=print_progress)
 
-    for i in tqdm.tqdm(range(1),f'Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.'):
-        if bitpacked:
-            packed_implant = bitpack_encode(solid_implant, verbose=args.verbose)
-        else:
-            packed_implant = solid_implant
-        del solid_implant
-
-        dilated_implant = dilate_3d(packed_implant, implant_dilate_voxels)
-        bone_region_tmp &= ~dilated_implant
+    if args.verbose >= 1: print (f"Dilating and removing implant with {implant_dilate_diameter} micrometers, {implant_dilate_voxels} voxels.")
+    if bitpacked:
+        packed_implant = bitpack_encode(solid_implant, verbose=args.verbose)
+    else:
+        packed_implant = solid_implant
+    del solid_implant
+    dilated_implant = dilate_3d(packed_implant, implant_dilate_voxels, verbose=print_progress)
+    bone_region_tmp &= ~dilated_implant
 
     if bitpacked:
         bone_region_mask = bitpack_decode(bone_region_tmp, verbose=args.verbose)
