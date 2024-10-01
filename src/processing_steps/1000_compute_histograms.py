@@ -435,7 +435,7 @@ def run_out_of_core(sample, scale=1, chunk_size=128, z_offset=0, n_chunks=0,
         The histogram for the fields.
     '''
 
-    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, chunk_size, n_chunks, z_offset)
+    bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', scale, chunk_size, n_chunks, z_offset, verbose)
     (Nz,Ny,Nx,Nr) = bi['dimensions']
     chunk_size    = bi['chunk_size']
     n_chunks      = bi['n_chunks']
@@ -451,20 +451,22 @@ def run_out_of_core(sample, scale=1, chunk_size=128, z_offset=0, n_chunks=0,
     r_bins = np.zeros((Nr, voxel_bins), dtype=np.uint64)
     f_bins = np.zeros((Nfields,field_bins, voxel_bins), dtype=np.uint64)
 
-    for b in tqdm(range(n_chunks), desc='Computing histograms'):
+    chunk_iter = tqdm(range(n_chunks), desc='Computing histograms') if verbose >= 1 else range(n_chunks)
+    for b in chunk_iter:
         if chunks_are_subvolumes:
             zstart     = bi['subvolume_starts'][z_offset+b]
             chunk_size = bi['subvolume_nzs'][z_offset+b]
         else:
             zstart = z_offset + b*chunk_size
 
-        voxels, fields = load_chunk(sample, scale, zstart, chunk_size, mask, mask_scale, field_names, field_scale)
+        voxels, fields = load_chunk(sample, scale, zstart, chunk_size, mask, mask_scale, field_names, field_scale, verbose)
 
-        for i in tqdm(range(1),"Histogramming over x,y,z axes and radius", leave=True):
-            axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose)
+        axis_histogram_par_gpu(voxels, (zstart, 0, 0), x_bins, y_bins, z_bins, r_bins, center, (vmin, vmax), verbose)
 
-        for i in tqdm(range(Nfields),f"Histogramming w.r.t. fields {field_names}", leave=True):
+        for i in range(Nfields):
             field_histogram_par_gpu(voxels, fields[i], (zstart, 0, 0), f_bins[i], (vmin, vmax), (fmin, fmax), verbose)
+
+    if verbose >= 1: print ("Smoothing histograms")
 
     f_bins[:, 0,:] = 0 # TODO EDT mask hack
     f_bins[:,-1,:] = 0 # TODO "bright" mask hack
@@ -500,7 +502,7 @@ if __name__ == '__main__':
         help='The number of runs to average the benchmark over.')
     args = argparser.parse_args()
 
-    outpath = f'{hdf5_root}/processed/histograms/{args.sample}/'
+    outpath = f'{hdf5_root}/processed/histograms/{args.sample}'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
 
     if args.benchmark:
@@ -534,6 +536,9 @@ if __name__ == '__main__':
                                             field_names, args.field_scale, ((vmin,vmax),(fmin,fmax)),
                                             args.verbose)
 
+        if args.verbose >= 1: print(f"Saving histograms plots to {outpath}")
+
+        # TODO only plot if plotting is enabled
         Image.fromarray(to_int(row_normalize(xb), np.uint8)).save(f"{outpath}/xb{args.suffix}.png")
         Image.fromarray(to_int(row_normalize(yb), np.uint8)).save(f"{outpath}/yb{args.suffix}.png")
         Image.fromarray(to_int(row_normalize(zb), np.uint8)).save(f"{outpath}/zb{args.suffix}.png")
@@ -541,6 +546,8 @@ if __name__ == '__main__':
 
         for i in range(len(field_names)):
             Image.fromarray(to_int(row_normalize(fb[i]), np.uint8)).save(f"{outpath}/fb-{field_names[i]}{args.suffix}.png")
+
+        if args.verbose >= 1: print(f"Saving histograms to {outpath}/bins{args.suffix}.npz")
 
         np.savez(f'{outpath}/bins{args.suffix}.npz',
                 x_bins=xb, y_bins=yb, z_bins=zb, r_bins=rb, field_bins=fb,
