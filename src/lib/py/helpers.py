@@ -683,12 +683,12 @@ def morph_3d(image, r, fs, verbose=0):
 
     # Apply the functions
     for f in fs:
-        rep_iter = tqdm.tqdm(range(rmins), desc=f"Applying {f.__name__} {rmins} times", unit="iteration") if verbose >= 2 else range(rmins)
+        rep_rng = range(rmins + (rrest > 0))
+        rep_desc = f'{rmins} times with radius 16' if rrest > 0 else ''
+        rep_desc = f'{rep_desc} and once with {rrest}' if rrest > 0 else rep_desc
+        rep_iter = tqdm.tqdm(rep_rng, desc=f"Applying {f.__name__} {rep_desc}", unit="iteration") if verbose >= 2 else rep_rng
         for _ in rep_iter:
             f(I1, rmin, I2)
-            I1, I2 = I2, I1
-        if rrest > 0:
-            f(I1, rrest, I2)
             I1, I2 = I2, I1
 
     # Ensure temporary array is deallocated
