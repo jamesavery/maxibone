@@ -20,11 +20,11 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     1. `sample` : str
         The sample name to be processed.
     2. `sample_scale` : int
-        The scale of the image to be processed.
+        The scale of the image to be processed. Default is 1.
     3. `chunk_size` : int
-        The size of the z-axis of the chunks to be processed.
+        The size of the z-axis of the chunks to be processed. Default is 64.
     4. `verbose` : int
-        The verbosity level of the script.
+        The verbosity level of the script. Default is 1.
 
     Parameters
     ----------
@@ -45,8 +45,8 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     parser = add_volume(parser, 'sample', default_scale, None, (None, '?'))
     parser.add_argument('-c', '--chunk-size', action='store', type=int, default=64,
         help='The size of the z-axis of the chunks to be processed. Default is 64.')
-    parser.add_argument('-v', '--verbose', action='store', type=int, default=0,
-        help='Set the verbosity level of the script. Default is 0. Generally, 0 is no output, 1 is some text output, 2 is plotting, and 3 is debugging.')
+    parser.add_argument('-v', '--verbose', action='store', type=int, default=1,
+        help='Set the verbosity level of the script. Default is 1. Generally, 0 is no output, 1 is progress / some text output, 2 is plotting, and 3 is debugging.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
         help='Print the version of the script and exit.')
 
