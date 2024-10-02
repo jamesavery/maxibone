@@ -8,8 +8,12 @@ The FoR is defined in two coordinate systems:
 
 It is used for later analysis of the implant geometry to generate the masks.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -23,7 +27,6 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import colorConverter
 import numpy as np
 import numpy.linalg as la
-import pathlib
 import tqdm
 import vedo
 import vedo.pointcloud as pc

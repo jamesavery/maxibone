@@ -4,8 +4,11 @@ This module is used to parse commandline arguments using the `argparse` module.
 
 It is in its own module, to provide a default yet extendable interface for all of the scripts in this project.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent.parent}')
 
 import argparse
 import config.constants as constants

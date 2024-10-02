@@ -2,8 +2,12 @@
 '''
 Script for generating HDF5 files from the raw novisim data.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -13,7 +17,6 @@ from lib.py.commandline_args import default_parser
 from lib.py.helpers import generate_cylinder_mask, plot_middle_planes
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 

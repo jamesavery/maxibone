@@ -8,8 +8,14 @@ Format:
 - /subvolume_metadata:   group             Attributes are info from ESRF XML-file describing original data
 - /voxels:               uint8(Nz,Ny,Nx).  Nz = sum(scan_dimensions[:,0]), ny = minimum(subvolume_dimensions[:,1]), nx = minimum(subvolume_dimensions[:,2])
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import hdf5_root as hdf5_root, esrf_implants_root
 import h5py
@@ -17,8 +23,6 @@ from lib.py.commandline_args import default_parser
 from lib.py.esrf_read import *
 from lib.py.helpers import generate_cylinder_mask, normalize
 import numpy as np
-import os.path
-import pathlib
 import tqdm
 
 NA = np.newaxis

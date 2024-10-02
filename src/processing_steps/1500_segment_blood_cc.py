@@ -2,8 +2,12 @@
 '''
 This script computes the connected components of the segmented blood mask.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -15,12 +19,9 @@ from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu_seq.io import load_slice
 from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import chunk_info, plot_middle_planes, update_hdf5
-import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
 import numpy as np
-import os.path
-import pathlib
 import scipy.ndimage as ndi
 import tqdm
 

@@ -2,8 +2,12 @@
 '''
 Segment the implant using coarse thresholding followed by connected components.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -19,8 +23,6 @@ from lib.py.helpers import update_hdf5_mask, plot_middle_planes
 import numpy as np
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
-import os.path
-import pathlib
 import scipy.ndimage as ndi
 
 if __name__ == "__main__":

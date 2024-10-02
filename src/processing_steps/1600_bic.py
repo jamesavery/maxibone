@@ -4,8 +4,12 @@ This script computes the Bone Implant Contact (BIC) for each layer along the z-a
 The BIC is the ratio of voxels within a distance threshold to the implant surface that are also within the soft tissue mask.
 It is applied to each layer as different z-ranges indicate old and new bone.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -17,7 +21,6 @@ from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import plot_middle_planes
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)

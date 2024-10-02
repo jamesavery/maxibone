@@ -2,8 +2,12 @@
 '''
 This script computes the probabilities of the two distributions in the bins of the histograms using Otsu's method for each row.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -14,7 +18,6 @@ from lib.py.helpers import update_hdf5
 from lib.py.piecewise_cubic import piecewisecubic, smooth_fun
 import matplotlib.pyplot as plt
 import numpy as np
-import pathlib
 from PIL import Image
 from tqdm import tqdm
 

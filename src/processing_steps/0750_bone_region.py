@@ -5,8 +5,12 @@ This script computes the bone region of the implant.
 The bone region is defined as the region of the implant that is not the implant shell, and is not the solid implant.
 Or in other words, the bone region covers bone and soft tissue.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -23,12 +27,9 @@ import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool
 import numpy as np
-import os.path
-import pathlib
 import scipy.ndimage as ndi
 from scipy.ndimage import gaussian_filter1d
 import scipy.signal as signal
-import tqdm
 
 # TODO is this function generic?
 def label_chunk(i, chunk, chunk_prefix):

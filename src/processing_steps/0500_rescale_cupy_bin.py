@@ -2,8 +2,14 @@
 '''
 Rescale a 16-bit binary file to 2x, 4x, 8x, 16x, and 32x. Each rescaling is performed on all dimensions.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import hdf5_root, binary_root
 import h5py
@@ -11,7 +17,6 @@ import importlib
 from lib.py.commandline_args import default_parser
 from lib.py.resample import downsample2x
 import numpy as np
-import pathlib
 import tqdm
 import traceback
 

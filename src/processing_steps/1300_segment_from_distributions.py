@@ -2,8 +2,12 @@
 '''
 This script segments the subvolumes using the probabilities computed in the previous step.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -15,7 +19,6 @@ from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import chunk_info, load_chunk, plot_middle_planes
 import numpy as np
 import matplotlib.pyplot as plt
-import pathlib
 from tqdm import tqdm
 
 def load_probabilities(path, group, axes_names, field_names, m, verbose):

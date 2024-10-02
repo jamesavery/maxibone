@@ -2,8 +2,14 @@
 '''
 Script for matching volumes from the top and bottom of a multi-scan tomogram.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import hdf5_root
 import h5py
@@ -11,8 +17,6 @@ import jax
 import jax.numpy as jp
 from lib.py.commandline_args import default_parser
 import numpy as np
-import os.path
-import pathlib
 from PIL import Image
 import tqdm
 

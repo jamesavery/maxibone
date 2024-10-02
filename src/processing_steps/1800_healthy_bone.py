@@ -3,8 +3,12 @@
 This script finds the amount of "healthy bone".
 Healthy bone is defined as the amount of bone that is within a certain distance of soft tissue.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -14,7 +18,6 @@ from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import bitpack_decode, bitpack_encode, chunk_info, close_3d, dilate_3d, open_3d
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 if __name__ == '__main__':
     argparser = default_parser(__doc__)

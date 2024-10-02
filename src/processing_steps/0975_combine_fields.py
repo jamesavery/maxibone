@@ -2,8 +2,12 @@
 '''
 This script combines the Gaussian and EDT fields into a single field.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -11,7 +15,6 @@ from config.paths import binary_root, hdf5_root
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import generate_cylinder_mask, plot_middle_planes, to_int
 import numpy as np
-import os
 
 if __name__ == '__main__':
     args = default_parser(__doc__).parse_args()

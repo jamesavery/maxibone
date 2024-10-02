@@ -2,8 +2,14 @@
 '''
 Converts a 16-bit HDF5 file to a 16-bit binary file. The binary file can be read faster than the HDF5 file, if it is stored on a fast disk.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import hdf5_root, binary_root
 import h5py
@@ -11,7 +17,6 @@ from lib.cpp.cpu_seq.io import write_slice
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import update_hdf5
 import numpy as np
-import pathlib
 from tqdm import tqdm
 
 slice_all = slice(None)

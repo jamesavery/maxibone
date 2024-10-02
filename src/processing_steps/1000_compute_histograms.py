@@ -2,8 +2,14 @@
 '''
 Computes the axes and field histograms for a given sample. If mask is provided, it is applied to the volume before computing the histograms.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.constants import implant_threshold_u16
 from config.paths import *
@@ -17,7 +23,6 @@ from lib.cpp.cpu_seq.io import load_slice
 from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import chunk_info, load_chunk, row_normalize, to_int
 import numpy as np
-import pathlib
 from PIL import Image
 import scipy.ndimage as ndi
 import timeit

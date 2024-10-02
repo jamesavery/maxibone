@@ -2,8 +2,12 @@
 '''
 This file contains helper functions for loading and updating HDF5 files, generating cylinder masks, and parsing commandline arguments.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -16,8 +20,6 @@ import lib.cpp.gpu.morphology as lib_morphology
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as la
-import os
-import pathlib
 import scipy.signal as signal
 import tqdm
 

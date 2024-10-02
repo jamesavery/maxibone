@@ -2,8 +2,12 @@
 '''
 This script computes the connected lines in a 2D histogram. It can either be run in GUI mode, where one tries to find the optimal configuration parameters, or batch mode, where it processes one or more histograms into images. In GUI mode, one can specify the bounding box by dragging a box on one of the images, specify the line to highlight by left clicking and reset the bounding box by middle clicking.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
 import matplotlib
 matplotlib.use('Agg')
 
@@ -14,7 +18,6 @@ from lib.py.helpers import row_normalize
 import matplotlib.pyplot as plt
 from moviepy.video.io.bindings import mplfig_to_npimage
 import numpy as np
-import os
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 from skimage.morphology import skeletonize

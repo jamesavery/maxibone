@@ -3,14 +3,18 @@
 This script downloads the contents of a volume from the ESRF 2013 dataset stored
 on ERDA.
 '''
+# Add the project files to the Python path
+import os
+import pathlib
 import sys
-sys.path.append(sys.path[0]+"/../")
+sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
+# Ensure that matplotlib does not try to open a window
+import matplotlib
+matplotlib.use('Agg')
 
 from config.paths import esrf_data_sftp, esrf_data_local
 import fabric
 from lib.py.commandline_args import default_parser
-import os
-import pathlib
 import tqdm
 
 if __name__ == "__main__":
