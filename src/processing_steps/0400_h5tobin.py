@@ -39,10 +39,10 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
     None
     '''
 
-    msb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
-    lsb_file    = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
-    dmsb, dlsb  = msb_file['voxels'], lsb_file['voxels']
-    Nz, Ny, Nx  = dmsb.shape
+    msb_file   = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{sample}.h5', 'r')
+    lsb_file   = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/{sample}.h5', 'r')
+    dmsb, dlsb = msb_file['voxels'], lsb_file['voxels']
+    Nz, Ny, Nx = dmsb.shape
 
     pathlib.Path(f"{binary_root}/voxels/1x/").mkdir(parents=True, exist_ok=True)
     outfile = f'{binary_root}/voxels/1x/{sample}.uint16'
@@ -56,10 +56,10 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
 
     # The ith subvolume in input  starts at sum(Nzs[:(i-1)]) and ends at sum(Nzs[:i])
     # The ith subvolume in output starts at sum(Nzs[:(i-1)]) - sum(vm_shifts[:i])
-    input_zstarts         = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)
-    input_zends           = (np.cumsum(Nzs) - np.concatenate([vm_shifts,[0]])).astype(int)
-    output_zstarts        = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)]).astype(int)
-    output_zends          = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]]).astype(int)
+    input_zstarts  = np.concatenate([[0], np.cumsum(Nzs[:-1])]).astype(int)
+    input_zends    = (np.cumsum(Nzs) - np.concatenate([vm_shifts,[0]])).astype(int)
+    output_zstarts = np.concatenate([[0], np.cumsum(Nzs[:-1]) - np.cumsum(vm_shifts)]).astype(int)
+    output_zends   = np.concatenate([output_zstarts[1:], [output_zstarts[-1]+Nzs[-1]]]).astype(int)
 
     if verbose >= 1:
         print(f'HDF5 voxel data:')
