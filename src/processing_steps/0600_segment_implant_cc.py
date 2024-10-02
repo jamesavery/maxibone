@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import datetime
 from functools import partial
 import h5py
@@ -36,10 +36,9 @@ if __name__ == "__main__":
     Nz         = full_Nz - np.sum(vm_shifts)               # Full volume matched image resolution
     nz,ny,nx   = np.array([Nz,Ny,Nx]) // args.sample_scale # Volume matched image resolution at chosen scale
     intermediate_folder = f"/tmp/maxibone/labels_implant/{args.sample_scale}x/"
-    os.makedirs(intermediate_folder, exist_ok=True)
-    if args.verbose >= 1:
-        plot_dir = f"{hdf5_root}/processed/implant_mask/"
-        pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
+    if args.plotting:
+        plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     voxel_size  = h5meta['voxels'].attrs['voxelsize'] * args.sample_scale
     global_vmin = np.min(h5meta['subvolume_range'][:,0])
@@ -130,10 +129,9 @@ if __name__ == "__main__":
         implant_mask = np.zeros((nz,ny,nx), dtype=bool)
         largest_connected_component(implant_mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
-    if args.verbose >= 2:
-        print (f"Plotting middle planes to {plot_dir}")
-        # TODO plotting is its own thing, shouldn't be related to verbose.
-        plot_middle_planes(implant_mask, plot_dir, args.sample)
+    if args.plotting:
+        if args.verbose >= 1: print (f"Plotting middle planes to {plotting_dir}")
+        plot_middle_planes(implant_mask, plotting_dir, args.sample, verbose=args.verbose)
 
     output_dir = f"{hdf5_root}/masks/{args.sample_scale}x/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
