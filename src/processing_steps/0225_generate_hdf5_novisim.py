@@ -36,7 +36,7 @@ if __name__ == "__main__":
     if args.verbose >= 1: print (f'Reading from {file_path}')
     if args.plotting:
         if args.verbose >= 1: print (f'Plotting to {plotting_dir}')
-        os.makedirs(plotting_dir, exist_ok=True)
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     tomo = np.fromfile(file_path, dtype=np.float32).reshape(nz, ny, nx)
     # Rotate 90 degrees around z axis
@@ -111,6 +111,8 @@ if __name__ == "__main__":
     # Create HDF5 files
     output_dir = f'{hdf5_root}/hdf5-byte'
     if args.verbose >= 1: print (f'Creating HDF5 files at {output_dir}/lsb and {output_dir}/msb')
+    pathlib.Path(f'{output_dir}/lsb').mkdir(parents=True, exist_ok=True)
+    pathlib.Path(f'{output_dir}/msb').mkdir(parents=True, exist_ok=True)
     h5_lsb = h5py.File(f'{output_dir}/lsb/novisim.h5', 'w')
     h5_msb = h5py.File(f'{output_dir}/msb/novisim.h5', 'w')
 
