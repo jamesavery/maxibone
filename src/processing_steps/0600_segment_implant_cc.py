@@ -35,7 +35,10 @@ if __name__ == "__main__":
     full_Nz, Ny, Nx = h5meta['voxels'].shape               # Full image resolution
     Nz         = full_Nz - np.sum(vm_shifts)               # Full volume matched image resolution
     nz,ny,nx   = np.array([Nz,Ny,Nx]) // args.sample_scale # Volume matched image resolution at chosen scale
+
     intermediate_folder = f"/tmp/maxibone/labels_implant/{args.sample_scale}x/"
+    pathlib.Path(f"{intermediate_folder}").mkdir(parents=True, exist_ok=True)
+
     if args.plotting:
         plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
         pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
