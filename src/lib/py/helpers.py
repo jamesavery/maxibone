@@ -7,11 +7,8 @@ import os
 import pathlib
 import sys
 sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent.parent}')
-# Ensure that matplotlib does not try to open a window
-import matplotlib
-matplotlib.use('Agg')
 
-from config.paths import binary_root, hdf5_root
+from config.paths import binary_root, hdf5_root, plotting_root
 import h5py
 import lib.cpp.gpu.bitpacking as lib_bitpacking
 import lib.cpp.cpu.io as lib_io
