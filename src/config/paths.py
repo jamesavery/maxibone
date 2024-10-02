@@ -28,7 +28,7 @@ esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013/"
 esrf_granules_root  = f"{esrf_data_local}/esrf_dental_granules_july_2012/"
 '''The root ESRF directory of the granule data.'''
 
-plotting_root = f'{hdf5_root}/processed'
+plotting_root = f'{hdf5_root}/reports'
 '''The root directory of where the plots are stored.'''
 
 def get_plotting_dir(sample, scale):
