@@ -28,6 +28,8 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
         The size of the z-axis of the chunks to be processed. Default is 64.
     4. `verbose` : int
         The verbosity level of the script. Default is 1.
+    5. `plotting` : bool
+        Whether to plot the results of the script. Default is True.
 
     Parameters
     ----------
@@ -48,8 +50,10 @@ def default_parser(description='MISSING DESCRIPTION', default_scale=1):
     parser = add_volume(parser, 'sample', default_scale, None, (None, '?'))
     parser.add_argument('-c', '--chunk-size', action='store', type=int, default=64,
         help='The size of the z-axis of the chunks to be processed. Default is 64.')
+    parser.add_argument('--disable-plotting', action='store_false', dest='plotting', default=True,
+        help='Disable plotting the results of the script.')
     parser.add_argument('-v', '--verbose', action='store', type=int, default=1,
-        help='Set the verbosity level of the script. Default is 1. Generally, 0 is no output, 1 is progress / some text output, 2 is plotting, and 3 is debugging.')
+        help='Set the verbosity level of the script. Default is 1. Generally, 0 is no output, 1 is progress / some text output, 2 is helper/core function output, and 3 is extreme debugging.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {constants.VERSION}',
         help='Print the version of the script and exit.')
 
