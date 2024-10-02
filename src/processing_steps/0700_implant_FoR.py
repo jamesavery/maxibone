@@ -13,12 +13,9 @@ import os
 import pathlib
 import sys
 sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
-# Ensure that matplotlib does not try to open a window
-import matplotlib
-matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import h5py
 from lib.cpp.gpu.geometry import center_of_mass, inertia_matrix, sample_plane
 from lib.py.commandline_args import default_parser
@@ -28,6 +25,10 @@ from matplotlib.colors import colorConverter
 import numpy as np
 import numpy.linalg as la
 import tqdm
+
+# Disable vedo rendering if not available, which it currently isn't in headless mode.
+VEDO_ENABLED = False
+
 import vedo
 import vedo.pointcloud as pc
 
@@ -35,62 +36,69 @@ import vedo.pointcloud as pc
 vaxis = { 'z' : np.array((0,0,1.)), 'y' : np.array((0,-1.,0)), 'z2' : np.array((0,0,1.)) }
 daxis = { 'z' : np.array([-1,1,0]), 'y' : np.array([0,0,1]),   'z2' : np.array([-1.5,0,0]) }
 
-def figure_FoR_UVW(verbose=2):
+def figure_FoR_UVW(plotting_dir, verbose=0):
     '''
     This function plots the implant in the UVW frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `verbose` : int
-        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
+        The verbosity level. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if verbose >= 2:
+    if VEDO_ENABLED:
         vol = vedo.Volume(implant)
         vol.alpha([0, 0, 0.05, 0.2])
         u_arrow = vedo.Arrow(cm[::-1], cm[::-1] + 1 / np.sqrt(ls[0] / ls[2]) * 100 * u_vec[::-1], c='r', s=0.7)
         v_arrow = vedo.Arrow(cm[::-1], cm[::-1] + 1 / np.sqrt(ls[1] / ls[2]) * 100 * v_vec[::-1], c='g', s=0.7)
         w_arrow = vedo.Arrow(cm[::-1], cm[::-1] +                              100 * w_vec[::-1], c='b', s=0.7)
 
-        if verbose == 3 or verbose == 4:
-            for axis in vaxis.keys():
-                pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-                pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
-                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                    'focalPoint': (nz/2, ny/2, nx/2),
-                    'viewup': -vaxis[axis]
-                })
-
-                pl.screenshot(f"{image_output_dir}/implant-FoR_UVW-{axis}.png")
-
-        if verbose == 2 or verbose == 4:
-            pl = vedo.Plotter(offscreen=False, interactive=True)
+        for axis in vaxis.keys():
+            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
             pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
                 'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
                 'focalPoint': (nz/2, ny/2, nx/2),
                 'viewup': -vaxis[axis]
             })
 
+            screenshot_path = f"{plotting_dir}/implant-FoR_UVW-{axis}.png"
+            if verbose >= 2: print (f"Saving {screenshot_path}")
+            pl.screenshot(screenshot_path)
+
+        if verbose >= 4:
+            pl = vedo.Plotter(offscreen=False, interactive=True)
+            pl.show([vol, u_arrow, v_arrow, w_arrow], camera={
+                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                'focalPoint': (nz/2, ny/2, nx/2),
+                'viewup': -vaxis[axis]
+            })
+    elif verbose >= 2:
+        print (f'Figure_FoR_UVW: Vedo is not available, skipping 3D plotting.')
+
 # TODO: Fix lengths (voxel_size times...)
-def figure_FoR_UVWp(verbose=2):
+def figure_FoR_UVWp(plotting_dir, verbose=0):
     '''
     This function plots the implant in the UVWp frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `verbose` : int
-        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
+        The verbosity level. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if verbose >= 2:
+    if VEDO_ENABLED:
         implant_uvwps = homogeneous_transform(implant_zyxs * voxel_size, Muvwp)
         pts = pc.Points(implant_uvwps[:,:3])
 
@@ -98,26 +106,33 @@ def figure_FoR_UVWp(verbose=2):
         v_arrow = vedo.Arrow([0,0,0], 1/np.sqrt(ls[1] / ls[2]) * 100 * v_vec[::-1],       c='g', s=0.7)
         w_arrow = vedo.Arrow([0,0,0],                            100 * w_vec[::-1],       c='b', s=0.7)
 
-        if verbose == 3 or verbose == 4:
-            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-            for axis in vaxis.keys():
-                pl.show([pts, u_arrow, v_arrow, w_arrow], camera={
-                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                    'focalPoint': (nz/2, ny/2, nx/2),
-                    'viewup': -vaxis[axis]
-                })
 
-                pl.screenshot(f"{image_output_dir}/implant-FoR_UVWp-{axis}.png")
+        pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+        for axis in vaxis.keys():
+            pl.show([pts, u_arrow, v_arrow, w_arrow], camera={
+                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                'focalPoint': (nz/2, ny/2, nx/2),
+                'viewup': -vaxis[axis]
+            })
 
-        if verbose == 2 or verbose == 4:
+            screenshot_path = f"{plotting_dir}/implant-FoR_UVWp-{axis}.png"
+            if verbose >= 2: print (f"Saving {screenshot_path}")
+            pl.screenshot(screenshot_path)
+
+        if verbose >= 4:
             vedo.show([pts, u_arrow, v_arrow, w_arrow], interactive=True)
 
-def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, verbose=2):
+    elif verbose >= 2:
+        print (f'Figure_FoR_UVWp: Vedo is not available, skipping 3D plotting.')
+
+def figure_FoR_circle(plotting_dir, name, center, v_vec, w_vec, radius, implant_bbox, verbose=2):
     '''
     This function plots the circle that best fits the implant in the UVWp frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `name` : str
         Name of the output image.
     `center` : numpy.array[float32]
@@ -131,7 +146,7 @@ def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, verbose=
     `implant_bbox` : list[float]
         Bounding box of the implant.
     `verbose` : int
-        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
+        The verbosity level. Default is 0.
 
     Returns
     -------
@@ -151,83 +166,89 @@ def figure_FoR_circle(name, center, v_vec, w_vec, radius, implant_bbox, verbose=
 
     if verbose >= 2: print (voxel_size, cm, v_vec, w_vec, sample_bbox)
 
-    if verbose >= 2:
-        plt.imshow(sample)
-        if verbose == 2 or verbose == 4:
-            plt.show()
-        if verbose == 3 or verbose == 4:
-            plt.savefig(f'{image_output_dir}/sample_plane_check.png', bbox_inches='tight')
-        plt.clf()
+    plt.imshow(sample)
+    if verbose >= 4:
+        plt.show()
+    sample_plane_path = f'{plotting_dir}/sample_plane_check.pdf'
+    if verbose >= 2: print (f"Saving {sample_plane_path}")
+    plt.savefig(f'{sample_plane_path}', bbox_inches='tight')
+    plt.close()
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.imshow(sample.T[::-1], extent=sample_bbox, cmap='RdYlBu')
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.imshow(sample.T[::-1], extent=sample_bbox, cmap='RdYlBu')
 
-        circle_color = colorConverter.to_rgba('green', alpha=0.2)
+    circle_color = colorConverter.to_rgba('green', alpha=0.2)
 
-        p0 = np.array((    0, W_max))
-        pb = np.array((    0, W_min))
-        p1 = np.array((V_min, W_min))
-        p2 = np.array((V_max, W_min))
+    p0 = np.array((    0, W_max))
+    pb = np.array((    0, W_min))
+    p1 = np.array((V_min, W_min))
+    p2 = np.array((V_max, W_min))
 
-        m1, m2 = (p0+p1) / 2, (p0+p2) / 2
+    m1, m2 = (p0+p1) / 2, (p0+p2) / 2
 
-        ax.add_patch(Circle((0,0), radius*1.01, ec='black',fc=circle_color))
-        ax.add_patch(Circle(p1,    radius/40,              fc='purple'))
-        ax.add_patch(Circle(p2,    radius/40,              fc='purple'))
-        ax.add_patch(Circle(p0,    radius/40,              fc='blue'))
-        ax.add_patch(Circle(pb,    radius/40,              fc=(0, 0, 1, 0.2)))
-        ax.add_patch(Circle((0,0), radius/20,              fc='black'))
+    ax.add_patch(Circle((0,0), radius*1.01, ec='black',fc=circle_color))
+    ax.add_patch(Circle(p1,    radius/40,              fc='purple'))
+    ax.add_patch(Circle(p2,    radius/40,              fc='purple'))
+    ax.add_patch(Circle(p0,    radius/40,              fc='blue'))
+    ax.add_patch(Circle(pb,    radius/40,              fc=(0, 0, 1, 0.2)))
+    ax.add_patch(Circle((0,0), radius/20,              fc='black'))
 
-        ax.add_line(Line2D([p0[0],p1[0]], [p0[1],p1[1]], c='red'))
-        ax.add_line(Line2D([p0[0],p2[0]], [p0[1],p2[1]], c='red'))
+    ax.add_line(Line2D([p0[0],p1[0]], [p0[1],p1[1]], c='red'))
+    ax.add_line(Line2D([p0[0],p2[0]], [p0[1],p2[1]], c='red'))
 
-        ax.add_line(Line2D([m1[0]*1.05,0], [m1[1]*1.05,0], c='green'))
-        ax.add_line(Line2D([m2[0]*1.05,0], [m2[1]*1.05,0], c='green'))
+    ax.add_line(Line2D([m1[0]*1.05,0], [m1[1]*1.05,0], c='green'))
+    ax.add_line(Line2D([m2[0]*1.05,0], [m2[1]*1.05,0], c='green'))
 
-        if verbose == 1 or verbose == 3:
-            plt.show()
-        if verbose == 2 or verbose == 3:
-            fig.savefig(f"{image_output_dir}/implant-FoR_{name}.png",dpi=300, bbox_inches='tight')
-        plt.clf()
+    if verbose >= 4:
+        plt.show()
+    circle_path = f'{plotting_dir}/implant-FoR_{name}.pdf'
+    if verbose >= 2: print (f"Saving {circle_path}")
+    fig.savefig(circle_path, bbox_inches='tight')
+    plt.close()
 
-def figure_FoR_profiles(verbose=2):
+def figure_FoR_profiles(plotting_dir, verbose=2):
     '''
     This function plots the profiles of the implant in the UVWp frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `verbose` : int
-        The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
+        The verbosity level. Default is 0.
 
     Returns
     -------
     `None`
     '''
 
-    if verbose >= 2:
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(111)
-        ax1.plot((Up_bins[1:] + Up_bins[:-1]) / 2, Up_integrals)
-        if verbose == 3 or verbose == 4:
-            fig1.savefig(f"{image_output_dir}/implant-FoR_Up-profile.png", bbox_inches='tight')
+    fig1 = plt.figure()
+    ax1 = fig1.add_subplot(111)
+    ax1.plot((Up_bins[1:] + Up_bins[:-1]) / 2, Up_integrals)
+    up_path = f"{plotting_dir}/implant-FoR_Up-profile.pdf"
+    if verbose >= 2: print (f"Saving {up_path}")
+    fig1.savefig(up_path, bbox_inches='tight')
 
-        fig2 = plt.figure()
-        ax2 = fig2.add_subplot(111)
-        ax2.plot((theta_bins[1:] + theta_bins[:-1]) / 2, theta_integrals)
-        if verbose == 3 or verbose == 4:
-            fig2.savefig(f"{image_output_dir}/implant-FoR_theta-profile.png", bbox_inches='tight')
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111)
+    ax2.plot((theta_bins[1:] + theta_bins[:-1]) / 2, theta_integrals)
+    theta_path = f"{plotting_dir}/implant-FoR_theta-profile.pdf"
+    if verbose >= 2: print (f"Saving {theta_path}")
+    fig2.savefig(theta_path, bbox_inches='tight')
 
-        if verbose == 2 or verbose == 4:
-            plt.show()
-        plt.clf()
+    if verbose >= 4:
+        plt.show()
+    plt.close()
 
-def figure_FoR_cylinder(verbose=2):
+def figure_FoR_cylinder(plotting_dir, verbose=2):
     '''
     This function plots the cylinder that best fits the implant in the UVWp frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `verbose` : int
         The verbosity level. 0: No output, 1: Print information, 2: Show plots, 3: Save plots, 4: Show and save plots. Default is 0.
 
@@ -236,7 +257,7 @@ def figure_FoR_cylinder(verbose=2):
     `None`
     '''
 
-    if verbose >= 2:
+    if VEDO_ENABLED:
         center_line = vedo.Cylinder((C1+C2) / 2, r=implant_radius_voxels/20, height=implant_length_voxels, axis=(C2-C1), alpha=1, c='r')
         cylinder    = vedo.Cylinder((C1+C2) / 2, r=implant_radius_voxels,    height=implant_length_voxels, axis=(C2-C1), alpha=0.3)
 
@@ -247,26 +268,31 @@ def figure_FoR_cylinder(verbose=2):
         vol = vedo.Volume(implant)
         vol.alpha([0, 0, 0.05, 0.1])
 
-        if verbose == 3 or verbose == 4:
-            pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-            for axis in vaxis.keys():
-                pl.show([vol, center_line, Vp_arrow, Wp_arrow, cylinder], camera={
-                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                    'focalPoint': (nz/2, ny/2, nx/2),
-                    'viewup': -vaxis[axis]
-                })
+        pl = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
+        for axis in vaxis.keys():
+            pl.show([vol, center_line, Vp_arrow, Wp_arrow, cylinder], camera={
+                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                'focalPoint': (nz/2, ny/2, nx/2),
+                'viewup': -vaxis[axis]
+            })
 
-                pl.screenshot(f"{image_output_dir}/implant-FoR_cylinder-{axis}.png")
+            screenshot_path = f"{plotting_dir}/implant-FoR_cylinder-{axis}.png"
+            if verbose >= 2: print (f"Saving {screenshot_path}")
+            pl.screenshot(screenshot_path)
 
-        if verbose == 2 or verbose == 4:
+        if verbose >= 4:
             vedo.show([vol, cylinder, Up_arrow, Vp_arrow, Wp_arrow], interactive=True)
+    elif verbose >= 2:
+        print (f'Figure_FoR_cylinder: Vedo is not available, skipping 3D plotting.')
 
-def figure_FoR_voxels(name, voxels, verbose=2):
+def figure_FoR_voxels(plotting_dir, name, voxels, verbose=2):
     '''
     This function plots the voxels in the UVWp frame of reference.
 
     Parameters
     ----------
+    `plotting_dir` : str
+        The directory to store the images.
     `name` : str
         Name of the output image.
     `voxels` : numpy.array[uint8]
@@ -279,34 +305,44 @@ def figure_FoR_voxels(name, voxels, verbose=2):
     `None`
     '''
 
-    if verbose >= 2:
+    if VEDO_ENABLED:
         vol = vedo.Volume(voxels)
-        vol.alpha([0,0,0.05,0.1])
+        vol.alpha([0, 0, 0.05, 0.1])
 
         pl  = vedo.Plotter(offscreen=True, interactive=False, sharecam=False)
-        if verbose == 3 or verbose == 4:
-            for axis in vaxis.keys():
-                pl.show([vol], camera={
-                    'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
-                    'focalPoint': (nz/2, ny/2, nx/2),
-                    'viewup': -vaxis[axis]
-                })
+        for axis in vaxis.keys():
+            pl.show([vol], camera={
+                'pos': np.array((nz/2, ny/2, nx/2)) + 2.5 * ny * daxis[axis],
+                'focalPoint': (nz/2, ny/2, nx/2),
+                'viewup': -vaxis[axis]
+            })
 
-                pl.screenshot(f"{image_output_dir}/implant-FoR_voxels_{name}-{axis}.png")
+            screenshot_path = f"{plotting_dir}/implant-FoR_voxels_{name}-{axis}.pdf"
+            if verbose >= 2: print (f"Saving {screenshot_path}")
+            pl.screenshot(screenshot_path)
 
-        if verbose == 2 or verbose == 4:
+        if args.verbose >= 4:
             vedo.show([vol], interactive=True)
+    elif verbose >= 2:
+        print (f'Figure_FoR_voxels: Vedo is not available, skipping 3D plotting.')
 
 if __name__ == "__main__":
     args = default_parser(__doc__, default_scale=8).parse_args()
+
+    if args.plotting and args.verbose < 4:
+        # Ensure that matplotlib does not try to open a window
+        import matplotlib
+        matplotlib.use('Agg')
 
     if args.sample_scale < 8:
         if args.verbose >= 1: print (f"Warning: selected scale is {args.sample_scale}x: This should not be run at high resolution, use scale>=8.")
 
     ## STEP 0: LOAD MASKS, VOXELS, AND METADATA
-    image_output_dir = f"{hdf5_root}/processed/implant-FoR/{args.sample}/"
-    if args.verbose >= 1: print (f"Storing all debug-images to {image_output_dir}")
-    pathlib.Path(image_output_dir).mkdir(parents=True, exist_ok=True)
+    #image_output_dir = f"{hdf5_root}/processed/implant-FoR/{args.sample}/"
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        if args.verbose >= 1: print (f"Storing all debug-images to {plotting_dir}")
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print (f"Loading {args.sample_scale}x implant mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
     implant_file = h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5",'r')
@@ -317,13 +353,14 @@ if __name__ == "__main__":
     if args.verbose >= 1: print (f"Loading {args.sample_scale}x voxels from {binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16")
     voxels = np.fromfile(f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", dtype=np.uint16).reshape(implant.shape)
 
-    if args.verbose >= 1: print (f'Plotting sanity images')
-    plot_middle_planes(implant, image_output_dir, 'implant-sanity', verbose=args.verbose)
-    plot_middle_planes(voxels, image_output_dir, 'voxels-sanity', verbose=args.verbose)
-    voxels_without_implant = voxels.copy()
-    voxels_without_implant[implant.astype(bool)] = 0
-    plot_middle_planes(voxels_without_implant, image_output_dir, 'voxels-without-implant', verbose=args.verbose)
-    del voxels_without_implant
+    if args.plotting:
+        if args.verbose >= 1: print (f'Plotting sanity images')
+        plot_middle_planes(implant, plotting_dir, 'implant-sanity', verbose=args.verbose)
+        plot_middle_planes(voxels, plotting_dir, 'voxels-sanity', verbose=args.verbose)
+        voxels_without_implant = voxels.copy()
+        voxels_without_implant[implant.astype(bool)] = 0
+        plot_middle_planes(voxels_without_implant, plotting_dir, 'voxels-without-implant', verbose=args.verbose)
+        del voxels_without_implant
 
     nz,ny,nx = implant.shape
     if args.verbose >= 1: print (f'Implant shape is {implant.shape}')
@@ -390,9 +427,8 @@ if __name__ == "__main__":
         print (f'u_vec {u_vec}')
         print (f'v_vec {v_vec}')
         print (f'w_vec {w_vec}')
-    #quit()
 
-    figure_FoR_UVW(args.verbose)
+    if args.plotting: figure_FoR_UVW(plotting_dir, args.verbose)
 
     ### STEP 2: COMPUTE PHANTOM SCREW GEOMETRY
     #
@@ -403,7 +439,6 @@ if __name__ == "__main__":
     ## 2A: Compute distance along W to back-plane
     w0  = implant_uvws[:,2].min()  # In {scale}x voxel units
     w0v = np.array([0, 0, w0])        # w-shift to get to center of implant back-plane
-
 
     ## 2B: Transform to backplane-centered coordinates in physical units
     implant_UVWs = (implant_uvws - w0v) * voxel_size    # Physical U,V,W-coordinates, relative to implant back-plane center, in micrometers
@@ -470,7 +505,7 @@ if __name__ == "__main__":
     implant_length_voxels = implant_length / voxel_size
     implant_radius_voxels = implant_radius / voxel_size
 
-    figure_FoR_cylinder(args.verbose)
+    if args.plotting: figure_FoR_cylinder(plotting_dir, args.verbose)
 
     ### 3: In the cylinder coordinates, find radii and angle ranges to fill in the "holes" in the implant and make it solid
     ###    (More robust than closing operations, as we don't want to effect the screw threads).
@@ -487,7 +522,7 @@ if __name__ == "__main__":
 
     #TODO: Local circle figure (instead of showing global fit on local slice, which isn't snug)
     bbox_uvwp = [Up_min, Up_max, Vp_min, Vp_max, Wp_min, Wp_max]
-    figure_FoR_circle("prime-circle", Cp * voxel_size, v_vec, w_vec, implant_radius, bbox_uvwp, args.verbose)
+    if args.plotting: figure_FoR_circle(plotting_dir, "prime-circle", Cp * voxel_size, v_vec, w_vec, implant_radius, bbox_uvwp, args.verbose)
 
     ## 3B: Profile of radii and angles
     implant_thetas = np.arctan2(implant_Vps, implant_Wps)
@@ -527,8 +562,9 @@ if __name__ == "__main__":
     solid_implant_UVWps = ((((np.array(np.nonzero(solid_quarter)).T - cm) @ E) - w0v)*voxel_size - cp) @ UVWp
     Up_integrals, Up_bins = np.histogram(solid_implant_UVWps[:,0], 200)
 
-    #figure_FoR_profiles(args.verbose)
-    #figure_FoR_voxels("solid_implant",solid_implant,args.verbose)
+    if args.plotting:
+        figure_FoR_profiles(plotting_dir, args.verbose)
+        figure_FoR_voxels(plotting_dir, "solid_implant", solid_implant, args.verbose)
 
     Muvwp = zyx_to_UVWp_transform(cm, voxel_size, UVW, w0, cp, UVWp)
     if args.verbose >= 2:
@@ -544,7 +580,7 @@ if __name__ == "__main__":
         print (f'voxel_size = {voxel_size}')
         print (f"Physical Cp = {Cp[::-1] * voxel_size}")
 
-    figure_FoR_UVWp(args.verbose)
+    if args.plotting: figure_FoR_UVWp(plotting_dir, args.verbose)
 
     output_dir = f"{hdf5_root}/hdf5-byte/msb/"
     if args.verbose >= 1: print (f"Writing frame-of-reference metadata to {output_dir}/{args.sample}.h5")
