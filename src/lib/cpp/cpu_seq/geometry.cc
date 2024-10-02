@@ -663,9 +663,11 @@ namespace cpu_seq {
             du = (umax - umin) / real_t(nu),
             dv = (vmax - vmin) / real_t(nv);
 
+        const T *voxels_data = voxels.data;
         real_t *dat = plane_samples.data;
 
-        #pragma acc data copyin(voxels, voxels.data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx, cm[:3], u_axis[:3], v_axis[:3]) create(dat[:nu*nv]) copyout(dat[:nu*nv])
+        #pragma acc data create(dat[:nu*nv])
+        #pragma acc data copyin(voxels_data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx, cm[:3], u_axis[:3], v_axis[:3]) copyout(dat[:nu*nv])
         {
         PRAGMA(PARALLEL_TERM() collapse(2))
         for (ssize_t ui = 0; ui < nu; ui++) {
@@ -692,9 +694,8 @@ namespace cpu_seq {
                 T value = 0;
                 std::array<float, 6> local_bbox = {0.5f, float(voxels_Nz)-0.5f, 0.5f, float(voxels_Ny)-0.5f, 0.5f, float(voxels_Nx)-0.5f};
                 if (in_bbox({{z,y,x}}, local_bbox)) {
-                    value = (T) std::round(resample2x2x2<T>(voxels.data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
-                }
-                else if (verbose >= 2) {
+                    value = (T) std::round(resample2x2x2<T>(voxels_data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
+                } else if (verbose >= 2) {
                     fprintf(stderr, "Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n", x, y, z, voxels_Nx, voxels_Ny, voxels_Nz);
                 }
 
