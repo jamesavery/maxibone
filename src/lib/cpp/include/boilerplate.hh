@@ -198,7 +198,7 @@
  * @param EXTRA_PRAGMA_CLAUSE Additional pragma clauses to be added to the parallel loop.
  */
 #define FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
-    PRAGMA(PARALLEL_TERM collapse(3) EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM() collapse(3) EXTRA_PRAGMA_CLAUSE) \
     for (int64_t z = 0; z < ARR##_Nz; z++) { \
         for (int64_t y = 0; y < ARR##_Ny; y++) { \
             for (int64_t x = 0; x < ARR##_Nx; x++) { \
@@ -232,7 +232,7 @@
  * @param EXTRA_PRAGMA_CLAUSE Additional pragma clauses to be added to the parallel loop.
  */
 #define FOR_FLAT_BEGIN(ARR, GLOBAL_PREFIX, EXTRA_PRAGMA_CLAUSE) \
-    PRAGMA(PARALLEL_TERM EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM() EXTRA_PRAGMA_CLAUSE) \
     for (int64_t flat_index = 0; flat_index < ARR##_length; flat_index++) { \
         int64_t \
             __attribute__((unused)) GLOBAL_PREFIX##_index = ARR##_start + flat_index, \
