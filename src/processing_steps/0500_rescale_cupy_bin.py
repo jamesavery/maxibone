@@ -95,15 +95,15 @@ if __name__ == "__main__":
         voxels32x_chunk = downsample2x(voxels16x_chunk)
 
         if cupy_available:
-            voxels2x[z//2:zend//2]  = voxels2x_chunk.get()
-            voxels4x[z//4:zend//4]  = voxels4x_chunk.get()
-            voxels8x[z//8:zend//8]  = voxels8x_chunk.get()
+            voxels2x[z//2:zend//2]    = voxels2x_chunk.get()
+            voxels4x[z//4:zend//4]    = voxels4x_chunk.get()
+            voxels8x[z//8:zend//8]    = voxels8x_chunk.get()
             voxels16x[z//16:zend//16] = voxels16x_chunk.get()
             voxels32x[z//32:zend//32] = voxels32x_chunk.get()
         else:
-            voxels2x[z//2:zend//2]  = voxels2x_chunk
-            voxels4x[z//4:zend//4]  = voxels4x_chunk
-            voxels8x[z//8:zend//8]  = voxels8x_chunk
+            voxels2x[z//2:zend//2]    = voxels2x_chunk
+            voxels4x[z//4:zend//4]    = voxels4x_chunk
+            voxels8x[z//8:zend//8]    = voxels8x_chunk
             voxels16x[z//16:zend//16] = voxels16x_chunk
             voxels32x[z//32:zend//32] = voxels32x_chunk
 
