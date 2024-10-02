@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 import h5py
 import jax
 import jax.numpy as jp
@@ -73,7 +73,7 @@ def match_region(voxels_top, voxels_bot, overlap, max_shift, verbose):
 
     return result
 
-def match_all_regions(voxels, sample, crossings, overlap, max_shift, verbose):
+def match_all_regions(voxels, sample, crossings, overlap, max_shift, plotting, verbose):
     '''
     Match all regions in a volume.
 
@@ -89,6 +89,8 @@ def match_all_regions(voxels, sample, crossings, overlap, max_shift, verbose):
         The overlap between the regions.
     `max_shift` : int
         The maximum shift to consider.
+    `plotting` : bool
+        Whether to plot the verification plots of the script.
     `verbose` : int
         The verbosity level.
 
@@ -119,18 +121,18 @@ def match_all_regions(voxels, sample, crossings, overlap, max_shift, verbose):
         errors[i] = error
         if verbose >= 1: print(f"Optimal shift is {shift} with error {error} per voxel")
 
-        if verbose >= 2:
-            image_dir = f"{volume_matched_dir}/verification"
-            pathlib.Path(image_dir).mkdir(parents=True, exist_ok=True)
-            if verbose >= 1: print(f"Writing images of matched slices to {image_dir} to check correctness.")
+        if plotting:
+            plotting_dir = get_plotting_dir(sample, 1)
+            pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
+            if verbose >= 1: print(f"Writing images of matched slices to {plotting_dir} to check correctness.")
 
             merged_zy_slice = np.concatenate([top_voxels[:,:,Nx//2], bot_voxels[shift:,:,Nx//2]])
-            Image.fromarray(merged_zy_slice.astype(np.uint8)).save(f"{image_dir}/{sample}-{i}cross-zy.png")
+            Image.fromarray(merged_zy_slice.astype(np.uint8)).save(f"{plotting_dir}/{i}-cross-zy.png")
             image = np.zeros((2*max_shift, 1980), dtype=np.uint8)
             image[:max_shift,:1980//2] = top_voxels[:,Ny//2-1980//4:Ny//2+1980//4,Nx//2].astype(np.uint8)
             shift = max(1, shift)
             image[max_shift-shift:-shift,1980//2:] = bot_voxels[:,Ny//2-1980//4:Ny//2+1980//4,Nx//2].astype(np.uint8)
-            Image.fromarray(image).save(f"{image_dir}/{sample}-{i}bottop-zx.png")
+            Image.fromarray(image).save(f"{plotting_dir}/{i}-bottop-zx.png")
 
         del top_voxels
         del bot_voxels
@@ -231,7 +233,7 @@ if __name__ == "__main__":
 
     crossings = np.cumsum(subvolume_dimensions[:-1,0]).astype(int)
     if args.verbose >= 1: print(f"Matching all regions for sample {args.sample} at crossings {crossings}.")
-    shifts, errors = match_all_regions(voxels, args.sample, crossings, args.overlap, args.max_shift, verbose=args.verbose)
+    shifts, errors = match_all_regions(voxels, args.sample, crossings, args.overlap, args.max_shift, args.plotting, args.verbose)
 
     np.save(f"{volume_matched_dir}/{args.sample}-shifts.npy", shifts)
 
