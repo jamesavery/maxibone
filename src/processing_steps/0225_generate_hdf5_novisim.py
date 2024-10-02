@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 import h5py
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import generate_cylinder_mask, plot_middle_planes
@@ -31,11 +31,12 @@ if __name__ == "__main__":
     nz, ny, nx = args.shape
 
     file_path = f'{hdf5_root}/raw/rec_{nx}x{ny}x{nz}_{args.sample}.raw'
-    image_output_dir = f'{hdf5_root}/processed/novisim'
+    plotting_dir = get_plotting_dir(args.sample, 1)
 
-    if args.verbose >= 1: print (f'Reading from {file_path}, writing to {image_output_dir}')
-
-    os.makedirs(image_output_dir, exist_ok=True)
+    if args.verbose >= 1: print (f'Reading from {file_path}')
+    if args.plotting:
+        if args.verbose >= 1: print (f'Plotting to {plotting_dir}')
+        os.makedirs(plotting_dir, exist_ok=True)
 
     tomo = np.fromfile(file_path, dtype=np.float32).reshape(nz, ny, nx)
     # Rotate 90 degrees around z axis
@@ -49,8 +50,8 @@ if __name__ == "__main__":
     tomo *= generate_cylinder_mask(tomo.shape[1])
 
     # Plot each plane
-    if args.verbose >= 1:
-        plot_middle_planes(tomo, image_output_dir, args.sample)
+    if args.plotting:
+        plot_middle_planes(tomo, plotting_dir, args.sample, verbose=args.verbose)
 
     # Scale to 16-bit
     tomomin = tomo.min()
@@ -88,7 +89,7 @@ if __name__ == "__main__":
         scaled_valley = scaled_valley.astype(int)
         plt.vlines([scaled_valley], 0, smoothed[valley].astype(int), color='g')
         print (f'The valley is at {scaled_valley}')
-        plt.savefig(f"{image_output_dir}/{args.sample}_histogram.png", bbox_inches='tight')
+        plt.savefig(f"{plotting_dir}/histogram.pdf", bbox_inches='tight')
         plt.clf()
 
     # Print metadata keys and attributes
@@ -108,9 +109,10 @@ if __name__ == "__main__":
     tomo_msb = tomo_msb.astype(np.uint8)
 
     # Create HDF5 files
-    if args.verbose >= 1: print (f'Creating HDF5 files')
-    h5_lsb = h5py.File(f'{hdf5_root}/hdf5-byte/lsb/novisim.h5', 'w')
-    h5_msb = h5py.File(f'{hdf5_root}/hdf5-byte/msb/novisim.h5', 'w')
+    output_dir = f'{hdf5_root}/hdf5-byte'
+    if args.verbose >= 1: print (f'Creating HDF5 files at {output_dir}/lsb and {output_dir}/msb')
+    h5_lsb = h5py.File(f'{output_dir}/lsb/novisim.h5', 'w')
+    h5_msb = h5py.File(f'{output_dir}/msb/novisim.h5', 'w')
 
     for h5, tomo in [(h5_lsb, tomo_lsb), (h5_msb, tomo_msb)]:
         h5.create_dataset('subvolume_dimensions', (1,3), data=[[nz, ny, nx]], dtype=np.uint16)
