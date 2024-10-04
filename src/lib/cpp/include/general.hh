@@ -26,7 +26,7 @@ namespace NS {
         UNPACK_NUMPY(src);
         UNPACK_NUMPY(dst);
 
-        PARALLEL_TERM()
+        PRAGMA(PARALLEL_TERM)
         for (int64_t flat_index = 0; flat_index < src_length; flat_index++) {
             ATOMIC()
             dst.data[src.data[flat_index]]++;
@@ -100,7 +100,7 @@ namespace NS {
         UNPACK_NUMPY(src);
         UNPACK_NUMPY(allowed);
 
-        PARALLEL_TERM()
+        PRAGMA(PARALLEL_TERM)
         for (int64_t i = 0; i < src_length; i++) {
             int64_t start = 0, end = allowed_Nz;
             bool found = false;
