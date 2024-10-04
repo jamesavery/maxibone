@@ -20,7 +20,7 @@ matplotlib.use('Agg')
 from config.constants import *
 from config.paths import hdf5_root, get_plotting_dir
 import h5py
-from lib.cpp.gpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
+from lib.cpp.cpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import plot_middle_planes, update_hdf5, update_hdf5_mask
 import matplotlib.pyplot as plt
@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     n_bins = 2048//args.sample_scale
     rsqr_fraction = 0.7 # Fill in whenever W>Wmin and r<rsqr_fraction*rsqr_maxs[U_i]
-    solid_implant_mask = np.empty(implant.shape, dtype=np.uint8)
+    solid_implant_mask = np.zeros(implant.shape, dtype=np.uint8)
     rsqr_maxs          = np.zeros((n_bins,), dtype=np.float32)
     profile            = np.zeros((n_bins,), dtype=np.float32)
 
@@ -75,18 +75,18 @@ if __name__ == "__main__":
     pre_iter = tqdm.tqdm(range(n_blocks), desc="Precomputing implant data") if args.verbose >= 1 else range(n_blocks)
     for i in pre_iter:
         z0 = i * args.chunk_size
-        z1 = (i+1) * args.chunk_size
-        if z1 > nz: z1 = nz
-        mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
-        fill_implant_mask_pre(mask[:z1-z0], z0*ny*nx, voxel_size, bbox_flat, Muvwp_flat, thetas, rsqr_maxs)
+        z1 = min((i+1) * args.chunk_size, nz)
+        zs = z1 - z0
+        mask[:zs,:,:] = implant[z0:z1,:,:].astype(np.uint8)
+        fill_implant_mask_pre(mask[:zs], z0, voxel_size, bbox_flat, Muvwp_flat, thetas, rsqr_maxs)
 
     fill_iter = tqdm.tqdm(range(n_blocks), desc="Filling implant mask") if args.verbose >= 1 else range(n_blocks)
     for i in fill_iter:
         z0 = i*args.chunk_size
-        z1 = (i+1)*args.chunk_size
-        if z1 > nz: z1 = nz
-        mask[:z1-z0,:,:] = implant[z0:z1,:,:].astype(np.uint8)
-        fill_implant_mask(mask[:z1-z0], z0*ny*nx, voxel_size, bbox_flat, rsqr_fraction, Muvwp_flat, thetas, rsqr_maxs, solid_implant_mask, profile)
+        z1 = min((i+1)*args.chunk_size, nz)
+        zs = z1 - z0
+        mask[:zs,:,:] = implant[z0:z1,:,:].astype(np.uint8)
+        fill_implant_mask(mask[:zs], z0, voxel_size, bbox_flat, rsqr_fraction, Muvwp_flat, thetas, rsqr_maxs, solid_implant_mask[z0:z1], profile)
 
     implant_file.close()
 
