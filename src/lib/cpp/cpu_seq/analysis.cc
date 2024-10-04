@@ -49,7 +49,7 @@ namespace cpu_seq {
 
             #pragma acc data copyin(voxels_ptr[:voxels_flat_size], field_ptr[:field_flat_size], mask_ptr[:mask_flat_size])
             {
-                PARALLEL_TERM()
+                PRAGMA(PARALLEL_TERM)
                 for (int64_t z = 0; z < this_z; z++) {
                     uint64_t total = 0, count = 0;
                     for (int64_t y = 0; y < voxels_Ny; y++) {

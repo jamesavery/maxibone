@@ -4,7 +4,6 @@
  */
 #ifndef boilerplate_h
 #define boilerplate_h
-
 //
 // Gaze upon the glory of 3-layered macros for building string literals for _Pragma:
 //
@@ -29,19 +28,19 @@
 
 #ifdef _OPENACC
 /**
- * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM()` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM()` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
+ * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
-#define PARALLEL_TERM() PRAGMA(acc parallel loop)
+#define PARALLEL_TERM acc parallel loop
 #elif defined _OPENMP
 /**
- * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM()` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM()` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
+ * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
-#define PARALLEL_TERM() PRAGMA(omp parallel for)
+#define PARALLEL_TERM omp parallel for
 #else
 /**
- * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM()` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM()` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
+ * Inserts boilerplate code for parallelizing a loop. This macro will generate the appropriate pragma for the compiler. For example, `PARALLEL_TERM` will generate `#pragma acc parallel loop` for OpenACC, while `PARALLEL_TERM` will generate `#pragma omp parallel for` for OpenMP. If neither OpenACC nor OpenMP is detected, this macro will do nothing.
  */
-#define PARALLEL_TERM()
+#define PARALLEL_TERM
 #endif
 
 #ifdef _OPENACC
@@ -136,11 +135,12 @@
  * @param ARR_OUT The output array that will will be accessed.
  */
 #define FOR_BLOCK_BEGIN_WITH_OUTPUT(ARR_IN, ARR_OUT) \
-    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<ARR_IN##_type> / 2) { \
+    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<ARR_IN##_type>) { \
         ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data + ARR_IN##_buffer_start; \
         ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data + ARR_IN##_buffer_start; \
         ssize_t ARR_IN##_buffer_length = std::min(acc_block_size<ARR_IN##_type>, ARR_IN##_length - ARR_IN##_buffer_start); \
-        PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copy(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
+        PRAGMA(acc data create(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
+        PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copyout(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
         {
 
 /**
@@ -169,7 +169,7 @@
  * @param ARR_OUT The output array that will will be accessed.
  */
 #define FOR_BLOCK_BEGIN_WITH_OUTPUT_TU(ARR_IN, ARR_OUT) \
-    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<T> / 2) { \
+    for (int64_t ARR_IN##_buffer_start = 0; ARR_IN##_buffer_start < ARR_IN##_length; ARR_IN##_buffer_start += acc_block_size<T>) { \
         T *ARR_IN##_buffer = (T *) ARR_IN.data + ARR_IN##_buffer_start; \
         U *ARR_OUT##_buffer = (U *) ARR_OUT.data + ARR_IN##_buffer_start; \
         ssize_t ARR_IN##_buffer_length = std::min(acc_block_size<T>, ARR_IN##_length - ARR_IN##_buffer_start); \
@@ -198,7 +198,7 @@
  * @param EXTRA_PRAGMA_CLAUSE Additional pragma clauses to be added to the parallel loop.
  */
 #define FOR_3D_BEGIN(ARR, EXTRA_PRAGMA_CLAUSE) \
-    PRAGMA(PARALLEL_TERM() collapse(3) EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM collapse(3) EXTRA_PRAGMA_CLAUSE) \
     for (int64_t z = 0; z < ARR##_Nz; z++) { \
         for (int64_t y = 0; y < ARR##_Ny; y++) { \
             for (int64_t x = 0; x < ARR##_Nx; x++) { \
@@ -232,7 +232,7 @@
  * @param EXTRA_PRAGMA_CLAUSE Additional pragma clauses to be added to the parallel loop.
  */
 #define FOR_FLAT_BEGIN(ARR, GLOBAL_PREFIX, EXTRA_PRAGMA_CLAUSE) \
-    PRAGMA(PARALLEL_TERM() EXTRA_PRAGMA_CLAUSE) \
+    PRAGMA(PARALLEL_TERM EXTRA_PRAGMA_CLAUSE) \
     for (int64_t flat_index = 0; flat_index < ARR##_length; flat_index++) { \
         int64_t \
             __attribute__((unused)) GLOBAL_PREFIX##_index = ARR##_start + flat_index, \
