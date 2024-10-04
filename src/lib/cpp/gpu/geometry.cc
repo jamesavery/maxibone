@@ -55,6 +55,8 @@ namespace gpu {
             const input_ndarray<float> rsqr_maxs,
             output_ndarray<mask_type> solid_implant_mask,
             output_ndarray<float> profile) {
+        return cpu_seq::fill_implant_mask(mask, offset, voxel_size, bbox, r_fraction, Muvw, thetas, rsqr_maxs, solid_implant_mask, profile);
+        /*
         UNPACK_NUMPY(mask)
 
         const real_t *thetas_d = thetas.data;
@@ -70,9 +72,10 @@ namespace gpu {
                 const mask_type *mask_buffer = mask.data + mask_buffer_start;
                 ssize_t mask_buffer_length = std::min(acc_block_size<mask_type>, mask_length-(ssize_t)mask_buffer_start);
                 mask_type *solid_mask_buffer = solid_implant_mask.data + offset + mask_buffer_start;
-                #pragma acc data copy(mask_buffer[:mask_buffer_length]) create(solid_mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
+                #pragma acc data create(solid_mask_buffer[:mask_buffer_length])
+                #pragma acc data copyin(mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
                 {
-                    #pragma acc parallel loop // reduction(+:profile_d[:n_segments])
+                    #pragma acc parallel loop reduction(+:profile_d[:n_segments])
                     for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
                         int64_t
                             global_index = offset + mask_buffer_start + flat_index,
@@ -97,7 +100,7 @@ namespace gpu {
                             solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
 
                             if (theta >= thetas_d[0] && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-                                #pragma acc atomic update
+                                //#pragma acc atomic update
                                 profile_d[U_i] += solid_mask_value;
                             }
                         }
@@ -107,6 +110,7 @@ namespace gpu {
                 }
             }
         }
+        */
     }
 
     void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
@@ -116,6 +120,8 @@ namespace gpu {
             const matrix4x4 &Muvw,
             output_ndarray<real_t> thetas,
             output_ndarray<float> rsqr_maxs) {
+        return cpu_seq::fill_implant_mask_pre(mask, offset, voxel_size, bbox, Muvw, thetas, rsqr_maxs);
+        /*
         UNPACK_NUMPY(mask)
 
         real_t *thetas_d = thetas.data;
@@ -144,6 +150,7 @@ namespace gpu {
                         for (int64_t thread_idx = 0; thread_idx < mask_buffer_length; thread_idx += gpu_threads) {
                             int64_t
                                 flat_index = thread_idx + thread,
+                                           // TODO offset might change
                                 global_index = offset + mask_buffer_start + flat_index,
                                 z = global_index / (mask_Ny * mask_Nx),
                                 y = (global_index / mask_Nx) % mask_Ny,
@@ -179,6 +186,7 @@ namespace gpu {
                 thetas_d[1] = thetas_max;
             }
         }
+        */
     }
 
     std::array<real_t, 9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm, const int verbose) {
