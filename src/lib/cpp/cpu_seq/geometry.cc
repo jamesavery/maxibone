@@ -363,37 +363,43 @@ namespace cpu_seq {
         const float *rsqr_maxs_d = rsqr_maxs.data;
         float *profile_d = profile.data;
 
-        #pragma omp parallel for collapse(3) reduction(+:profile_d[:n_segments])
-        for (int64_t z = 0; z < mask_Nz; z++) {
-            for (int64_t y = 0; y < mask_Ny; y++) {
-                for (int64_t x = 0; x < mask_Nx; x++) {
-                    int64_t z_offset = offset / (mask_Ny * mask_Nx);
-                    std::array<real_t, 4> Xs = {
-                        real_t(z + z_offset) * voxel_size,
-                        real_t(y) * voxel_size,
-                        real_t(x) * voxel_size,
-                        1 };
-                    int64_t flat_index = z*mask_Ny*mask_Nx + y*mask_Nx + x;
-                    mask_type mask_value = mask.data[flat_index];
+        typedef mask_type T;
+        typedef mask_type U;
 
-                    // Second pass does the actual work
-                    auto [U,V,W,c] = hom_transform(Xs, Muvw);
-                    float r_sqr = V*V + W*W;
-                    float theta = std::atan2(V, W);
-                    int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
+        #pragma acc data copy(profile_d[:n_segments])
+        {
+        #ifdef _OPENACC
+        #define REDUC
+        #else
+        #define REDUC reduction(+:profile_d[:n_segments])
+        #endif
+        BLOCK_BEGIN_WITH_OUTPUT_TU(mask, solid_implant_mask, REDUC) {
+            std::array<real_t, 4> Xs = {
+                real_t(z + offset) * voxel_size,
+                real_t(y) * voxel_size,
+                real_t(x) * voxel_size,
+                1 };
+            mask_type mask_value = mask_buffer[flat_index];
 
-                    bool solid_mask_value = false;
-                    if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
-                        solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
+            // Second pass does the actual work
+            auto [iU,V,W,c] = hom_transform(Xs, Muvw);
+            float r_sqr = V*V + W*W;
+            float theta = std::atan2(V, W);
+            int U_i = int(std::floor((iU - U_min) * real_t(n_segments-1) / (U_max - U_min)));
 
-                        if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-                            profile_d[U_i] += solid_mask_value;
-                        }
-                    }
-
-                    solid_implant_mask.data[offset + flat_index] = solid_mask_value;
+            bool solid_mask_value = false;
+            if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
+                solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
+                if (theta >= theta_min && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
+                    #ifdef _OPENACC
+                    ATOMIC()
+                    #endif
+                    profile_d[U_i] += solid_mask_value;
                 }
             }
+
+            solid_implant_mask_buffer[flat_index] = solid_mask_value;
+        BLOCK_END_WITH_OUTPUT_TU() }
         }
     }
 
@@ -412,8 +418,8 @@ namespace cpu_seq {
             theta_max = thetas_d[1];
 
         if (offset == 0) {
-            thetas_d[0] = real_t(M_PI);
-            thetas_d[1] = real_t(-M_PI);
+            thetas_d[0] = real_t(-M_PI);
+            thetas_d[1] = real_t(M_PI);
         }
         ssize_t n_segments = rsqr_maxs.shape[0];
         const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
@@ -423,10 +429,9 @@ namespace cpu_seq {
         for (int64_t z = 0; z < mask_Nz; z++) {
             for (int64_t y = 0; y < mask_Ny; y++) {
                 for (int64_t x = 0; x < mask_Nx; x++) {
-                    int64_t z_offset = offset / (mask_Ny * mask_Nx);
                     mask_type mask_value = mask.data[z*mask_Ny*mask_Nx + y*mask_Nx + x];
                     std::array<real_t, 4> Xs = {
-                        real_t(z + z_offset) * voxel_size,
+                        real_t(z + offset) * voxel_size,
                         real_t(y) * voxel_size,
                         real_t(x) * voxel_size,
                         1 };
@@ -669,7 +674,7 @@ namespace cpu_seq {
         #pragma acc data create(dat[:nu*nv])
         #pragma acc data copyin(voxels_data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx, cm[:3], u_axis[:3], v_axis[:3]) copyout(dat[:nu*nv])
         {
-        PRAGMA(PARALLEL_TERM() collapse(2))
+        PRAGMA(PARALLEL_TERM collapse(2))
         for (ssize_t ui = 0; ui < nu; ui++) {
             for (ssize_t vj = 0; vj < nv; vj++) {
                 const real_t
@@ -696,7 +701,9 @@ namespace cpu_seq {
                 if (in_bbox({{z,y,x}}, local_bbox)) {
                     value = (T) std::round(resample2x2x2<T>(voxels_data, {voxels_Nz, voxels_Ny, voxels_Nx}, {z, y, x}));
                 } else if (verbose >= 2) {
+                    #ifndef _OPENACC
                     fprintf(stderr, "Sampling outside image: x,y,z = %.1f,%.1f,%.1f, Nx,Ny,Nz = %ld,%ld,%ld\n", x, y, z, voxels_Nx, voxels_Ny, voxels_Nz);
+                    #endif
                 }
 
                 dat[ui*nv + vj] = value;
