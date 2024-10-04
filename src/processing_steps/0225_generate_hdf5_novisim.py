@@ -39,11 +39,6 @@ if __name__ == "__main__":
         pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     tomo = np.fromfile(file_path, dtype=np.float32).reshape(nz, ny, nx)
-    # Rotate 90 degrees around z axis
-    tomo = np.rot90(tomo, -1, (1, 2))
-    yshift = ny - 1435
-    tomo = np.roll(tomo, yshift, axis=1)
-
     vmin, vmax = tomo.min(), tomo.max()
 
     # Remove circle on yx planes - i.e. cylinder mask
