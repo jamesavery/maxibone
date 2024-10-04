@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 import h5py
 from lib.cpp.gpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
 from lib.py.commandline_args import default_parser
@@ -30,8 +30,8 @@ import tqdm
 if __name__ == "__main__":
     args = default_parser(__doc__).parse_args()
 
-    output_image_dir = f"{hdf5_root}/processed/implant-data/{args.sample}"
-    os.makedirs(output_image_dir, exist_ok=True)
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting: pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading principal axis and cylinder frame-of-references")
     h5meta = h5py.File(f"{hdf5_root}/hdf5-byte/msb/{args.sample}.h5","r")
@@ -95,15 +95,16 @@ if __name__ == "__main__":
                 datasets  = {"quarter_profile": profile,
                             "r_maxs": np.sqrt(rsqr_maxs)}
     )
-    plt.plot(profile)
-    plt.savefig(f"{output_image_dir}/profile.png", bbox_inches='tight')
-    plt.clf()
+    if args.plotting:
+        plt.plot(profile)
+        plt.savefig(f"{plotting_dir}/profile.pdf", bbox_inches='tight')
+        plt.close()
 
     update_hdf5_mask(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5",
                     group_name="implant_solid",
                     datasets={"mask": solid_implant_mask.astype(bool, copy=False)},
                     attributes={"sample": args.sample, "scale": args.sample_scale, "voxel_size": voxel_size})
-    plot_middle_planes(solid_implant_mask, output_image_dir, "solid_implant_mask", verbose=args.verbose)
+    if args.plotting: plot_middle_planes(solid_implant_mask, plotting_dir, "solid_implant_mask", verbose=args.verbose)
 
     # Compute front mask
     if args.verbose >= 1: print ("Computing front mask")
@@ -116,4 +117,4 @@ if __name__ == "__main__":
                     group_name="cut_cylinder_bone",
                     datasets={"mask":front_mask.astype(bool,copy=False)},
                     attributes={"sample":args.sample,"scale":args.sample_scale,"voxel_size":voxel_size})
-    plot_middle_planes(front_mask, output_image_dir, "front_mask", verbose=args.verbose)
+    if args.plotting: plot_middle_planes(front_mask, plotting_dir, "front_mask", verbose=args.verbose)
