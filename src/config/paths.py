@@ -19,13 +19,13 @@ binary_root      = f"{hdf5_root}/binary"
 binary_root_fast = f"{hdf5_root_fast}/binary"
 '''The root directory for the binary data on fast(er), but smaller, storage.'''
 
-esrf_data_local     = f"{hdf5_root}/ESRF/"
+esrf_data_local     = f"{hdf5_root}/ESRF"
 '''The root directory for the local copy of ESRF data.'''
-esrf_data_sftp      =  "/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost/"
+esrf_data_sftp      =  "/XNS/XrayImaging/MiG/manjula.esci.nbi.dk.2_localhost"
 '''The root directory for the SFTP copy of ESRF data.'''
-esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013/"
+esrf_implants_root  = f"{esrf_data_local}/esrf_dental_implants_april_2013"
 '''The root ESRF directory of the implant data.'''
-esrf_granules_root  = f"{esrf_data_local}/esrf_dental_granules_july_2012/"
+esrf_granules_root  = f"{esrf_data_local}/esrf_dental_granules_july_2012"
 '''The root ESRF directory of the granule data.'''
 
 plotting_root = f'{hdf5_root}/reports'
