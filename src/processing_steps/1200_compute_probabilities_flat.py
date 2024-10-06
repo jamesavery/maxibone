@@ -146,19 +146,19 @@ if __name__ == '__main__':
     if args.plotting:
         plt.plot(good_xs[0])
         plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs0.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
         plt.plot(good_xs[1])
         plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs1.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
         plt.imshow(hist)
         plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
         plt.imshow(labels)
         plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_labels.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
     nx, nv = hist.shape
     xs, vs = np.arange(nx), np.arange(nv)
@@ -208,7 +208,7 @@ if __name__ == '__main__':
         if args.plotting:
             plt.imshow(hist_m[m])
             plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}.pdf", bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
             slice = 450
             plt.plot(hist_m[m][slice], label=f'm{m}')
@@ -218,7 +218,7 @@ if __name__ == '__main__':
             plt.legend()
             #plt.yscale('log')
             plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_slice.pdf", bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
         long_tail = (hist_m[m] < 0.001*hist_m[m].max(axis=1)[:,NA])
         long_tail |= all_xs[:,NA] > (1.00 * good_xs[m].max())
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         if args.plotting:
             plt.imshow(long_tail)
             plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_long_tail.pdf", bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
         if m == 1:
             Cm = piecewisecubic((pcc[0], bins[0]), all_xs)
@@ -245,7 +245,7 @@ if __name__ == '__main__':
     if args.plotting:
         plt.imshow(hist_modeled)
         plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_modeled.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
     for m in ms:
         P_m[m] = hist_m[m] / np.maximum(hist + (hist==0), hist_modeled)
@@ -287,7 +287,7 @@ if __name__ == '__main__':
             fig.canvas.draw()
             fig.canvas.flush_events()
             plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_fourth.pdf", bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
         fig = plt.figure(figsize=(10,10))
         axarr = fig.subplots(3,2)
@@ -308,7 +308,7 @@ if __name__ == '__main__':
         fig.tight_layout()
 
         fig.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
         fig = plt.figure(figsize=(15,15))
         axarr = fig.subplots(2,2)
