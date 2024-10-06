@@ -1,0 +1,33 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/src/lib/cpp/include",
+                "${workspaceFolder}/src/lib/cpp/cpu_seq/", // Change this line to change implementation
+                "~/.local/lib/python3.12/site-packages/pybind11/include",
+                "/usr/include/python3.12"
+            ],
+            "defines": [],
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "/usr/bin/g++",
+            "compilerArgs": [
+                "-Wno-unknown-pragmas",
+                "-Wno-comment",
+                "-Wconversion",
+                "-Wall",
+                //"-fopenmp",
+                "-Wextra",
+                "-Wfloat-equal",
+                "-Wundef",
+                "-Wshadow",
+                "-Wuninitialized",
+                "-Winit-self"
+            ],
+        }
+    ],
+    "version": 4
+}
