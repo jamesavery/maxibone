@@ -112,7 +112,7 @@ def apply_otsu(bins, name, plotting, plotting_dir):
 
     return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
-def extract_probabilities(labeled, axes_names, field_names, plotting_dir, verbose):
+def extract_probabilities(labeled, axes_names, field_names, plotting, plotting_dir, verbose):
     '''
     Extract the probabilities for each row of the histograms.
 
@@ -124,6 +124,8 @@ def extract_probabilities(labeled, axes_names, field_names, plotting_dir, verbos
         The names of the axes histograms.
     `field_names` : list
         The names of the field histograms.
+    `plotting` : bool
+        Whether to plot debug images.
     `plotting_dir` : str
         The output folder for debug images.
     `verbose` : int
@@ -136,12 +138,12 @@ def extract_probabilities(labeled, axes_names, field_names, plotting_dir, verbos
     '''
 
     axes_rng = tqdm(axes_names, desc='Computing from axes') if verbose >= 1 else axes_names
-    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', plotting_dir) for name in axes_rng]
+    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', plotting, plotting_dir) for name in axes_rng]
     field_rng = tqdm(field_names, desc='Computing from fields') if verbose >= 1 else field_names
     for name in field_rng:
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
-        Ps.append(apply_otsu(bins, f'field_bins_{name}', plotting_dir))
+        Ps.append(apply_otsu(bins, f'field_bins_{name}', plotting, plotting_dir))
 
     return Ps
 
@@ -217,5 +219,5 @@ if __name__ == '__main__':
     bins = np.load(input_path)
     axes_names = [name.split('_bins')[0] for name in bins.keys() if '_bins' in name and 'field' not in name]
     field_names = bins['field_names']
-    Ps = extract_probabilities(bins, axes_names, field_names, plotting_dir, args.verbose)
-    save_probabilities(Ps, args.sample, args.subbins, bins['value_ranges'], args.verbose)
+    Ps = extract_probabilities(bins, axes_names, field_names, args.plotting, plotting_dir, args.verbose)
+    save_probabilities(output_dir, Ps, args.sample, args.subbins, bins['value_ranges'], args.verbose)
