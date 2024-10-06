@@ -23,10 +23,11 @@ if __name__ == '__main__':
     edt_path = f"{field_dir}/implant-edt/{args.sample_scale}x"
     gauss_path = f"{field_dir}/implant-gauss/{args.sample_scale}x"
     output_dir = f"{field_dir}/implant-gauss+edt/{args.sample_scale}x"
-    image_output_dir = f"{hdf5_root}/processed/field-gauss+edt/{args.sample_scale}x/{args.sample}"
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
 
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(image_output_dir, exist_ok=True)
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading EDT field from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.npy")
     edt_field = np.load(f"{edt_path}/{args.sample}.npy")
