@@ -32,10 +32,6 @@ if __name__ == '__main__':
         help='The material to segment. Default is 0, which should be soft tissue.')
     args = argparser.parse_args()
 
-    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
-    if args.plotting:
-        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
-
     scales = [32, 16, 8, 4, 2, 1] if args.sample_scale <= 0 else [args.sample_scale]
     bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1, verbose=args.verbose)
     Nz, Ny, Nx, _ = bi["dimensions"]
@@ -45,6 +41,10 @@ if __name__ == '__main__':
         data = f'{binary_root}/segmented/{args.field}/P{args.material}/{scale}x/{args.sample}.uint16'
         output_dir = f'{hdf5_root}/masks/{scale}x'
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+        plotting_dir = get_plotting_dir(args.sample, scale)
+        if args.plotting:
+            pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
+
         nz, ny, nx = Nz // scale, Ny // scale, Nx // scale
         voxel_size = bi["voxel_size"]*scale
 
