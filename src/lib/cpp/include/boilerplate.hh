@@ -139,7 +139,6 @@
         ARR_IN##_type *ARR_IN##_buffer = (ARR_IN##_type *) ARR_IN.data + ARR_IN##_buffer_start; \
         ARR_OUT##_type *ARR_OUT##_buffer = (ARR_OUT##_type *) ARR_OUT.data + ARR_IN##_buffer_start; \
         ssize_t ARR_IN##_buffer_length = std::min(acc_block_size<ARR_IN##_type>, ARR_IN##_length - ARR_IN##_buffer_start); \
-        PRAGMA(acc data create(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
         PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copyout(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
         {
 

@@ -671,7 +671,6 @@ namespace cpu_seq {
         const T *voxels_data = voxels.data;
         real_t *dat = plane_samples.data;
 
-        #pragma acc data create(dat[:nu*nv])
         #pragma acc data copyin(voxels_data[:voxels_Nz*voxels_Ny*voxels_Nx], voxels_Nz, voxels_Ny, voxels_Nx, cm[:3], u_axis[:3], v_axis[:3]) copyout(dat[:nu*nv])
         {
         PRAGMA(PARALLEL_TERM collapse(2))
