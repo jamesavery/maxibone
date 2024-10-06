@@ -366,7 +366,7 @@ namespace cpu_seq {
         typedef mask_type T;
         typedef mask_type U;
 
-        #pragma acc data copy(profile_d[:n_segments])
+        #pragma acc data copy(profile_d[:n_segments]) copyin(rsqr_maxs_d[:n_segments], Muvw[:16])
         {
         #ifdef _OPENACC
         #define REDUC
