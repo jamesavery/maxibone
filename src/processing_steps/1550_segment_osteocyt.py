@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 import h5py
 from lib.cpp.cpu.general import bincount, where_in
 from lib.cpp.cpu.geometry import center_of_masses, inertia_matrices, outside_ellipsoid
@@ -27,10 +27,11 @@ if __name__ == '__main__':
     args = default_parser(__doc__).parse_args()
 
     # Define and create directories
-    plot_dir = f"{hdf5_root}/processed/osteocyt_mask/{args.sample_scale}x"
-    pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
     mask_dir = f'{hdf5_root}/masks/{args.sample_scale}x'
     sample_path = f'{mask_dir}/{args.sample}.h5'
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     # Load the blood mask
     if args.verbose >= 1: print (f"Loading blood mask from {sample_path}")
@@ -85,16 +86,19 @@ if __name__ == '__main__':
     outside_ellipsoid(hole_id, cms, abc, ellipsoid_errors)
     ellipsoid_error_threshold = .3 * 1e9
     weirdly_shaped = (ellipsoid_errors / ellipsoid_volumes) > ellipsoid_error_threshold
+    errors = ellipsoid_errors[1:] / ellipsoid_volumes[1:]
+    errors = errors[~np.isnan(errors) & ~np.isinf(errors) & ~weirdly_long[1:] & osteocyte_sized[1:]]
+
     if args.verbose >= 1:
         print (f"Found {np.sum(weirdly_shaped)} weirdly shaped osteocytes")
-        print (f'Plotting histogram of ellipsoid errors to {plot_dir}/')
-        errors = ellipsoid_errors[1:] / ellipsoid_volumes[1:]
-        errors = errors[~np.isnan(errors) & ~np.isinf(errors) & ~weirdly_long[1:] & osteocyte_sized[1:]]
         print (f"Mean ellipsoid error: {np.mean(errors)}")
         print (f'Std ellipsoid error: {np.std(errors)}')
         print (f'min/max ellipsoid error: {np.min(errors)}/{np.max(errors)}')
+
+    if args.plotting:
+        if args.verbose >= 1: print (f'Plotting histogram of ellipsoid errors to {plotting_dir}/')
         plt.hist(errors, bins=100, log=True)
-        plt.savefig(f'{plot_dir}/{args.sample}_ellipsoid_errors.png')
+        plt.savefig(f'{plotting_dir}/{args.sample}_ellipsoid_errors.png')
         plt.clf()
 
     # Final osteocyte segmentation
@@ -105,35 +109,36 @@ if __name__ == '__main__':
 
     where_in(osteocyte_mask, osteocyte_segments)
 
-    if args.verbose >= 1:
+
+    if args.plotting:
         # Plot the debug images
         red = [255,0,0]
         yellow = [255,255,0]
         green = [0,255,0]
 
-        print(f"Saving osteocyt mask to {sample_path}")
-        print(f'Plotting osteocyt mask to {plot_dir}/')
+        print(f'Plotting osteocyt mask to {plotting_dir}/')
         hnz, hny, hnx = Nz//2, Ny//2, Nx//2
-        plot_middle_planes(osteocyte_mask, plot_dir, f'{args.sample}_osteocyt_mask', verbose=args.verbose)
+        plot_middle_planes(osteocyte_mask, plotting_dir, f'osteocyt_mask', verbose=args.verbose)
 
         yx = np.zeros((Ny, Nx, 3), dtype=np.uint8)
         yx[as_mask[hnz] > 0] = yellow
         yx[blood_mask[hnz] > 0] = red
         yx[osteocyte_mask[hnz] > 0] = green
-        PIL.Image.fromarray(yx).save(f'{plot_dir}/{args.sample}_yx_overlay.png')
+        PIL.Image.fromarray(yx).save(f'{plotting_dir}/yx_overlay.png')
 
         zx = np.zeros((Nz, Nx, 3), dtype=np.uint8)
         zx[as_mask[:,hny] > 0] = yellow
         zx[blood_mask[:,hny] > 0] = red
         zx[osteocyte_mask[:,hny] > 0] = green
-        PIL.Image.fromarray(zx).save(f'{plot_dir}/{args.sample}_zx_overlay.png')
+        PIL.Image.fromarray(zx).save(f'{plotting_dir}/zx_overlay.png')
 
         zy = np.zeros((Nz, Ny, 3), dtype=np.uint8)
         zy[as_mask[:,:,hnx] > 0] = yellow
         zy[blood_mask[:,:,hnx] > 0] = red
         zy[osteocyte_mask[:,:,hnx] > 0] = green
-        PIL.Image.fromarray(zy).save(f'{plot_dir}/{args.sample}_zy_overlay.png')
+        PIL.Image.fromarray(zy).save(f'{plotting_dir}/zy_overlay.png')
 
+    if args.verbose >= 1: print(f"Saving osteocyt mask to {sample_path}")
     # Save the mask
     update_hdf5(sample_path,
                 group_name='osteocyt',
