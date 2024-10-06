@@ -26,8 +26,8 @@ if __name__ == '__main__':
     argparser = default_parser(__doc__)
     argparser = add_volume(argparser, 'field', 2, 'edt')
     argparser = add_volume(argparser, 'mask', 2, 'bone_region')
-    argparser.add_argument('-t', '--threshold', action='store', type=int, default=500,
-        help='The threshold for the field. Default is 500.')
+    argparser.add_argument('-t', '--threshold', action='store', type=int, default=10000,
+        help='The threshold for the field. Default is 10000.')
     args = argparser.parse_args()
 
     output_dir = f'{hdf5_root}/processed/bics/{args.sample}/{args.sample_scale}x'
@@ -73,7 +73,8 @@ if __name__ == '__main__':
 
     if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
-    bic(blood, field, mask, args.threshold * args.sample_scale, bics, args.verbose)
+    # Threshold isn't scaled, as it is already between 0 and 65535
+    bic(blood, field, mask, args.threshold, bics, args.verbose)
     # Set nans to 0, as some layers are too far from the implant to have any BIC, and the C++ code sets them to nan.
     bics[np.isnan(bics)] = 0
     assert np.all(bics >= 0) and np.all(bics <= 1), f'Found BICs outside of [0, 1]: {bics}'
