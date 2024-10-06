@@ -12,7 +12,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import h5py
 from lib.cpp.gpu.diffusion import diffusion
 from lib.cpp.cpu.io import load_slice, write_slice
@@ -42,9 +42,9 @@ if __name__ == '__main__':
 
     output_dir = f"{binary_root}/fields/implant-gauss/{args.sample_scale}x"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_image_dir = f"{hdf5_root}/processed/field-gauss/{args.sample_scale}x/{args.sample}"
-    if args.verbose >= 2:
-        pathlib.Path(output_image_dir).mkdir(parents=True, exist_ok=True)
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5","r") as f:
@@ -60,8 +60,8 @@ if __name__ == '__main__':
         print(f"Using sigma={args.sigma} micrometers, sigma_voxels={sigma_voxels}.")
         print(f"Implant mask has shape {(nz,ny,nx)}")
 
-    if args.verbose >= 2:
-        plot_middle_planes(implant_mask, output_image_dir, f'{args.sample}-mask', verbose=args.verbose)
+    if args.plotting:
+        plot_middle_planes(implant_mask, plotting_dir, f'implant-mask', verbose=args.verbose)
 
     kernel = gauss_kernel(sigma_voxels)
 
@@ -116,9 +116,9 @@ if __name__ == '__main__':
 
     cylinder_mask = generate_cylinder_mask(nx)
 
-    if args.verbose >= 2:
-        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss', verbose=args.verbose)
-        plot_middle_planes(result, output_image_dir, f'{args.sample}-gauss-nonzero', lambda x: (np.abs(x) != 0).astype(np.uint8), args.verbose)
+    if args.plotting:
+        plot_middle_planes(result, plotting_dir, f'gauss', verbose=args.verbose)
+        plot_middle_planes(result, plotting_dir, f'gauss-nonzero', lambda x: (np.abs(x) != 0).astype(np.uint8), args.verbose)
 
     if args.verbose >= 1: print(f"Writing diffusion-field to {output_dir}/{args.sample}.npy")
     np.save(f'{output_dir}/{args.sample}.npy', result*cylinder_mask)
@@ -136,8 +136,8 @@ if __name__ == '__main__':
             print (f'C++ edition is {ndimage_time/diffusion_time:.02f} times faster')
         np.save(f'{output_dir}/{args.sample}_ndimage.npy',control)
 
-        if args.verbose >= 2:
-            plot_middle_planes(control, output_image_dir, f'{args.sample}-control', verbose=args.verbose)
+        if args.plotting:
+            plot_middle_planes(control, plotting_dir, f'control', verbose=args.verbose)
 
         if result_type == np.uint8 or result_type == np.uint16:
             diff = result.astype(np.int32) - control.astype(np.int32)
@@ -145,9 +145,9 @@ if __name__ == '__main__':
             diff = result - control
         diff_abs = np.abs(diff)
 
-        if args.verbose >= 2:
-            plot_middle_planes(diff, output_image_dir, f'{args.sample}-diff', verbose=args.verbose)
-            plot_middle_planes(diff_abs, output_image_dir, f'{args.sample}-diff-abs', verbose=args.verbose)
+        if args.plotting:
+            plot_middle_planes(diff, plotting_dir, f'diff', verbose=args.verbose)
+            plot_middle_planes(diff_abs, plotting_dir, f'diff-abs', verbose=args.verbose)
 
         diff_sum = diff_abs.sum()
         diff_max = diff_abs.max()
