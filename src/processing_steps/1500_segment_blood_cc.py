@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import datetime
 from functools import partial
 from lib.cpp.cpu.connected_components import largest_connected_component
@@ -32,6 +32,10 @@ if __name__ == '__main__':
         help='The material to segment. Default is 0, which should be soft tissue.')
     args = argparser.parse_args()
 
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
+
     scales = [32, 16, 8, 4, 2, 1] if args.sample_scale <= 0 else [args.sample_scale]
     bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 1, verbose=args.verbose)
     Nz, Ny, Nx, _ = bi["dimensions"]
@@ -43,10 +47,6 @@ if __name__ == '__main__':
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
         nz, ny, nx = Nz // scale, Ny // scale, Nx // scale
         voxel_size = bi["voxel_size"]*scale
-
-        if args.verbose >= 1:
-            plot_dir = f"{hdf5_root}/processed/blood_mask/"
-            pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
 
         layer_size = ny*nx
         hyperthreading = True # TODO check if hyperthreading is enabled
@@ -77,8 +77,8 @@ if __name__ == '__main__':
                 chunk_length = end-start
                 voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
                 load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
-                if args.verbose >= 3:
-                    plot_middle_planes(voxel_chunk, plot_dir, f'{args.sample}_{scale}_{i}_voxels')
+                if args.plotting:
+                    plot_middle_planes(voxel_chunk, plotting_dir, f'voxels_chunk_{i}')
                 label, n_features = ndi.label(voxel_chunk, output=np.int64)
                 del voxel_chunk
                 label.tofile(f'{chunk_prefix}{i}.int64')
@@ -101,8 +101,8 @@ if __name__ == '__main__':
             mask = np.zeros((nz,ny,nx), dtype=bool)
             largest_connected_component(mask, f"{intermediate_folder}/{args.sample}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), args.verbose)
 
-        if args.verbose >= 1:
-            plot_middle_planes(mask, plot_dir, f'{args.sample}_{scale}_{args.field}_mask', verbose=args.verbose)
+        if args.plotting:
+            plot_middle_planes(mask, plotting_dir, f'{args.field}_mask', verbose=args.verbose)
 
         update_hdf5(f"{output_dir}/{args.sample}.h5",
                     group_name=f"blood",
