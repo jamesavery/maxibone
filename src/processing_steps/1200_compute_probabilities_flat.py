@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 import h5py
 from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import row_normalize, update_hdf5
@@ -24,8 +24,7 @@ import tqdm
 
 NA = np.newaxis
 
-# TODO: Til fælles fil.
-def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_method, verbose):
+def save_probabilities(output_dir, Ps, sample, region_mask, field_name, value_ranges, prob_method, verbose):
     '''
     Save the probabilities `Ps` to an HDF5 file.
 
@@ -51,7 +50,7 @@ def save_probabilities(Ps, sample, region_mask, field_name, value_ranges, prob_m
     `None`
     '''
 
-    output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
+    output_path = f'{output_dir}/{sample}.h5'
     if verbose >= 1:
         print(f"output_path = {output_path}")
         print(f"group_name1 = {prob_method}/{region_mask}")
@@ -117,8 +116,11 @@ if __name__ == '__main__':
     hist_path = f"{hdf5_root}/processed/histograms/"
     f_labels = np.load(f"{hist_path}/{args.sample}/bins-{args.region_mask}_labeled.npz")
     input_filename  = f"{hdf5_root}/processed/histograms/{args.sample}.h5"
-    output_dir = f"{hdf5_root}/processed/probabilities/{args.sample}/"
+    output_dir = f"{hdf5_root}/processed/probabilities/"
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     lab = f_labels[args.field]
 
@@ -141,20 +143,21 @@ if __name__ == '__main__':
         print(f"Error in loading {args.region_mask}/{args.field} from {input_filename}: {e}")
         sys.exit(-1)
 
-    if args.verbose >= 1:
+    if args.plotting:
         plt.plot(good_xs[0])
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs0.png", bbox_inches='tight')
-        plt.clf()
-        plt.plot(good_xs[1])
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs1.png", bbox_inches='tight')
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs0.pdf", bbox_inches='tight')
         plt.clf()
 
-    if args.verbose >= 1:
-        plt.imshow(hist)
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist.png", bbox_inches='tight')
+        plt.plot(good_xs[1])
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_good_xs1.pdf", bbox_inches='tight')
         plt.clf()
+
+        plt.imshow(hist)
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist.pdf", bbox_inches='tight')
+        plt.clf()
+
         plt.imshow(labels)
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_labels.png", bbox_inches='tight')
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_labels.pdf", bbox_inches='tight')
         plt.clf()
 
     nx, nv = hist.shape
@@ -202,10 +205,11 @@ if __name__ == '__main__':
     for m in ms:
         hist_m[m] = evaluate_2d(Gs[m], xs, vs)
 
-        if args.verbose >= 1:
+        if args.plotting:
             plt.imshow(hist_m[m])
-            plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}.png", bbox_inches='tight')
+            plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}.pdf", bbox_inches='tight')
             plt.clf()
+
             slice = 450
             plt.plot(hist_m[m][slice], label=f'm{m}')
             plt.plot(hist[slice], label='hist')
@@ -213,16 +217,16 @@ if __name__ == '__main__':
             plt.vlines(np.argwhere(labels[slice]!=0),0,hist.max(), color='black', alpha=0.5, label='labels')
             plt.legend()
             #plt.yscale('log')
-            plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_slice.png", bbox_inches='tight')
+            plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_slice.pdf", bbox_inches='tight')
             plt.clf()
 
         long_tail = (hist_m[m] < 0.001*hist_m[m].max(axis=1)[:,NA])
         long_tail |= all_xs[:,NA] > (1.00 * good_xs[m].max())
         long_tail |= all_xs[:,NA] < (good_xs[m].min() / 1.00)
 
-        if args.verbose >= 1:
+        if args.plotting:
             plt.imshow(long_tail)
-            plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_long_tail.png", bbox_inches='tight')
+            plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_m{m}_long_tail.pdf", bbox_inches='tight')
             plt.clf()
 
         if m == 1:
@@ -238,9 +242,9 @@ if __name__ == '__main__':
 
     hist_modeled = np.sum(hist_m, axis=0)
 
-    if args.verbose >= 1:
+    if args.plotting:
         plt.imshow(hist_modeled)
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_modeled.png", bbox_inches='tight')
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_hist_modeled.pdf", bbox_inches='tight')
         plt.clf()
 
     for m in ms:
@@ -249,10 +253,9 @@ if __name__ == '__main__':
 
     P_modeled = np.minimum(np.sum(P_m, axis=0), 1)
 
-    save_probabilities(P_m,args.sample, args.region_mask,args.field, value_ranges, "optimized_distributions")
+    save_probabilities(output_dir, P_m, args.sample, args.region_mask, args.field, value_ranges, "optimized_distributions")
 
-    ##---- TODO: STICK THE DEBUG-PLOTTING FUNCTIONS SOMEWHERE CENTRAL
-    if (args.verbose & 7):
+    if args.plotting:
         plt.ion()
         fig = plt.figure(figsize=(15,15))
         ax = fig.add_subplot(111)
@@ -261,12 +264,12 @@ if __name__ == '__main__':
         line4, = ax.plot(vs, np.zeros_like(hist[0]), 'r:')
         line2, = ax.plot(vs, hist[0], 'black',linewidth=4)
 
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_seven.png", bbox_inches='tight')
+        plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_seven.pdf", bbox_inches='tight')
 
-    if (args.verbose == 4):
-        colors = ['b','r']
-        lines  = [line3,line4]
+    colors = ['b','r']
+    lines  = [line3,line4]
 
+    if args.plotting:
         for i, x in enumerate(xs):
             line1.set_ydata(hist_modeled[i])
             line2.set_ydata(hist[i])
@@ -283,10 +286,9 @@ if __name__ == '__main__':
             ax.autoscale_view()
             fig.canvas.draw()
             fig.canvas.flush_events()
-        plt.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_fourth.png", bbox_inches='tight')
-        plt.clf()
+            plt.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_fourth.pdf", bbox_inches='tight')
+            plt.clf()
 
-    if (args.verbose >= 8):
         fig = plt.figure(figsize=(10,10))
         axarr = fig.subplots(3,2)
         fig.suptitle(f'{args.sample} {args.region_mask}')
@@ -305,11 +307,9 @@ if __name__ == '__main__':
         axarr[2,1].set_title("P(m1|x,v)")
         fig.tight_layout()
 
-        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
-        fig.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}.png", bbox_inches='tight')
+        fig.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}.pdf", bbox_inches='tight')
         plt.clf()
 
-    if (args.verbose >= 10):
         fig = plt.figure(figsize=(15,15))
         axarr = fig.subplots(2,2)
         fig.suptitle(f'{args.sample} {args.region_mask}')
@@ -336,7 +336,7 @@ if __name__ == '__main__':
         axarr[1,1].imshow(modim)
         fig.tight_layout()
 
-        fig.savefig(f"{output_dir}/compute_probabilities_{args.field}_{args.region_mask}_10.png", bbox_inches='tight')
+        fig.savefig(f"{plotting_dir}/compute_probabilities_{args.field}_{args.region_mask}_10.pdf", bbox_inches='tight')
         plt.show()
 
         fig = plt.figure(figsize=(15,5))
@@ -364,5 +364,5 @@ if __name__ == '__main__':
 
         ax.set_title(f"(e) 1D histogram slice at field index {i}: a = {np.round(A,1)}, b = {np.round(B,3)}, c = {np.round(C,1)}, d = {np.round(D,1)}")
         fig.tight_layout()
-        fig.savefig(f"{output_dir}/hist_slice_{args.field}_{args.region_mask}.png", bbox_inches='tight')
+        fig.savefig(f"{plotting_dir}/hist_slice_{args.field}_{args.region_mask}.pdf", bbox_inches='tight')
         plt.show()
