@@ -94,10 +94,11 @@ def apply_otsu(bins, name, plotting, plotting_dir):
         # Plot the two extracted probabilities
         plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
         plt.savefig(f'{plotting_dir}/{name}_P_otsu_P0.pdf', bbox_inches='tight')
-        plt.clf()
+        plt.close()
+
         plt.imshow(P1/(P1.max(axis=1)[:,NA]+1))
         plt.savefig(f'{plotting_dir}/{name}_P_otsu_P1.pdf', bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
         # Plot the thresholds on top of the original image
         display_cubic = np.empty(bins.shape+(3,),dtype=np.uint8)
