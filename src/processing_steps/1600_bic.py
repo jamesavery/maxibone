@@ -82,7 +82,7 @@ if __name__ == '__main__':
     if args.plotting:
         bics_path = f'{plotting_dir}/bics.pdf'
         if args.verbose >= 1: print (f'Plotting BICs to {bics_path}')
-        plt.plot(bics); plt.savefig(f"{bics_path}", bbox_inches='tight'); plt.clf()
+        plt.plot(bics); plt.savefig(f"{bics_path}", bbox_inches='tight'); plt.close()
 
     if args.verbose >= 1: print (f'Saving BICs to {output_dir}')
     np.save(f"{output_dir}/bics.npy", bics)

@@ -892,7 +892,7 @@ if __name__ == '__main__':
     else:
         # Preload pyplot, as the first figure takes around 3 seconds to compute. For timing only
         plt.figure()
-        plt.clf()
+        plt.close()
         gui()
         if not args.dry_run:
             save_config()

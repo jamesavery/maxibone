@@ -99,7 +99,7 @@ if __name__ == '__main__':
         if args.verbose >= 1: print (f'Plotting histogram of ellipsoid errors to {plotting_dir}/')
         plt.hist(errors, bins=100, log=True)
         plt.savefig(f'{plotting_dir}/{args.sample}_ellipsoid_errors.png')
-        plt.clf()
+        plt.close()
 
     # Final osteocyte segmentation
     osteocyte_segments = np.argwhere(osteocyte_sized & (~weirdly_long) & (~weirdly_shaped)).flatten().astype(np.uint64)

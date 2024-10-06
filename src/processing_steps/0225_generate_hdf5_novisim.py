@@ -85,7 +85,7 @@ if __name__ == "__main__":
         plt.vlines([scaled_valley], 0, smoothed[valley].astype(int), color='g')
         print (f'The valley is at {scaled_valley}')
         plt.savefig(f"{plotting_dir}/histogram.pdf", bbox_inches='tight')
-        plt.clf()
+        plt.close()
 
     # Print metadata keys and attributes
     if args.verbose >= 1:

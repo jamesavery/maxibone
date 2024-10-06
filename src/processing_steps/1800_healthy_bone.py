@@ -92,7 +92,7 @@ if __name__ == '__main__':
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
             plt.savefig(f'{plotting_dir}/soft_{name}.pdf', bbox_inches='tight')
-            plt.clf()
+            plt.close()
         del soft
 
     if args.verbose >= 1: print (f'Loading the bone probabilities from {bone_path}')
@@ -110,7 +110,7 @@ if __name__ == '__main__':
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
             plt.savefig(f'{plotting_dir}/bone_{name}.pdf', bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
     bone_bp = bitpack_encode(bone_threshed, verbose=args.verbose)
     bone_bp_opened = open_3d(bone_bp, opening_voxels, args.verbose)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
             plt.savefig(f'{plotting_dir}/bone_opened_{name}.pdf', bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
     if args.verbose >= 1: print (f'Computing the distance field')
     disted_bp = soft_bp & bone_bp_opened
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
             plt.savefig(f'{plotting_dir}/dist_{name}.pdf', bbox_inches='tight')
-            plt.clf()
+            plt.close()
 
     bone_count = np.sum(bone_opened)
     dist_count = np.sum(disted)
