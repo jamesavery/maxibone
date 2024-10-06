@@ -2,7 +2,7 @@
 '''
 This module provides functions to resample 3D images.
 '''
-import importlib
+import importlib.util
 cupy_available = importlib.util.find_spec("cupy") is not None
 if cupy_available:
     import cupy as np

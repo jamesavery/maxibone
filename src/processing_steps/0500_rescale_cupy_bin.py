@@ -13,7 +13,7 @@ matplotlib.use('Agg')
 
 from config.paths import hdf5_root, binary_root
 import h5py
-import importlib
+import importlib.util
 from lib.py.commandline_args import default_parser
 from lib.py.resample import downsample2x
 import numpy as np
