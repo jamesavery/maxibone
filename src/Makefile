@@ -1,5 +1,5 @@
 # Define constants and collections
-PYTHON = python3.11
+PYTHON = python3.12
 PYBIND_FLAGS = $(shell $(PYTHON) -m pybind11 --include)
 CXXFLAGS += $(subst -I,-isystem ,$(PYBIND_FLAGS)) # We don't care about warnings from the python headers
 PYBIND_SUFFIX = $(shell $(PYTHON)-config --extension-suffix)
