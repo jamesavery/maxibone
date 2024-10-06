@@ -30,6 +30,8 @@ def save_probabilities(output_dir, Ps, sample, region_mask, field_name, value_ra
 
     Parameters
     ----------
+    `output_dir` : str
+        The output directory.
     `Ps` : list[numpy.array[float32]]
         List of probabilities for each material.
     `sample` : str
