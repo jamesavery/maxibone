@@ -781,11 +781,12 @@ def plot_middle_planes(tomo, output_dir, prefix, plane_func=lambda x: x, verbose
     planes = [plane_func(plane) for plane in planes]
 
     for name, plane in zip(names, planes):
-        plt.figure(figsize=(10,10))
-        plt.imshow(plane, interpolation='none')
-        plt.colorbar()
-        plt.savefig(f"{output_dir}/{prefix}_{name}.pdf", bbox_inches='tight')
-        plt.close()
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(111)
+        ims = ax.imshow(plane, interpolation='none')
+        fig.colorbar(ims, ax=ax)
+        fig.savefig(f"{output_dir}/{prefix}_{name}.pdf", bbox_inches='tight')
+        plt.close(fig)
 
 def proj(u, v):
     '''
