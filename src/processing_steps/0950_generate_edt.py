@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import binary_root, hdf5_root
+from config.paths import binary_root, hdf5_root, get_plotting_dir
 import datetime
 import edt
 import h5py
@@ -25,8 +25,8 @@ if __name__ == '__main__':
 
     output_dir = f"{binary_root}/fields/implant-edt/{args.sample_scale}x"
     os.makedirs(output_dir, exist_ok=True)
-    image_output_dir = f"{hdf5_root}/processed/field-edt/{args.sample_scale}x/{args.sample}"
-    if args.verbose >= 2:
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
         os.makedirs(image_output_dir, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     if args.verbose >= 1: print(f"Applying cylinder mask")
     fedt *= cylinder_mask
 
-    if args.verbose >= 2:
-        plot_middle_planes(fedt, image_output_dir, f'{args.sample}-edt', verbose=args.verbose)
+    if args.plotting:
+        plot_middle_planes(fedt, plotting_dir, f'edt', verbose=args.verbose)
 
     if args.verbose >= 1: print(f"Converting to uint16")
     start = datetime.datetime.now()
