@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 from lib.py.commandline_args import add_volume, default_parser
 from lib.py.distributions import powers
 from lib.py.helpers import row_normalize, update_hdf5
@@ -143,6 +143,9 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     hist_path = f"{hdf5_root}/processed/histograms/"
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     f_hist   = np.load(f"{hist_path}/{args.sample}/bins-{args.region_mask}.npz")
     f_labels = np.load(f"{hist_path}/{args.sample}/bins-{args.region_mask}_labeled.npz")
@@ -154,9 +157,9 @@ if __name__ == '__main__':
     hist = f_hist["field_bins"][field_id[args.field]][::args.stride,::args.stride]
     lab  = f_labels[args.field][::args.stride,::args.stride]
 
-    if args.verbose >= 2:
+    if args.plotting:
         plt.imshow(lab)
-        plt.show()
+        plt.plt.savefig(f"{plotting_dir}/{args.field}_labels.pdf")
 
     nmat    = lab.max()
     (nx,nv) = hist.shape
@@ -179,7 +182,7 @@ if __name__ == '__main__':
 
     if args.verbose >= 1: print(f"Optimizing distributions for {args.field} with {lab.max()} materials")
 
-    if args.verbose >= 3:
+    if args.plotting:
         plt.ion()
         fig = plt.figure(figsize=(15,15))
         ax = fig.add_subplot(111)
@@ -187,7 +190,7 @@ if __name__ == '__main__':
         line3, = ax.plot(vs, np.zeros_like(hist[0]), 'b:')
         line4, = ax.plot(vs, np.zeros_like(hist[0]), 'r:')
         line2, = ax.plot(vs, hist[0], 'black', linewidth=4)
-        plt.show()
+        plt.savefig(f"{plotting_dir}/{args.field}_fitting.pdf")
 
     good_xs = [[] for m in range(nmat)] # BE CAREFUL: [[]] * nmat makes MULTIPLE REFERENCES TO THE SAME LIST MEMORY. Two hours bughunting for that one.
     good_is = [[] for m in range(nmat)]
@@ -297,7 +300,7 @@ if __name__ == '__main__':
         axarr[1,1].imshow(row_normalize(hist_m[1], hist.max(axis=1)))
         axarr[1,1].set_title("Material 2")
         fig.tight_layout()
-        fig.savefig(f"{hdf5_root}/processed/histograms/{args.sample}/hist_vs_modeled_{args.field}_{args.region_mask}.png", bbox_inches='tight')
+        fig.savefig(f"{plotting_dir}/hist_vs_modeled_{args.field}_{args.region_mask}.pdf", bbox_inches='tight')
         plt.show()
 
     # TODO: How to generalize to arbitrarily many materials?
