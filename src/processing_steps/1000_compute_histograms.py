@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import implant_threshold_u16
-from config.paths import *
+from config.paths import binary_root, hdf5_root, get_plotting_dir
 from datetime import datetime
 import h5py
 from lib.cpp.cpu_seq.histograms import axis_histograms as axis_histogram_seq_cpu, field_histogram as field_histogram_seq_cpu
@@ -509,6 +509,9 @@ if __name__ == '__main__':
 
     outpath = f'{hdf5_root}/processed/histograms/{args.sample}'
     pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
+    if args.plotting:
+        plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.benchmark:
         if args.verbose >= 1: print(f'Benchmarking axes_histograms for {args.sample} at scale {args.sample_scale}x')
@@ -527,7 +530,7 @@ if __name__ == '__main__':
         if args.verbose >= 1: print (voxels.shape, field.shape, (Nz, Ny, Nx), field.dtype)
         gb = (voxels.nbytes + field.nbytes) / 1024**3
         if args.verbose >= 1: print(f"Loaded {gb:.02f} GB in {end-start} ({gb / (end-start).total_seconds()} GB/s)")
-        verify_and_benchmark(voxels, field, outpath, args.voxel_bins // args.sample_scale, args.benchmark_runs, args.verbose)
+        verify_and_benchmark(voxels, field, plotting_dir, args.voxel_bins // args.sample_scale, args.benchmark_runs, args.verbose)
     else:
         if 'novisim' in args.sample:
             implant_threshold = 40000
@@ -541,16 +544,16 @@ if __name__ == '__main__':
                                             field_names, args.field_scale, ((vmin,vmax),(fmin,fmax)),
                                             args.verbose)
 
-        if args.verbose >= 1: print(f"Saving histograms plots to {outpath}")
+        if args.plotting:
+            if args.verbose >= 1: print(f"Saving histograms plots to {plotting_dir}")
 
-        # TODO only plot if plotting is enabled
-        Image.fromarray(to_int(row_normalize(xb), np.uint8)).save(f"{outpath}/xb{args.suffix}.png")
-        Image.fromarray(to_int(row_normalize(yb), np.uint8)).save(f"{outpath}/yb{args.suffix}.png")
-        Image.fromarray(to_int(row_normalize(zb), np.uint8)).save(f"{outpath}/zb{args.suffix}.png")
-        Image.fromarray(to_int(row_normalize(rb), np.uint8)).save(f"{outpath}/rb{args.suffix}.png")
+            Image.fromarray(to_int(row_normalize(xb), np.uint8)).save(f"{plotting_dir}/xb{args.suffix}.png")
+            Image.fromarray(to_int(row_normalize(yb), np.uint8)).save(f"{plotting_dir}/yb{args.suffix}.png")
+            Image.fromarray(to_int(row_normalize(zb), np.uint8)).save(f"{plotting_dir}/zb{args.suffix}.png")
+            Image.fromarray(to_int(row_normalize(rb), np.uint8)).save(f"{plotting_dir}/rb{args.suffix}.png")
 
-        for i in range(len(field_names)):
-            Image.fromarray(to_int(row_normalize(fb[i]), np.uint8)).save(f"{outpath}/fb-{field_names[i]}{args.suffix}.png")
+            for i in range(len(field_names)):
+                Image.fromarray(to_int(row_normalize(fb[i]), np.uint8)).save(f"{plotting_dir}/fb-{field_names[i]}{args.suffix}.png")
 
         if args.verbose >= 1: print(f"Saving histograms to {outpath}/bins{args.suffix}.npz")
 
