@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root as hdf5_root
+from config.paths import hdf5_root, get_plotting_dir
 from lib.cpp.cpu.label import otsu
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import update_hdf5
@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-def apply_otsu(bins, name, debug_output):
+def apply_otsu(bins, name, plotting, plotting_dir):
     '''
     Apply Otsu's method to separate the two distributions in the bins of the histogram.
     The method is applied to each row of the histogram.
@@ -32,7 +32,9 @@ def apply_otsu(bins, name, debug_output):
         The histogram to separate.
     `name` : str
         The name of the histogram. Used for prefixing the output files.
-    `debug_output` : str
+    `plotting` : bool
+        Whether to plot debug images.
+    `plotting_dir` : str
         The output folder for debug images.
 
     Returns
@@ -75,7 +77,7 @@ def apply_otsu(bins, name, debug_output):
     xs = np.arange(start, end, dtype=float)
     pc = smooth_fun(xs, threshes[start:end], 12)
     new_threshes_linear = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='linear')
-    if not (debug_output is None):
+    if plotting:
         new_threshes_cubic = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='cubic')
         new_threshes_constant = piecewisecubic(pc, np.arange(n_rows+1), extrapolation='constant')
 
@@ -86,15 +88,15 @@ def apply_otsu(bins, name, debug_output):
         P1[i,int(new_threshes_linear[i]):] = row[int(new_threshes_linear[i]):].astype(np.float32) / ma
 
     # Save control images
-    if not (debug_output is None):
+    if plotting:
         NA = np.newaxis
 
         # Plot the two extracted probabilities
         plt.imshow(P0/(P0.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_P0.png', bbox_inches='tight')
+        plt.savefig(f'{plotting_dir}/{name}_P_otsu_P0.pdf', bbox_inches='tight')
         plt.clf()
         plt.imshow(P1/(P1.max(axis=1)[:,NA]+1))
-        plt.savefig(f'{debug_output}/{name}_P_otsu_P1.png', bbox_inches='tight')
+        plt.savefig(f'{plotting_dir}/{name}_P_otsu_P1.pdf', bbox_inches='tight')
         plt.clf()
 
         # Plot the thresholds on top of the original image
@@ -105,11 +107,11 @@ def apply_otsu(bins, name, debug_output):
             display_cubic[i,int(new_threshes_cubic[i])-2:int(new_threshes_cubic[i])+2] = (255,0,0) # cubic is red
             display_cubic[i,int(new_threshes_linear[i])-2:int(new_threshes_linear[i])+2] = (0,255,0) # linear is green
             display_cubic[i,int(new_threshes_constant[i])-2:int(new_threshes_constant[i])+2] = (64,128,255) # constant is blue
-        Image.fromarray(display_cubic).save(f'{debug_output}/P_otsu_thresholds_{name}.png')
+        Image.fromarray(display_cubic).save(f'{plotting_dir}/P_otsu_thresholds_{name}.png')
 
     return name, P0, P1, pc, (start, end), threshes, new_threshes_linear
 
-def extract_probabilities(labeled, axes_names, field_names, debug_output, verbose):
+def extract_probabilities(labeled, axes_names, field_names, plotting_dir, verbose):
     '''
     Extract the probabilities for each row of the histograms.
 
@@ -121,7 +123,7 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output, verbos
         The names of the axes histograms.
     `field_names` : list
         The names of the field histograms.
-    `debug_output` : str
+    `plotting_dir` : str
         The output folder for debug images.
     `verbose` : int
         The verbosity level.
@@ -133,12 +135,12 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output, verbos
     '''
 
     axes_rng = tqdm(axes_names, desc='Computing from axes') if verbose >= 1 else axes_names
-    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', debug_output) for name in axes_rng]
+    Ps = [apply_otsu(labeled[f'{name}_bins'], f'{name}_bins', plotting_dir) for name in axes_rng]
     field_rng = tqdm(field_names, desc='Computing from fields') if verbose >= 1 else field_names
     for name in field_rng:
         idx = list(labeled['field_names']).index(name)
         bins = labeled['field_bins'][idx]
-        Ps.append(apply_otsu(bins, f'field_bins_{name}', debug_output))
+        Ps.append(apply_otsu(bins, f'field_bins_{name}', plotting_dir))
 
     return Ps
 
@@ -203,11 +205,10 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     output_dir = f'{hdf5_root}/processed/probabilities/'
-    debug_output = f'{output_dir}/{args.sample}' if args.debug_output is not None else args.debug_output
-
-    if not (debug_output is None):
-        pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     subbins_str = f'-{args.subbins}' if args.subbins is not None else ''
     input_path = f'{hdf5_root}/processed/histograms/{args.sample}/bins{subbins_str}.npz'
@@ -215,5 +216,5 @@ if __name__ == '__main__':
     bins = np.load(input_path)
     axes_names = [name.split('_bins')[0] for name in bins.keys() if '_bins' in name and 'field' not in name]
     field_names = bins['field_names']
-    Ps = extract_probabilities(bins, axes_names, field_names, debug_output, args.verbose)
+    Ps = extract_probabilities(bins, axes_names, field_names, plotting_dir, args.verbose)
     save_probabilities(Ps, args.sample, args.subbins, bins['value_ranges'], args.verbose)
