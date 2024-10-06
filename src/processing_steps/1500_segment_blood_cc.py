@@ -37,7 +37,7 @@ if __name__ == '__main__':
     Nz, Ny, Nx, _ = bi["dimensions"]
 
     scales_iter = tqdm.tqdm(scales, desc= 'Computing connected components') if args.verbose >= 1 else scales
-    for scale in tqdm.tqdm(scales, desc= 'Computing connected components'):
+    for scale in scales_iter:
         data = f'{binary_root}/segmented/{args.field}/P{args.material}/{scale}x/{args.sample}.uint16'
         output_dir = f'{hdf5_root}/masks/{scale}x'
         pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
