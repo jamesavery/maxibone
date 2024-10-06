@@ -65,8 +65,6 @@ namespace gpu {
             const matrix4x4 &Muvw,
             output_ndarray<real_t> thetas,
             output_ndarray<float> rsqr_maxs) {
-        return cpu_seq::fill_implant_mask_pre(mask, offset, voxel_size, bbox, Muvw, thetas, rsqr_maxs);
-        /*
         UNPACK_NUMPY(mask)
 
         real_t *thetas_d = thetas.data;
@@ -131,7 +129,6 @@ namespace gpu {
                 thetas_d[1] = thetas_max;
             }
         }
-        */
     }
 
     std::array<real_t, 9> inertia_matrix(const input_ndarray<mask_type> &mask, const std::array<real_t, 3> &cm, const int verbose) {
