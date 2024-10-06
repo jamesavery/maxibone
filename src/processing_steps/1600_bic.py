@@ -14,7 +14,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import h5py
 from lib.cpp.cpu.analysis import bic
 from lib.py.commandline_args import add_volume, default_parser
@@ -30,9 +30,10 @@ if __name__ == '__main__':
         help='The threshold for the field. Default is 500.')
     args = argparser.parse_args()
 
-    # TODO add image output dir as a helper function to make #41 easier to implement
-    image_output_dir = f"{hdf5_root}/processed/bic"
-    os.makedirs(image_output_dir, exist_ok=True)
+    output_dir = f'{hdf5_root}/processed/bics/{args.sample}/{args.scale}x'
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print (f'Processing {args.sample} with threshold {args.threshold} and scales {args.sample_scale}x, {args.field_scale}x, {args.mask_scale}x (voxels, field, mask)')
     blood_file = h5py.File(f'{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5', 'r')
@@ -62,9 +63,9 @@ if __name__ == '__main__':
     mask_file.close()
 
     if args.verbose >= 2:
-        plot_middle_planes(blood, f'{image_output_dir}', f'{args.sample}_blood', verbose=args.verbose)
-        plot_middle_planes(field, f'{image_output_dir}', f'{args.sample}_field', verbose=args.verbose)
-        plot_middle_planes(mask, f'{image_output_dir}', f'{args.sample}_mask', verbose=args.verbose)
+        plot_middle_planes(blood, f'{plotting_dir}', f'blood', verbose=args.verbose)
+        plot_middle_planes(field, f'{plotting_dir}', f'field', verbose=args.verbose)
+        plot_middle_planes(mask, f'{plotting_dir}', f'mask', verbose=args.verbose)
 
     if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
@@ -73,8 +74,10 @@ if __name__ == '__main__':
     bics[np.isnan(bics)] = 0
     assert np.all(bics >= 0) and np.all(bics <= 1), f'Found BICs outside of [0, 1]: {bics}'
 
-    if args.verbose >= 1: print (f'Plotting BICs to {image_output_dir}/{args.sample}_bics.pdf')
-    plt.plot(bics); plt.savefig(f"{image_output_dir}/{args.sample}_bics.pdf", bbox_inches='tight'); plt.clf()
+    if args.plotting:
+        bics_path = f'{plotting_dir}/bics.pdf'
+        if args.verbose >= 1: print (f'Plotting BICs to {bics_path}')
+        plt.plot(bics); plt.savefig(f"{bics_path}", bbox_inches='tight'); plt.clf()
 
-    if args.verbose >= 1: print (f'Saving BICs to {image_output_dir}')
-    np.save(f"{image_output_dir}/{args.sample}_bics.npy", bics)
+    if args.verbose >= 1: print (f'Saving BICs to {output_dir}')
+    np.save(f"{output_dir}/bics.npy", bics)
