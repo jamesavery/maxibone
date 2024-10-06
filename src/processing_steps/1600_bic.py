@@ -31,6 +31,7 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     output_dir = f'{hdf5_root}/processed/bics/{args.sample}/{args.sample_scale}x'
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
     if args.plotting:
         pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
@@ -38,13 +39,21 @@ if __name__ == '__main__':
     if args.verbose >= 1: print (f'Processing {args.sample} with threshold {args.threshold} and scales {args.sample_scale}x, {args.field_scale}x, {args.mask_scale}x (voxels, field, mask)')
     blood_file = h5py.File(f'{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5', 'r')
     blood = blood_file['blood']['mask']
+    if args.plotting:
+        plot_middle_planes(blood, f'{plotting_dir}', f'blood', verbose=args.verbose)
+
     voxel_size = blood_file["implant"].attrs["voxel_size"]
     if args.verbose >= 1: print (f'Loaded blood mask with shape {blood.shape} and voxel size {blood_file["blood"].attrs["voxel_size"]}')
     field = np.load(f'{binary_root}/fields/implant-{args.field}/{args.field_scale}x/{args.sample}.npy', mmap_mode='r')
     if args.verbose >= 1: print (f'Loaded field with shape {field.shape}')
+    if args.plotting:
+        plot_middle_planes(field, f'{plotting_dir}', f'field', verbose=args.verbose)
+
     mask_file = h5py.File(f'{hdf5_root}/masks/{args.mask_scale}x/{args.sample}.h5', 'r')
     mask = mask_file[args.mask]['mask']
     if args.verbose >= 1: print (f'Loaded mask with shape {mask.shape}')
+    if args.plotting:
+        plot_middle_planes(mask, f'{plotting_dir}', f'mask', verbose=args.verbose)
 
     # Compute the divisable shapes
     if args.verbose >= 1: print (f'Computing divisable shapes')
@@ -61,11 +70,6 @@ if __name__ == '__main__':
 
     blood_file.close()
     mask_file.close()
-
-    if args.verbose >= 2:
-        plot_middle_planes(blood, f'{plotting_dir}', f'blood', verbose=args.verbose)
-        plot_middle_planes(field, f'{plotting_dir}', f'field', verbose=args.verbose)
-        plot_middle_planes(mask, f'{plotting_dir}', f'mask', verbose=args.verbose)
 
     if args.verbose >= 1: print (f'Calling into C++ to compute BICs')
     bics = np.zeros(blood.shape[0], dtype=np.float32)
