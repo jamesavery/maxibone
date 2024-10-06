@@ -80,6 +80,15 @@ if __name__ == "__main__":
         mask[:zs,:,:] = implant[z0:z1,:,:].astype(np.uint8)
         fill_implant_mask_pre(mask[:zs], z0, voxel_size, bbox_flat, Muvwp_flat, thetas, rsqr_maxs)
 
+    if args.verbose >= 2:
+        print(f"rsqr_maxs: {rsqr_maxs}")
+        print(f"thetas: {thetas}")
+
+    if args.plotting:
+        plt.plot(rsqr_maxs)
+        plt.savefig(f"{plotting_dir}/rsqr_maxs.pdf", bbox_inches='tight')
+        plt.close()
+
     fill_iter = tqdm.tqdm(range(n_blocks), desc="Filling implant mask") if args.verbose >= 1 else range(n_blocks)
     for i in fill_iter:
         z0 = i*args.chunk_size
