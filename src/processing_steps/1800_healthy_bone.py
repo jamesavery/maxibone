@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from config.constants import *
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 from lib.py.commandline_args import add_volume, default_parser
 from lib.py.helpers import bitpack_decode, bitpack_encode, chunk_info, close_3d, dilate_3d, open_3d
 import matplotlib.pyplot as plt
@@ -34,9 +34,10 @@ if __name__ == '__main__':
     soft_path = f'{probs_dir}/P{args.material}/{args.sample_scale}x/{args.sample}.uint16'
     bone_path = f'{probs_dir}/P{np.abs(args.material-1)}/{args.sample_scale}x/{args.sample}.uint16'
     output_dir = f"{binary_root}/fields/healthy_bone/{args.sample_scale}x"
-    image_output_dir = f"{hdf5_root}/processed/healthy_bone/{args.sample_scale}x/{args.sample}"
-
-    if args.verbose >= 1: os.makedirs(image_output_dir, exist_ok=True)
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', args.sample_scale, verbose=args.verbose)
     voxel_size = bi["voxel_size"] * args.sample_scale
@@ -60,8 +61,7 @@ if __name__ == '__main__':
     soft_bp = bitpack_encode(soft_threshed, verbose=args.verbose)
     del soft_threshed
 
-    # Close, open, then dilate. The sizes are in micrometers
-    # TODO adjust accordingly
+    # Close, open, then dilate. The sizes are in micrometers - adjust accordingly
     closing = 5
     opening = 5
 
@@ -83,15 +83,15 @@ if __name__ == '__main__':
     soft_bp = dilate_3d(opened, distance_voxels, args.verbose)
     del opened
 
-    if args.verbose >= 1:
-        print (f'Writing soft tissue debug plane images to {image_output_dir}')
+    if args.plotting:
+        if args.verbose >= 1: print (f'Writing soft tissue debug plane images to {plotting_dir}')
         soft = bitpack_decode(soft_bp, verbose=args.verbose)
         names = ['yx', 'zx', 'zy']
         planes = [soft[nz//2,:,:], soft[:,ny//2,:], soft[:,:,nx//2]]
         for name, plane in zip(names, planes):
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{args.sample}_soft_{name}.png', bbox_inches='tight')
+            plt.savefig(f'{plotting_dir}/soft_{name}.pdf', bbox_inches='tight')
             plt.clf()
         del soft
 
@@ -102,14 +102,14 @@ if __name__ == '__main__':
     bone_threshed = bone > args.threshold
     del bone
 
-    if args.verbose >= 1:
-        print (f'Writing bone debug plane images to {image_output_dir}')
+    if args.plotting:
+        if args.verbose >= 1: print (f'Writing bone debug plane images to {plotting_dir}')
         names = ['yx', 'zx', 'zy']
         planes = [bone_threshed[nz//2,:,:], bone_threshed[:,ny//2,:], bone_threshed[:,:,nx//2]]
         for name, plane in zip(names, planes):
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{args.sample}_bone_{name}.png', bbox_inches='tight')
+            plt.savefig(f'{plotting_dir}/bone_{name}.pdf', bbox_inches='tight')
             plt.clf()
 
     bone_bp = bitpack_encode(bone_threshed, verbose=args.verbose)
@@ -117,28 +117,28 @@ if __name__ == '__main__':
     bone_opened = bitpack_decode(bone_bp_opened, verbose=args.verbose)
     del bone_bp
 
-    if args.verbose >= 1:
-        print (f'Writing opened bone debug plane images to {image_output_dir}')
+    if args.plotting:
+        if args.verbose >= 1: print (f'Writing opened bone debug plane images to {plotting_dir}')
         names = ['yx', 'zx', 'zy']
         planes = [bone_opened[nz//2,:,:], bone_opened[:,ny//2,:], bone_opened[:,:,nx//2]]
         for name, plane in zip(names, planes):
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{args.sample}_bone_opened_{name}.png', bbox_inches='tight')
+            plt.savefig(f'{plotting_dir}/bone_opened_{name}.pdf', bbox_inches='tight')
             plt.clf()
 
     if args.verbose >= 1: print (f'Computing the distance field')
     disted_bp = soft_bp & bone_bp_opened
     disted = bitpack_decode(disted_bp, verbose=args.verbose)
 
-    if args.verbose >= 1:
-        print (f'Writing distance debug plane images to {image_output_dir}')
+    if args.plotting:
+        if args.verbose >= 1: print (f'Writing distance debug plane images to {plotting_dir}')
         names = ['yx', 'zx', 'zy']
         planes = [disted[nz//2,:,:], disted[:,ny//2,:], disted[:,:,nx//2]]
         for name, plane in zip(names, planes):
             plt.figure(figsize=(10,10))
             plt.imshow(plane)
-            plt.savefig(f'{image_output_dir}/{args.sample}_dist_{name}.png', bbox_inches='tight')
+            plt.savefig(f'{plotting_dir}/dist_{name}.pdf', bbox_inches='tight')
             plt.clf()
 
     bone_count = np.sum(bone_opened)
