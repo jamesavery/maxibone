@@ -686,8 +686,9 @@ def morph_3d(image, r, fs, verbose=0):
         rep_desc = f'{rmins} times with radius 16' if rrest > 0 else ''
         rep_desc = f'{rep_desc} and once with {rrest}' if rrest > 0 else rep_desc
         rep_iter = tqdm.tqdm(rep_rng, desc=f"Applying {f.__name__} {rep_desc}", unit="iteration") if verbose >= 2 else rep_rng
-        for _ in rep_iter:
-            f(I1, rmin, I2)
+        for i in rep_iter:
+            this_r = rmin if i < rmins else rrest
+            f(I1, this_r, I2)
             I1, I2 = I2, I1
 
     # Ensure temporary array is deallocated
