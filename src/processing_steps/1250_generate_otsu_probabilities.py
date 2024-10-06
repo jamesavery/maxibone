@@ -142,12 +142,14 @@ def extract_probabilities(labeled, axes_names, field_names, debug_output, verbos
 
     return Ps
 
-def save_probabilities(Ps, sample, subbins, value_ranges, verbose):
+def save_probabilities(output_dir, Ps, sample, subbins, value_ranges, verbose):
     '''
     Save the probabilities to an HDF5 file.
 
     Parameters
     ----------
+    `output_dir` : str
+        The output directory.
     `Ps` : list
         The probabilities to save.
     `sample` : str
@@ -164,7 +166,7 @@ def save_probabilities(Ps, sample, subbins, value_ranges, verbose):
     `None`
     '''
 
-    output_path = f'{hdf5_root}/processed/probabilities/{sample}.h5'
+    output_path = f'{output_dir}/{sample}.h5'
     if verbose >= 1: print(f'Saving probabilities to {output_path}')
 
     update_hdf5(
@@ -200,12 +202,12 @@ if __name__ == '__main__':
         help='The output folder for debug images.')
     args = argparser.parse_args()
 
-    output_folder = f'{hdf5_root}/processed/probabilities/'
-    debug_output = f'{output_folder}/{args.sample}' if args.debug_output is not None else args.debug_output
+    output_dir = f'{hdf5_root}/processed/probabilities/'
+    debug_output = f'{output_dir}/{args.sample}' if args.debug_output is not None else args.debug_output
 
     if not (debug_output is None):
         pathlib.Path(debug_output).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(output_folder).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     subbins_str = f'-{args.subbins}' if args.subbins is not None else ''
     input_path = f'{hdf5_root}/processed/histograms/{args.sample}/bins{subbins_str}.npz'
