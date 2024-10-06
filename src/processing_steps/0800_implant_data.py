@@ -20,7 +20,7 @@ matplotlib.use('Agg')
 from config.constants import *
 from config.paths import hdf5_root, get_plotting_dir
 import h5py
-from lib.cpp.cpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
+from lib.cpp.gpu.geometry import fill_implant_mask_pre, fill_implant_mask, compute_front_mask
 from lib.py.commandline_args import default_parser
 from lib.py.helpers import plot_middle_planes, update_hdf5, update_hdf5_mask
 import matplotlib.pyplot as plt
