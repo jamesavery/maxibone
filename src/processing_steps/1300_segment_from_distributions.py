@@ -11,7 +11,7 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import binary_root, hdf5_root as hdf5_root
+from config.paths import binary_root, hdf5_root, get_plotting_dir
 import h5py
 from lib.cpp.cpu.io import write_slice
 from lib.cpp.gpu.label import material_prob_justonefieldthx
@@ -120,6 +120,10 @@ if __name__ == '__main__':
         help='The group in the HDF5 file to load the probabilities from. Default is "otsu_separation".')
     args = argparser.parse_args()
 
+    plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+    if args.plotting:
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
+
     # TODO scale may not trickle down correctly
     # Iterate over all subvolumes
     bi = chunk_info(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', args.sample_scale, chunk_size=args.chunk_size, n_chunks=0, z_offset=args.chunk_start, verbose=args.verbose)
@@ -142,15 +146,13 @@ if __name__ == '__main__':
 
         this_z = zend - zstart
         zmid = this_z // 2
-        if args.verbose >= 1:
-            plot_dir = f'{hdf5_root}/processed/segmentation/{args.sample}'
-            pathlib.Path(plot_dir).mkdir(parents=True, exist_ok=True)
+        if args.plotting:
             combined_yx = np.zeros((Ny,Nx,3), dtype=np.uint8)
             combined_zy = np.zeros((this_z,Ny,3), dtype=np.uint8)
             combined_zx = np.zeros((this_z,Nx,3), dtype=np.uint8)
 
-            plot_middle_planes(voxels, plot_dir, f'{b}_voxels', verbose=args.verbose)
-            plot_middle_planes(fields[0], plot_dir, f'{b}_fields_{args.field}', verbose=args.verbose)
+            plot_middle_planes(voxels, plotting_dir, f'{b}_voxels', verbose=args.verbose)
+            plot_middle_planes(fields[0], plotting_dir, f'{b}_fields_{args.field}', verbose=args.verbose)
 
         for m in [0,1]:
             output_dir  = f'{binary_root}/segmented/{args.field}/P{m}/1x/'
@@ -166,21 +168,21 @@ if __name__ == '__main__':
                                                 (zstart,0,0), (zend,Ny,Nx),
                                                 args.verbose)
 
-            if args.verbose >= 1:
+            if args.plotting:
                 red = [255,0,0]
                 yellow = [255,255,0]
                 combined_yx[result[zmid,:,:]  > 0] = red if m == 0 else yellow
                 combined_zx[result[:,Ny//2,:] > 0] = red if m == 0 else yellow
                 combined_zy[result[:,:,Nx//2] > 0] = red if m == 0 else yellow
 
-                plot_middle_planes(result, plot_dir, f'{b}_{args.field}_P{m}', verbose=args.verbose)
+                plot_middle_planes(result, plotting_dir, f'{b}_{args.field}_P{m}', verbose=args.verbose)
 
             if args.verbose >= 2: print (f'Segmentation has min {result.min()} and max {result.max()}')
 
             if args.verbose >= 2: print(f"Writing results from block {b}")
             write_slice(result, output_file, (zstart,0,0), result.shape)
 
-        if args.verbose >= 1:
+        if args.plotting:
             # Draw two plots in one, one above and one below
             fig = plt.figure(figsize=(34,34*2))
             fig.subplots_adjust(wspace=0, hspace=0)
@@ -189,10 +191,8 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[zmid,:,:], interpolation='none')
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{args.field}_combined_yx.pdf', bbox_inches='tight')
-            fig.clear()
-            plt.clf()
-            plt.cla()
+            plt.savefig(f'{plotting_dir}/{b}_{args.field}_combined_yx.pdf', bbox_inches='tight')
+            plt.close()
 
             fig = plt.figure(figsize=(34,10))
             fig.subplots_adjust(wspace=0, hspace=0)
@@ -201,10 +201,8 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,Ny//2,:], interpolation='none')
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{args.field}_combined_zx.pdf', bbox_inches='tight')
-            fig.clear()
-            plt.clf()
-            plt.cla()
+            plt.savefig(f'{plotting_dir}/{b}_{args.field}_combined_zx.pdf', bbox_inches='tight')
+            plt.close()
 
             fig = plt.figure(figsize=(34,10))
             fig.subplots_adjust(wspace=0, hspace=0)
@@ -213,7 +211,5 @@ if __name__ == '__main__':
             plt.subplot(2,1,2)
             plt.imshow(voxels[:,:,Nx//2], interpolation='none')
             plt.tight_layout()
-            plt.savefig(f'{plot_dir}/{b}_{args.field}_combined_zy.pdf', bbox_inches='tight')
-            fig.clear()
-            plt.clf()
-            plt.cla()
+            plt.savefig(f'{plotting_dir}/{b}_{args.field}_combined_zy.pdf', bbox_inches='tight')
+            plt.close()
