@@ -172,7 +172,7 @@
         T *ARR_IN##_buffer = (T *) ARR_IN.data + ARR_IN##_buffer_start; \
         U *ARR_OUT##_buffer = (U *) ARR_OUT.data + ARR_IN##_buffer_start; \
         ssize_t ARR_IN##_buffer_length = std::min(acc_block_size<T>, ARR_IN##_length - ARR_IN##_buffer_start); \
-        PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copy(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
+        PRAGMA(acc data copyin(ARR_IN##_buffer[:ARR_IN##_buffer_length]) copyout(ARR_OUT##_buffer[:ARR_IN##_buffer_length])) \
         {
 
 /**
