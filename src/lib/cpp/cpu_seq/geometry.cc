@@ -374,6 +374,7 @@ namespace cpu_seq {
         #define REDUC reduction(+:profile_d[:n_segments])
         #endif
         BLOCK_BEGIN_WITH_OUTPUT_TU(mask, solid_implant_mask, REDUC) {
+            #undef REDUC
             std::array<real_t, 4> Xs = {
                 real_t(z + offset) * voxel_size,
                 real_t(y) * voxel_size,
