@@ -108,8 +108,8 @@ if __name__ == "__main__":
     if args.verbose >= 1: print (f'Creating HDF5 files at {output_dir}/lsb and {output_dir}/msb')
     pathlib.Path(f'{output_dir}/lsb').mkdir(parents=True, exist_ok=True)
     pathlib.Path(f'{output_dir}/msb').mkdir(parents=True, exist_ok=True)
-    h5_lsb = h5py.File(f'{output_dir}/lsb/novisim.h5', 'w')
-    h5_msb = h5py.File(f'{output_dir}/msb/novisim.h5', 'w')
+    h5_lsb = h5py.File(f'{output_dir}/lsb/{args.sample}.h5', 'w')
+    h5_msb = h5py.File(f'{output_dir}/msb/{args.sample}.h5', 'w')
 
     for h5, tomo in [(h5_lsb, tomo_lsb), (h5_msb, tomo_msb)]:
         h5.create_dataset('subvolume_dimensions', (1,3), data=[[nz, ny, nx]], dtype=np.uint16)
