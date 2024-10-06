@@ -24,10 +24,10 @@ if __name__ == '__main__':
     args = default_parser(__doc__).parse_args()
 
     output_dir = f"{binary_root}/fields/implant-edt/{args.sample_scale}x"
-    os.makedirs(output_dir, exist_ok=True)
+    pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
     plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
     if args.plotting:
-        os.makedirs(image_output_dir, exist_ok=True)
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     if args.verbose >= 1: print(f"Loading implant_solid mask from {hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5")
     with h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5","r") as f:
