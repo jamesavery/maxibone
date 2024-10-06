@@ -30,7 +30,7 @@ if __name__ == '__main__':
         help='The threshold for the field. Default is 500.')
     args = argparser.parse_args()
 
-    output_dir = f'{hdf5_root}/processed/bics/{args.sample}/{args.scale}x'
+    output_dir = f'{hdf5_root}/processed/bics/{args.sample}/{args.sample_scale}x'
     plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
     if args.plotting:
         pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
