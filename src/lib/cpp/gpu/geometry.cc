@@ -56,61 +56,6 @@ namespace gpu {
             output_ndarray<mask_type> solid_implant_mask,
             output_ndarray<float> profile) {
         return cpu_seq::fill_implant_mask(mask, offset, voxel_size, bbox, r_fraction, Muvw, thetas, rsqr_maxs, solid_implant_mask, profile);
-        /*
-        UNPACK_NUMPY(mask)
-
-        const real_t *thetas_d = thetas.data;
-        real_t theta_center = (thetas_d[1] + thetas_d[0]) / 2;
-        ssize_t n_segments = rsqr_maxs.shape[0];
-        const auto [U_min, U_max, V_min, V_max, W_min, W_max] = bbox;
-        const float *rsqr_maxs_d = rsqr_maxs.data;
-        float *profile_d = profile.data;
-
-        #pragma acc data copyin(U_min, U_max, W_min, Muvw, mask_Nz, mask_Ny, mask_Nx, voxel_size, n_segments, bbox, theta_center, thetas_d[:2], rsqr_maxs_d[:n_segments]) copy(profile_d[:n_segments])
-        {
-            for (int64_t mask_buffer_start = 0; mask_buffer_start < mask_length; mask_buffer_start += acc_block_size<mask_type>) {
-                const mask_type *mask_buffer = mask.data + mask_buffer_start;
-                ssize_t mask_buffer_length = std::min(acc_block_size<mask_type>, mask_length-(ssize_t)mask_buffer_start);
-                mask_type *solid_mask_buffer = solid_implant_mask.data + offset + mask_buffer_start;
-                #pragma acc data create(solid_mask_buffer[:mask_buffer_length])
-                #pragma acc data copyin(mask_buffer[:mask_buffer_length]) copyout(solid_mask_buffer[:mask_buffer_length])
-                {
-                    #pragma acc parallel loop reduction(+:profile_d[:n_segments])
-                    for (int64_t flat_index = 0; flat_index < mask_buffer_length; flat_index++) {
-                        int64_t
-                            global_index = offset + mask_buffer_start + flat_index,
-                            z = global_index / (mask_Ny * mask_Nx),
-                            y = (global_index / mask_Nx) % mask_Ny,
-                            x = global_index % mask_Nx;
-                        mask_type mask_value = mask_buffer[flat_index];
-                        std::array<real_t, 4> Xs = {
-                            real_t(z) * voxel_size,
-                            real_t(y) * voxel_size,
-                            real_t(x) * voxel_size,
-                            1 };
-
-                        // Second pass does the actual work
-                        auto [U,V,W,c] = hom_transform(Xs, Muvw);
-                        float r_sqr = V*V + W*W;
-                        float theta = std::atan2(V, W);
-                        int U_i = int(std::floor((U - U_min) * real_t(n_segments-1) / (U_max - U_min)));
-
-                        bool solid_mask_value = false;
-                        if (U_i >= 0 && U_i < n_segments && W >= W_min) { // TODO: Full bounding box check?
-                            solid_mask_value = mask_value | (r_sqr <= r_fraction * rsqr_maxs_d[U_i]);
-
-                            if (theta >= thetas_d[0] && theta <= theta_center && r_sqr <= rsqr_maxs_d[U_i]) {
-                                //#pragma acc atomic update
-                                profile_d[U_i] += solid_mask_value;
-                            }
-                        }
-
-                        solid_mask_buffer[flat_index] = solid_mask_value;
-                    }
-                }
-            }
-        }
-        */
     }
 
     void fill_implant_mask_pre(const input_ndarray<mask_type> mask,
