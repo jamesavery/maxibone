@@ -94,8 +94,8 @@ namespace gpu {
                             int64_t
                                 flat_index = thread_idx + thread,
                                            // TODO offset might change
-                                global_index = offset + mask_buffer_start + flat_index,
-                                z = global_index / (mask_Ny * mask_Nx),
+                                global_index = mask_buffer_start + flat_index,
+                                z = (global_index / (mask_Ny * mask_Nx)) + offset,
                                 y = (global_index / mask_Nx) % mask_Ny,
                                 x = global_index % mask_Nx;
                             mask_type mask_value = mask_buffer[flat_index];
