@@ -78,9 +78,11 @@ if __name__ == '__main__':
                 voxel_chunk   = np.empty((chunk_length,ny,nx),dtype=np.uint16)
                 load_slice(voxel_chunk, data, (start,0,0), voxel_chunk.shape)
                 if args.plotting:
-                    plot_middle_planes(voxel_chunk, plotting_dir, f'voxels_chunk_{i}')
+                    plot_middle_planes(voxel_chunk, plotting_dir, f'voxels_chunk_{i}', verbose=args.verbose)
                 label, n_features = ndi.label(voxel_chunk, output=np.int64)
                 del voxel_chunk
+                if args.plotting:
+                    plot_middle_planes(label, plotting_dir, f'labels_chunk_{i}', verbose=args.verbose)
                 label.tofile(f'{chunk_prefix}{i}.int64')
                 del label
                 return n_features
