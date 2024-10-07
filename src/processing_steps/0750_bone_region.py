@@ -17,112 +17,14 @@ matplotlib.use('Agg')
 from config.constants import *
 from config.paths import hdf5_root, binary_root, get_plotting_dir
 import datetime
-from functools import partial
 import h5py
-from lib.cpp.cpu.connected_components import largest_connected_component
 from lib.cpp.cpu.geometry import compute_front_back_masks
 from lib.py.commandline_args import default_parser
-from lib.py.helpers import bitpack_decode, bitpack_encode, close_3d, dilate_3d, open_3d, plot_middle_planes, update_hdf5_mask
+from lib.py.helpers import bitpack_decode, bitpack_encode, close_3d, dilate_3d, largest_cc_of, open_3d, plot_middle_planes, update_hdf5_mask
 import matplotlib.pyplot as plt
-import multiprocessing as mp
-from multiprocessing.pool import ThreadPool
 import numpy as np
-import scipy.ndimage as ndi
 from scipy.ndimage import gaussian_filter1d
 import scipy.signal as signal
-
-# TODO is this function generic?
-def label_chunk(i, chunk, chunk_prefix):
-    '''
-    Label a chunk and write it to disk.
-
-    Parameters
-    ----------
-    `i` : int
-        The index of the chunk.
-    `chunk` : np.ndarray[uint16]
-        The chunk to label.
-    `chunk_prefix` : str
-        The prefix to use for the filename.
-
-    Returns
-    -------
-    `n_features` : int
-        The number of features found in the chunk.
-    '''
-
-    label, n_features = ndi.label(chunk, output=np.int64)
-    label.tofile(f'{chunk_prefix}{i}.int64')
-    del label
-
-    return n_features
-
-def largest_cc_of(sample_name, scale, mask, mask_name, verbose=0):
-    '''
-    Find the largest connected component of a mask.
-    The output is a binary mask with only the largest connected component.
-
-    Parameters
-    ----------
-    `sample_name` : str
-        The sample name.
-    `scale` : int
-        The scale of the sample.
-    `mask` : np.ndarray[bool]
-        The mask to find the largest connected component of.
-    `mask_name` : str
-        The name of the mask.
-    `verbose` : int
-        The verbosity level. Default is 0.
-
-    Returns
-    -------
-    `largest_component` : np.ndarray[bool]
-        The filtered largest connected component of the mask.
-    '''
-
-    nz, ny, nx = mask.shape
-    flat_size = nz*ny*nx
-    layer_size = ny*nx
-    n_cores = mp.cpu_count() // 2 # Only count physical cores
-    available_memory = 1024**3 * 4 * n_cores # 1 GB per core-ish
-    memory_per_core = available_memory // n_cores
-    elements_per_core = memory_per_core // 8 # 8 bytes per element
-    layers_per_core = elements_per_core // layer_size
-    n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core)))) if nz > layers_per_core else 1
-    layers_per_chunk = nz // n_chunks
-    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x"
-    os.makedirs(intermediate_folder, exist_ok=True)
-
-    if layers_per_chunk == 0 or layers_per_chunk >= nz:
-        label, n_features = ndi.label(mask, output=np.int64)
-        bincnts           = np.bincount(label[label > 0], minlength=n_features+1)
-        largest_cc_ix     = np.argmax(bincnts)
-        return (label == largest_cc_ix)
-    else:
-        start = datetime.datetime.now()
-        with ThreadPool(n_cores) as pool:
-            label_chunk_partial = partial(label_chunk, chunk_prefix=f"{intermediate_folder}/{sample_name}_")
-            chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
-            chunks.append(mask[(n_chunks-1) * layers_per_chunk:])
-            n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
-            # Free memory
-            for chunk in chunks:
-                del chunk
-            del chunks
-        end = datetime.datetime.now()
-        # load uint16, threshold (uint16 > uint8), label (int64), write int64
-        total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
-        gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
-        if verbose >= 1:
-            print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
-
-        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample_name}_n_labels.int64")
-
-        largest_component = np.zeros((nz, ny, nx), dtype=bool)
-        largest_connected_component(largest_component, f"{intermediate_folder}/{sample_name}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), verbose)
-
-        return largest_component
 
 if __name__ == "__main__":
     args = default_parser(__doc__, default_scale=4).parse_args()
@@ -161,7 +63,7 @@ if __name__ == "__main__":
     if args.verbose >= 1: end = datetime.datetime.now()
     if args.verbose >= 1: print (f'Computing front/back/implant_shell/solid_implant masks took {end-start}')
 
-    front_mask = largest_cc_of(args.sample, args.sample_scale, front_mask, 'front', args.verbose)
+    front_mask = largest_cc_of(args.sample, args.sample_scale, front_mask, 'front', args.plotting, plotting_dir, args.verbose)
     front_part = voxels * front_mask
 
     output_dir = f"{hdf5_root}/masks/{args.sample_scale}x"
@@ -266,7 +168,7 @@ if __name__ == "__main__":
         bone_region_mask = bone_region_tmp.astype(bool)
     del bone_region_tmp
 
-    bone_region_mask = largest_cc_of(args.sample, args.sample_scale, bone_region_mask, 'bone_region', args.verbose)
+    bone_region_mask = largest_cc_of(args.sample, args.sample_scale, bone_region_mask, 'bone_region', args.plotting, plotting_dir, args.verbose)
 
     if args.plotting:
         if bitpacked:
