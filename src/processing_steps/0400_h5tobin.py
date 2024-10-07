@@ -80,7 +80,6 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
     # TODO: z_range is ignored
     # TODO: Store metadata about region range in json
     # TODO: Come up with appropriate "file format" scheme
-    # TODO: append_file should be in io pybind module, not histograms
     # TODO: command-line specified output dtype
     # TODO: cross-section thumbnails
 
