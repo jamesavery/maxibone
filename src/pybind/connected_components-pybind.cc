@@ -3,19 +3,20 @@
  * Python bindings for connected components C++ functions.
  */
 #include "connected_components.cc"
+#include <omp.h>
 
 namespace python_api {
 
 
     /**
      * Merge the labeled chunks in `chunks` to have a global labeling across all chunks.
-     * Assumes that each chunk is layed out flat and that they have the same shape, except for the last chunk, which can have less z-slices.
+     * Assumes that each chunk is layed out flat and that they have the same shape, except for the last chunk, which can have more or less z-slices.
      *
      * @param np_chunks The labeled chunks to merge.
      * @param np_n_labels The number of labels in each chunk.
      * @param verbose Whether to print debug information.
      */
-    int64_t merge_labeled_chunks(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const int verbose = 0) {
+    int64_t merge_labeled_chunks_aligned(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const int verbose = 0) {
         auto chunks_info = np_chunks.request();
         auto n_labels_info = np_n_labels.request();
 
@@ -31,6 +32,20 @@ namespace python_api {
         const idx3d chunk_shape = {nz, ny, nx};
 
         return NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, n_chunks*nz, verbose);
+    }
+
+    int64_t merge_labeled_chunks_unaligned(np_array<int64_t> &np_chunks, np_array<int64_t> &np_n_labels, const std::tuple<int64_t, int64_t, int64_t, int64_t> &py_chunk_shape, const int verbose = 0) {
+        auto chunks_info = np_chunks.request();
+        auto n_labels_info = np_n_labels.request();
+
+        int64_t *chunks = static_cast<int64_t*>(chunks_info.ptr);
+        int64_t *n_labels = static_cast<int64_t*>(n_labels_info.ptr);
+
+        auto [n_chunks, nz, ny, nx] = py_chunk_shape;
+
+        const idx3d chunk_shape = {nz, ny, nx};
+
+        return NS::merge_labeled_chunks(chunks, n_chunks, n_labels, chunk_shape, chunks_info.shape[0], verbose);
     }
 
     /**
@@ -93,5 +108,6 @@ PYBIND11_MODULE(connected_components, m) {
 
     m.def("connected_components", &python_api::connected_components, py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = 0);
     m.def("largest_connected_component", &python_api::largest_connected_component, py::arg("result").noconvert(), py::arg("base_path"), py::arg("np_n_labels"), py::arg("total_shape"), py::arg("global_shape"), py::arg("verbose") = 0);
-    m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("verbose") = 0);
+    m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks_aligned, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("verbose") = 0);
+    m.def("merge_labeled_chunks", &python_api::merge_labeled_chunks_unaligned, py::arg("np_chunks").noconvert(), py::arg("np_n_labels").noconvert(), py::arg("py_chunk_shape"), py::arg("verbose") = 0);
 }
