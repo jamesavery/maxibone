@@ -8,15 +8,22 @@ import pathlib
 import sys
 sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent.parent}')
 
-from config.paths import binary_root, hdf5_root, plotting_root
+from config.paths import binary_root, hdf5_root
+import datetime
+from functools import partial
 import h5py
 import lib.cpp.gpu.bitpacking as lib_bitpacking
+import lib.cpp.cpu.connected_components as lib_connected_components
 import lib.cpp.cpu.io as lib_io
 import lib.cpp.cpu.general as lib_general
 import lib.cpp.gpu.morphology as lib_morphology
 import matplotlib.pyplot as plt
+import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 import numpy as np
 import numpy.linalg as la
+import psutil
+import scipy.ndimage as ndi
 import scipy.signal as signal
 import tqdm
 
@@ -568,6 +575,158 @@ def h5meta_info_volume_matched(sample):
         voxel_size           = h5meta["voxels"].attrs["voxelsize"]
 
         return ((Nz,Ny,Nx), subvolume_nzs, voxel_size)
+
+def label_and_store_chunk(i, chunk, chunk_prefix):
+    '''
+    Label a chunk and write it to disk.
+
+    Parameters
+    ----------
+    `i` : int
+        The index of the chunk.
+    `chunk` : np.ndarray[uint16]
+        The chunk to label.
+    `chunk_prefix` : str
+        The prefix to use for the filename.
+
+    Returns
+    -------
+    `n_features` : int
+        The number of features found in the chunk.
+    '''
+
+    label, n_features = ndi.label(chunk, output=np.int64)
+    label.tofile(f'{chunk_prefix}{i}.int64')
+    del label
+
+    return n_features
+
+def largest_cc_of(sample_name, scale, mask, mask_name, plotting, plotting_dir, verbose=0):
+    '''
+    Find the largest connected component of a mask.
+    The output is a binary mask with only the largest connected component.
+
+    Parameters
+    ----------
+    `sample_name` : str
+        The sample name.
+    `scale` : int
+        The scale of the sample.
+    `mask` : np.ndarray[bool]
+        The mask to find the largest connected component of.
+    `mask_name` : str
+        The name of the mask.
+    `plotting` : bool
+        Whether to plot the middle planes of the mask.
+    `plotting_dir` : str
+        The directory to plot the middle planes to.
+    `verbose` : int
+        The verbosity level. Default is 0.
+
+    Returns
+    -------
+    `largest_component` : np.ndarray[bool]
+        The filtered largest connected component of the mask.
+    '''
+
+    nz, ny, nx = mask.shape
+    flat_size = nz * ny * nx
+    # Times 10 because input is uint8 (1 byte) and output is int64 (8 bytes)
+    should_be_on_disk = flat_size*9 > psutil.virtual_memory().available
+    layer_size = ny * nx
+    n_cores = mp.cpu_count() // 2 # Only count physical cores, assumes hyperthreading
+    available_memory = 1024**3 * 4 * n_cores # 1 GB per core
+    memory_per_core = available_memory // n_cores
+    elements_per_core = memory_per_core // 8 # 8 bytes per element
+    layers_per_core = elements_per_core // layer_size
+    # Align n_chunks to power of 2
+    n_chunks = max(1, int(2**np.ceil(np.log2(nz // layers_per_core)))) if nz > layers_per_core else 1
+    layers_per_chunk = nz // n_chunks
+    intermediate_folder = f"/tmp/maxibone/labels_bone_region_{mask_name}/{scale}x"
+    os.makedirs(intermediate_folder, exist_ok=True)
+
+    # If the mask is smaller than 1 GB, just label it in one go
+    if layers_per_chunk == 0 or layers_per_chunk >= nz:
+        label, n_features = ndi.label(mask, output=np.int64)
+        bincnts           = np.bincount(label[label > 0], minlength=n_features+1)
+        largest_cc_ix     = np.argmax(bincnts)
+
+        return (label == largest_cc_ix)
+    elif should_be_on_disk:
+        start = datetime.datetime.now()
+        with ThreadPool(n_cores) as pool:
+            label_chunk_partial = partial(label_and_store_chunk, chunk_prefix=f"{intermediate_folder}/{sample_name}_")
+            chunks = [mask[i*layers_per_chunk:(i+1)*layers_per_chunk] for i in range(n_chunks-1)]
+            chunks.append(mask[(n_chunks-1) * layers_per_chunk:])
+            n_labels = pool.starmap(label_chunk_partial, enumerate(chunks))
+            # Free memory
+            for chunk in chunks:
+                del chunk
+            del chunks
+        end = datetime.datetime.now()
+        # load uint16, threshold (uint16 > uint8), label (int64), write int64
+        total_bytes_processed = flat_size*2 + flat_size*2 + flat_size*8 + flat_size*8
+        gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
+        if verbose >= 1:
+            print (f'Loading and labelling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
+
+        np.array(n_labels, dtype=np.int64).tofile(f"{intermediate_folder}/{sample_name}_n_labels.int64")
+
+        largest_component = np.zeros((nz, ny, nx), dtype=bool)
+        lib_connected_components.largest_connected_component(largest_component, f"{intermediate_folder}/{sample_name}_", n_labels, (nz,ny,nx), (layers_per_chunk,ny,nx), verbose)
+
+        return largest_component
+    else: # label in chunks, but in memory
+        def label_worker(dataset, start, end):
+            '''
+            Label a chunk of the dataset - inplace.
+
+            Parameters
+            ----------
+            `dataset` : np.ndarray[bool]
+                The dataset to label.
+            `start` : int
+                The start `z` index of the chunk.
+            `end` : int
+                The end `z` index of the chunk.
+
+            Returns
+            -------
+            `n_features` : int
+                The number of features found in the chunk.
+            '''
+
+            chunk = dataset[start:end]
+            n_features = ndi.label(chunk, output=chunk)
+            return n_features
+
+        start = datetime.datetime.now()
+
+        with ThreadPool(n_cores) as pool:
+            labels = mask.astype(np.int64)
+            starts = [i*layers_per_chunk for i in range(n_chunks)]
+            ends = [(i+1)*layers_per_chunk for i in range(n_chunks-1)] + [nz]
+            n_labels = pool.starmap(label_worker, zip([labels]*n_chunks, starts, ends))
+
+        end = datetime.datetime.now()
+
+        total_bytes_processed = flat_size*1 + flat_size*8
+        gb_per_second = total_bytes_processed / (end-start).total_seconds() / 1024**3
+        if verbose >= 1:
+            print (f'Labeling {mask_name} took {end-start}. (throughput: {gb_per_second:.02f} GB/s)')
+
+        final_n_labels = lib_connected_components.merge_labeled_chunks(labels, np.array(n_labels), (n_chunks, layers_per_chunk, ny, nx), verbose)
+
+        if plotting:
+            plot_middle_planes(labels, plotting_dir, 'labeled', verbose)
+            plot_middle_planes(labels > 0, plotting_dir, 'labeled_binary', verbose)
+
+        # TODO use lib_general.bincount at some point.
+        bincounts = np.bincount(labels[labels > 0], minlength=final_n_labels+1)
+        largest_cc = np.argmax(bincounts)
+
+        return (labels == largest_cc)
+
 
 def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_names, field_scale, verbose = 0):
     '''
