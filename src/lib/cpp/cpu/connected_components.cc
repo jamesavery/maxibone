@@ -658,6 +658,12 @@ namespace cpu_par {
             apply_renaming(chunks + (i*chunk_size), this_chunk_size, renames[i]);
         }
 
+        // Handle the remainder of the last chunk, if it exists
+        if (total_z > n_chunks * global_shape.z) {
+            int64_t last_chunk_size = (total_z - (n_chunks * global_shape.z)) * global_shape.y * global_shape.x;
+            apply_renaming(chunks + (n_chunks*chunk_size), last_chunk_size, renames[n_chunks-1]);
+        }
+
         return n_labels[std::get<0>(index_tree[index_tree.size()-1][0])];
     }
 
