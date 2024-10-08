@@ -181,8 +181,8 @@ if __name__ == "__main__":
         plot_middle_planes(voxels_implanted, plotting_dir, 'implant-dilated-sanity', verbose=args.verbose)
         plot_middle_planes(bone_region_mask, plotting_dir, 'implant-bone-sanity', verbose=args.verbose)
 
-    voxels[~bone_region_mask] = 0
-    if args.plotting: plot_middle_planes(voxels, plotting_dir, 'voxels-boned', verbose=args.verbose)
+        voxels[~bone_region_mask] = 0
+        plot_middle_planes(voxels, plotting_dir, 'voxels-boned', verbose=args.verbose)
 
     if args.verbose >= 1: print(f"Saving bone_region mask to {output_dir}/{args.sample}.h5")
     update_hdf5_mask(f"{output_dir}/{args.sample}.h5",
