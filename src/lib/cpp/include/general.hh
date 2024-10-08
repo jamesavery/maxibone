@@ -33,6 +33,7 @@ namespace NS {
         const T *src_data = src.data;
         U *dst_data = dst.data;
 
+        #ifdef _OPENMP
         U *local_dsts[omp_get_max_threads()];
 
         #pragma omp parallel
@@ -55,6 +56,11 @@ namespace NS {
         for (int64_t i = 0; i < omp_get_max_threads(); i++) {
             free(local_dsts[i]);
         }
+        #else
+        for (int64_t flat_index = 0; flat_index < src_length; flat_index++) {
+            dst_data[src_data[flat_index]]++;
+        }
+        #endif
     }
 
     /**
