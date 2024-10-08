@@ -143,10 +143,9 @@ template <typename T> inline T erode_reduce(const T row, const T kernel) { retur
 
 PYBIND11_MODULE(morphology, m) {
     m.doc() = "Morphology operations."; // optional module docstring
+
     m.def("dilate_3d_sphere", &python_api::morphology_3d_sphere_wrapper<std::bit_or<mask_type>, false>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
     m.def("dilate_3d_sphere_bitpacked", &python_api::morphology_3d_sphere_bitpacked_wrapper<dilate_op, dilate_reduce, 0>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
-    //m.def("dilate_3d_sphere_alt", &python_api::morphology_3d_sphere_wrapper_alt<std::bit_or<mask_type>, false>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
     m.def("erode_3d_sphere", &python_api::morphology_3d_sphere_wrapper<std::bit_and<mask_type>, true>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
     m.def("erode_3d_sphere_bitpacked", &python_api::morphology_3d_sphere_bitpacked_wrapper<erode_op, erode_reduce, 0xFFFFFFFF>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
-    //m.def("erode_3d_sphere_alt", &python_api::morphology_3d_sphere_wrapper_alt<std::bit_and<mask_type>, true>, py::arg("np_voxels"), py::arg("radius"), py::arg("np_result").noconvert());
 }
