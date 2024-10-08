@@ -130,6 +130,15 @@ template <typename T> inline T erode_op(const T a, const T b) { return a & b; }
  * @tparam T The type of the operands.
  */
 template <typename T> inline T dilate_reduce(const T row, const T kernel) { return (row & kernel) != 0; };
+
+/**
+ * Reduction function for the erode operation in the bitpacked version of the morphology operation.
+ *
+ * @param row The row to reduce.
+ * @param kernel The kernel to reduce with.
+ * @return T The result of the reduction.
+ * @tparam T The type of the operands.
+ */
 template <typename T> inline T erode_reduce(const T row, const T kernel) { return kernel == (row & kernel); }
 
 PYBIND11_MODULE(morphology, m) {
