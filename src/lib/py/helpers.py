@@ -718,15 +718,14 @@ def largest_cc_of(sample_name, scale, mask, mask_name, plotting, plotting_dir, v
         final_n_labels = lib_connected_components.merge_labeled_chunks(labels, np.array(n_labels), (n_chunks, layers_per_chunk, ny, nx), verbose)
 
         if plotting:
-            plot_middle_planes(labels, plotting_dir, 'labeled', verbose=verbose)
-            plot_middle_planes(labels > 0, plotting_dir, 'labeled_binary', verbose=verbose)
+            plot_middle_planes(labels, plotting_dir, f'{mask_name}_labeled', verbose=verbose)
+            plot_middle_planes(labels > 0, plotting_dir, f'{mask_name}_labeled_binary', verbose=verbose)
 
         # TODO use lib_general.bincount at some point.
         bincounts = np.bincount(labels[labels > 0], minlength=final_n_labels+1)
         largest_cc = np.argmax(bincounts)
 
         return (labels == largest_cc)
-
 
 def load_chunk(sample, scale, offset, chunk_size, mask_name, mask_scale, field_names, field_scale, verbose = 0):
     '''
