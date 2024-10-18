@@ -571,7 +571,7 @@ if __name__ == "__main__":
         print (f"MUvpw = {np.round(Muvwp, 2)}")
         print (f"UVW  = {np.round(UVW, 2)}")
         print (f"UVWp = {np.round(UVWp, 2)}")
-        print (f"Cp = {np.round(Cp_zyx, 2)}")
+        print (f"Cp_zyx = {np.round(Cp_zyx, 2)}")
         print (f"cp = {np.round(cp, 2)}")
         print (f"cm = {np.round(cm, 2)}")
         print (f'rs = {np.round(rs.flatten(), 2)}')
@@ -592,6 +592,8 @@ if __name__ == "__main__":
                           "center_of_cylinder_UVW": cp,
                           "UVWp_transform": Muvwp,
                           "center_of_cylinder_zyx": Cp_zyx, # Cp is in scaled voxel xyz
+                          "center_of_cylinder_array_center": UVW2xyz(Cs), # 100 sampled centers of cylinder, Cs -> (100,3)
+                          "center_of_cylinder_array_radius": np.array([UVW2xyz(max(Rs))[0]]), # Rs -> (100,) this max is basically = implant_radius
                           "bounding_box_UVWp": np.array([[implant_Ups.min(), implant_Ups.max()],
                                                          [implant_Vps.min(), implant_Vps.max()],
                                                          [implant_Wps.min(), implant_Wps.max()]]),
