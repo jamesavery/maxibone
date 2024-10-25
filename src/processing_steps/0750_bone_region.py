@@ -33,6 +33,7 @@ if __name__ == "__main__":
     implant_file = h5py.File(f"{hdf5_root}/masks/{args.sample_scale}x/{args.sample}.h5",'r')
     implant      = implant_file["implant/mask"][:].astype(np.uint8)
     voxel_size   = implant_file["implant"].attrs["voxel_size"]
+    novisimflag = implant_file.attrs["novisim"]
     implant_file.close()
 
     nz, ny, nx = implant.shape
@@ -132,7 +133,7 @@ if __name__ == "__main__":
     del front_part
     if args.plotting: plot_middle_planes(bone_mask1, plotting_dir, 'implant-bone1-sanity', verbose=args.verbose)
 
-    if 'novisim' in args.sample:
+    if novisimflag:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 15 # micrometers
     else:
         closing_diameter, opening_diameter, implant_dilate_diameter = 400, 300, 5 # micrometers
