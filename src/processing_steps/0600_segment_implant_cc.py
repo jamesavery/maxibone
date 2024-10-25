@@ -60,7 +60,12 @@ if __name__ == "__main__":
     if args.verbose >= 1: print(f"Reading full volume {args.sample} at {args.sample_scale}x")
     voxels = np.empty((nz,ny,nx), dtype=np.uint16)
     load_slice(voxels, f"{binary_root}/voxels/{args.sample_scale}x/{args.sample}.uint16", (0,0,0), (nz,ny,nx))
+    if args.plotting:
+        plot_middle_planes(voxels, plotting_dir, "voxels")
     noisy_implant = (voxels > implant_threshold_u16)
+    if args.plotting:
+        plot_middle_planes(noisy_implant, plotting_dir, "noisy_implant")
+
     del voxels
 
     implant_mask = largest_cc_of(args.sample, args.sample_scale, noisy_implant, 'implant', args.plotting, plotting_dir, args.verbose)

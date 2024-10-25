@@ -11,11 +11,11 @@ sys.path.append(f'{pathlib.Path(os.path.abspath(__file__)).parent.parent}')
 import matplotlib
 matplotlib.use('Agg')
 
-from config.paths import hdf5_root, binary_root
+from config.paths import hdf5_root, binary_root, get_plotting_dir
 import h5py
 from lib.cpp.cpu_seq.io import write_slice
 from lib.py.commandline_args import default_parser
-from lib.py.helpers import update_hdf5
+from lib.py.helpers import update_hdf5, plot_middle_planes
 import numpy as np
 from tqdm import tqdm
 
@@ -51,6 +51,10 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
     vm_shifts      = msb_file['volume_matching_shifts'][:]
     Nvols          = len(subvolume_dims)
     Nzs            = subvolume_dims[:,0]
+
+    if args.plotting:
+        plotting_dir = get_plotting_dir(args.sample, args.sample_scale)
+        pathlib.Path(plotting_dir).mkdir(parents=True, exist_ok=True)
 
     # TODO Rather than just choosing one of the volumes as the reference in the overlapping regions, make a smooth weighted average based on how "close" each plane is to each of the volumes.
 
@@ -95,6 +99,10 @@ def h5tobin(sample, region=(slice_all,slice_all,slice_all), verbose=0):
         subvolume_msb = dmsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         subvolume_lsb = dlsb[input_zstarts[i]:input_zends[i],y_range,x_range].astype(np.uint16)
         combined = (subvolume_msb << 8) | subvolume_lsb
+
+        plot_middle_planes(subvolume_msb, plotting_dir, f"{i}_msb") 
+        plot_middle_planes(subvolume_lsb, plotting_dir, f"{i}_lsb") 
+        plot_middle_planes(combined, plotting_dir, f"{i}_combined") 
 
         if i == 0:
             total = output_zends[-1] * combined.shape[1] * combined.shape[2]
