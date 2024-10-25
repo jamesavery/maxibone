@@ -42,7 +42,9 @@ if __name__ == "__main__":
     global_vmax = np.max(h5meta['subvolume_range'][:,1])
     values      = np.linspace(global_vmin,global_vmax,2**16)
     implant_threshold_u16 = np.argmin(np.abs(values-implant_threshold))
-    if 'novisim' in args.sample:
+
+    # check if chosen sample has novisim flag set in metadata
+    if h5meta["novisim"]:
         implant_threshold_u16 = implant_threshold_u16_novisim
 
     if args.verbose >= 2: print(f"""

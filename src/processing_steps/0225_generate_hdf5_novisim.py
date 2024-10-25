@@ -112,6 +112,7 @@ if __name__ == "__main__":
     h5_msb = h5py.File(f'{output_dir}/msb/{args.sample}.h5', 'w')
 
     for h5, tomo in [(h5_lsb, tomo_lsb), (h5_msb, tomo_msb)]:
+        h5.attrs["novisim"] = 1 # set flag to mark file as novisim tomogram
         h5.create_dataset('subvolume_dimensions', (1,3), data=[[nz, ny, nx]], dtype=np.uint16)
         h5.create_dataset('subvolume_range', (1,2,), dtype=np.float32, data=np.array([0, 65535]))
         h5_tomo = h5.create_dataset('voxels', (nz, ny, nx), dtype=np.uint8, data=tomo)

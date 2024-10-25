@@ -532,7 +532,8 @@ if __name__ == '__main__':
         if args.verbose >= 1: print(f"Loaded {gb:.02f} GB in {end-start} ({gb / (end-start).total_seconds()} GB/s)")
         verify_and_benchmark(voxels, field, plotting_dir, args.voxel_bins // args.sample_scale, args.benchmark_runs, args.verbose)
     else:
-        if 'novisim' in args.sample:
+        h5meta = h5py.File(f'{hdf5_root}/hdf5-byte/msb/{args.sample}.h5', 'r')
+        if h5meta["novisim"]:
             implant_threshold = 40000
         else:
             implant_threshold = implant_threshold_u16
