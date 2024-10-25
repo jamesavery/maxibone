@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     # Store metadata in both files for each subvolume scan
     for h5file in [h5file_msb,h5file_lsb]:
-        # never a novisim tomogram at this point, but added to all *.h5 files for later checks
+        # h5 file is marked as not being related to novisim. This is used in later checks.
         h5file.attrs["novisim"] = 0
         grp_meta = h5file.create_group("metadata")
         for i in range(len(subvolume_metadata)):
