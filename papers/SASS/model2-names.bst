@@ -1,1 +1,0 @@
-../templates/MEDIMA-template/model2-names.bst
