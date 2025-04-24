@@ -36,7 +36,8 @@ def esrf_edf_metadata(filename):
             if (len(kv) >= 2):
                 meta[kv[0].strip()] = kv[1].strip()
 
-        assert meta["ByteOrder"] == "LowByteFirst"
+        # removing " ;"
+        assert meta["ByteOrder"].split()[0] == "LowByteFirst"
 
         if (meta["DataType"] == "UnsignedShort"):
             meta["NumpyType"] = np.uint16
